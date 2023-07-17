@@ -4,6 +4,8 @@ package burp.ui;
 
 import burp.IBurpExtenderCallbacks;
 import burp.bean.Config;
+import burp.utils.Utils;
+import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -11,6 +13,8 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +42,7 @@ public class ConfigUI extends JPanel implements UIHandler{
     private JButton saveIpButton;
     private JButton saveToolButton;
     private JButton deleteSelectButton;
+    private JButton deleteHostButton;
     private JScrollPane scrollPane2;
     private JTable table1;
 
@@ -68,6 +73,7 @@ public class ConfigUI extends JPanel implements UIHandler{
         saveIpButton = new JButton();
         saveToolButton = new JButton();
         deleteSelectButton = new JButton();
+        deleteHostButton = new JButton();
         table1 = new JTable(dataModel);
         scrollPane2 = new JScrollPane(table1);
 
@@ -144,6 +150,9 @@ public class ConfigUI extends JPanel implements UIHandler{
         deleteSelectButton.setText("删除选中");
         panel6.add(deleteSelectButton);
 
+        deleteHostButton.setText("删除host过滤");
+        panel6.add(deleteHostButton);
+
         splitPane1.setTopComponent(panel6);
 
 //======== scrollPane2 ========
@@ -218,6 +227,18 @@ public class ConfigUI extends JPanel implements UIHandler{
                     data.remove(selectedRow);
                     dataModel.fireTableRowsDeleted(selectedRow, selectedRow);
                     dataModel.fireTableDataChanged();
+                }
+            }
+        });
+        deleteHostButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String configPath = Utils.workdir+ "config.json";
+                File file = new File(configPath);
+                try {
+                    FileUtils.delete(file);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
                 }
             }
         });

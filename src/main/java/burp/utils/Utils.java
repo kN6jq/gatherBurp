@@ -26,6 +26,7 @@ public class Utils {
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
 
+
     public static boolean isIP(String input) {
         String ipPattern = "^((\\d{1,3}\\.){3}\\d{1,3})$";
         return Pattern.matches(ipPattern, input);

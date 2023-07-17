@@ -5,6 +5,7 @@
 3. 未授权检测
 4. sql注入检测
 5. 工具调用
+6. host删除过滤
 
 # 使用说明
 
@@ -76,6 +77,17 @@
 2. {host} 会被替换为当前请求的host
 3. {url} 会被替换为当前请求的url
 4. {request} 会保存当前数据包到用户名目录的./gather/目录下,进行调用
+
+## host删除过滤
+
+1. 参考NOVASEC公众号《GPT都解决不了的Burp无用流量过滤问题》
+2. 在数据包右击选择drop host即可过滤掉该host的所有流量,需要burp选择show only in scope
+
+![img.png](images/drophost.png)
+
+3. 需要重新设置的话,首先在config面板点击删除host过滤,然后清空scope
+
+![img.png](images/scop.png)
 
 
 # 后期计划

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 import burp.bean.Config;
+import burp.menu.*;
 import burp.ui.*;
 import burp.utils.*;
 
@@ -44,94 +45,6 @@ public class BurpExtender  implements IBurpExtender, IContextMenuFactory{
         List<JMenuItem> listMenuItems = new ArrayList<JMenuItem>(1);
         IHttpRequestResponse[] responses = iContextMenuInvocation.getSelectedMessages();
         IHttpRequestResponse baseRequestResponse = iContextMenuInvocation.getSelectedMessages()[0];
-        JMenu fastjson = new JMenu("FastJson");
-        JMenuItem Dnslog = new JMenuItem("FastJson Dnslog Check");
-        Dnslog.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastJsonUI().CheckDnslog(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-        fastjson.add(Dnslog);
-
-        JMenuItem Echo = new JMenuItem("FastJson Echo Check");
-        Echo.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastJsonUI().CheckEchoVul(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-        fastjson.add(Echo);
-
-        JMenuItem JNDI = new JMenuItem("FastJson JNDI Check");
-        JNDI.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastJsonUI().CheckJNDIVul(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-        fastjson.add(JNDI);
-
-        JMenuItem auth = new JMenuItem("AuthBypass Check");
-        auth.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new AuthUI().CheckAuthBypass(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-
-        JMenuItem perm = new JMenuItem("PermBypass Check");
-        perm.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new PermUI().CheckPermBypass(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-
-        JMenuItem sqli = new JMenuItem("SQLi Check");
-        sqli.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new SqlUI().CheckSQLi(responses);
-                    }
-                });
-                thread.start();
-
-            }
-        });
-
 
         JMenu tools = new JMenu("tools");
         List<Config> toolParam = getToolConfig();
@@ -171,14 +84,16 @@ public class BurpExtender  implements IBurpExtender, IContextMenuFactory{
                 }));
             }
         }
-
-
-        listMenuItems.add(fastjson);
-        listMenuItems.add(auth);
-        listMenuItems.add(perm);
-        listMenuItems.add(sqli);
         listMenuItems.add(tools);
-
+        JMenu fastjson = new JMenu("FastJson");
+        fastjson.add(new FastjsonDnslogMenu(responses));
+        fastjson.add(new FastjsonEchoMenu(responses));
+        fastjson.add(new FastjsonJNDIMenu(responses));
+        listMenuItems.add(fastjson);
+        listMenuItems.add(new AuthBypassMenu(responses));
+        listMenuItems.add(new PermBypassMenu(responses));
+        listMenuItems.add(new SqlMenu(responses));
+        listMenuItems.add(new DropHostMenu(responses));
         return listMenuItems;
     }
 
