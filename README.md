@@ -6,6 +6,7 @@
 4. sql注入检测
 5. 工具调用
 6. host删除过滤
+7. log4j检测
 
 # 使用说明
 
@@ -89,7 +90,15 @@
 
 ![img.png](images/scop.png)
 
+## log4j检测
+
+1. 支持自定义payload,可选择是dnslog地址或ip，替换参数为dnslog-url
+2. 支持get,post,json,header等多种方式
+3. 支持被动扫描
+
+![img.png](images/log4j.png)
 
 # 后期计划
 
-1. 如有想法,可以提issue
+1. 优化ui
+2. 如有想法,可以提issue

@@ -127,25 +127,13 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
 
         // 初始化删除按钮是否选中
         Config delOriginalValueSelect = getValueByModuleAndType("sql","delOriginalValue");
-        if (delOriginalValueSelect.getValue().equals("true")){
-            delOriginalValuebutton.setSelected(true);
-        }else {
-            delOriginalValuebutton.setSelected(false);
-        }
+        delOriginalValuebutton.setSelected(delOriginalValueSelect.getValue().equals("true"));
         // 初始化域名白名单按钮是否选中
         Config whitedomainStatusSelect = getValueByModuleAndType("sql","whitedomainStatus");
-        if (whitedomainStatusSelect.getValue().equals("true")){
-            whitedomainStatusbutton.setSelected(true);
-        }else {
-            whitedomainStatusbutton.setSelected(false);
-        }
+        whitedomainStatusbutton.setSelected(whitedomainStatusSelect.getValue().equals("true"));
         // 初始化cookie检测按钮是否选中
         Config enableCookieSelect = getValueByModuleAndType("sql","enableCookie");
-        if (enableCookieSelect.getValue().equals("true")){
-            enableCookiebutton.setSelected(true);
-        }else {
-            enableCookiebutton.setSelected(false);
-        }
+        enableCookiebutton.setSelected(enableCookieSelect.getValue().equals("true"));
 
 
         // 当选中开启插件时，禁用白名单域名和sqlpayload

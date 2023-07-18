@@ -24,6 +24,7 @@ public class MainUI extends JPanel implements ITab {
         UiList.add("burp.ui.AuthUI");
         UiList.add("burp.ui.PermUI");
         UiList.add("burp.ui.SqlUI");
+        UiList.add("burp.ui.Log4jUI");
         UiList.add("burp.ui.ConfigUI");
         return UiList;
     }

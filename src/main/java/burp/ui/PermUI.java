@@ -3,7 +3,6 @@ package burp.ui;
 import burp.*;
 import burp.bean.Perm;
 import burp.utils.Utils;
-import com.sun.org.apache.bcel.internal.generic.IF_ACMPEQ;
 
 
 import javax.swing.*;

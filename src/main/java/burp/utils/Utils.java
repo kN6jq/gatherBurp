@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import org.apache.commons.codec.net.URLCodec;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -26,6 +27,15 @@ public class Utils {
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
 
+    public static String urlEncode(String input) {
+        try {
+            URLCodec codec = new URLCodec();
+            return codec.encode(input);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return input; // 返回原始输入作为默认值
+    }
 
     public static boolean isIP(String input) {
         String ipPattern = "^((\\d{1,3}\\.){3}\\d{1,3})$";
