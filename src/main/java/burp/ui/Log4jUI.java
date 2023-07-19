@@ -578,6 +578,8 @@ public class Log4jUI extends AbstractTableModel implements UIHandler, IMessageEd
                 return;
             }
         }
+        String logPrefix = getReqTag(baseRequestResponse,analyzeRequest);
+        Utils.stdout.println(logPrefix);
         // 先将payload存储
         Set<String> log4jPayload = new LinkedHashSet<>();
         List<Log4j> payloadList = getPayloadList();
@@ -588,10 +590,10 @@ public class Log4jUI extends AbstractTableModel implements UIHandler, IMessageEd
                 if (log4j.getPayload().contains("dnslog-url")) {
                     if (getValueByModuleAndType("log4j", "dns").getValue().equals("true")) {
                         String dns = getValueByModuleAndType("config", "dnslog").getValue();
-                        log4jPayload.add(Utils.urlEncode(log4j.getPayload()).replace("dnslog-url", dns));
+                        log4jPayload.add(Utils.urlEncode(log4j.getPayload()).replace("dnslog-url", logPrefix+dns));
                     } else {
                         String ip = getValueByModuleAndType("config", "ip").getValue();
-                        log4jPayload.add(Utils.urlEncode(log4j.getPayload()).replace("dnslog-url", ip));
+                        log4jPayload.add(Utils.urlEncode(log4j.getPayload()).replace("dnslog-url", ip+"/"+logPrefix));
                     }
                 }else {
                     log4jPayload.add(log4j.getPayload());
@@ -732,6 +734,26 @@ public class Log4jUI extends AbstractTableModel implements UIHandler, IMessageEd
             }
         }
 
+    }
+    private String getReqTag(IHttpRequestResponse baseRequestResponse, IRequestInfo req){
+        List<String> requestHeader = req.getHeaders();
+        // 循环获取参数，判断类型，进行加密处理后，再构造新的参数，合并到新的请求包中。
+        //第一行请求包含请求方法、请求uri、http版本
+        String firstrequestHeader = requestHeader.get(0);
+        String[] firstheaders = firstrequestHeader.split(" ");
+        String uri = firstheaders[1].split("\\?")[0].replace("/",".");
+        if (firstheaders[1].split("\\?")[0].replace("/",".").length() > 25) {
+            uri = uri.substring(0, 25);
+            if (uri.endsWith(".")) {
+                uri = uri.substring(0,uri.length()-1);
+            }
+        }
+        if (uri.endsWith(".")) {
+            uri = uri.substring(0,uri.length()-1);
+        }
+        IHttpService httpService = baseRequestResponse.getHttpService();
+        String host = httpService.getHost();
+        return firstheaders[0].trim() + "." + host  + uri + ".";
     }
 
     public void add(String extensionMethod, String url, String status, String res, IHttpRequestResponse baseRequestResponse) {

@@ -92,7 +92,7 @@
 
 ## log4j检测
 
-1. 支持自定义payload,可选择是dnslog地址或ip，替换参数为dnslog-url
+1. 支持自定义payload,可通过勾选dns选择是dnslog地址,否则为ip，替换参数为dnslog-url
 2. 支持get,post,json,header等多种方式
 3. 支持被动扫描
 
