@@ -134,7 +134,6 @@ public class BurpExtender  implements IBurpExtender, IContextMenuFactory,IHttpLi
         if (toolFlag == IBurpExtenderCallbacks.TOOL_REPEATER && messageIsRequest){
             byte[] request = messageInfo.getRequest();
             String requestStr = helpers.bytesToString(request);
-            Utils.stdout.println(requestStr);
             if (requestStr.contains("<datab64>")){
                 String data = requestStr.substring(requestStr.indexOf("<datab64>")+9,requestStr.indexOf("</datab64>"));
                 byte[] decodedData = Base64.getDecoder().decode(data);
