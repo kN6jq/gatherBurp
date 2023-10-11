@@ -93,6 +93,7 @@ public class ConfigUI extends JPanel implements UIHandler{
 
 //---- textField3 ----
         textField3.setText("www.dnslog.cn");
+        textField3.setColumns(20);
         panel1.add(textField3);
 
 //---- label3 ----
@@ -101,6 +102,7 @@ public class ConfigUI extends JPanel implements UIHandler{
 
 //---- textField4 ----
         textField4.setText("127.0.0.1");
+        textField4.setColumns(20);
         panel1.add(textField4);
 
 //---- label4 ----
@@ -109,6 +111,7 @@ public class ConfigUI extends JPanel implements UIHandler{
 
 //---- textField5 ----
         textField5.setText("sqlmap");
+        textField5.setColumns(20);
         panel1.add(textField5);
 
 //---- label5 ----
@@ -117,6 +120,7 @@ public class ConfigUI extends JPanel implements UIHandler{
 
 //---- textField6 ----
         textField6.setText("c:\\sqlmap\\sqlmap.py -r 1.txt --batch --tamper=space2comment");
+        textField6.setColumns(20);
         panel1.add(textField6);
 
         splitPane.setTopComponent(panel1);

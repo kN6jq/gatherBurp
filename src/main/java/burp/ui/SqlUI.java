@@ -48,6 +48,7 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
     private Boolean delOriginalValue; // 是否删除原始值
     private Boolean whitedomainStatus; // 是否开启域名白名单
     private Boolean enableCookie; // 是否开启cookie
+    private boolean scanProxy = false; // 是否开启被动扫描
 
     @Override
     public IHttpService getHttpService() {
@@ -76,6 +77,7 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
         JPanel jp = new JPanel(new BorderLayout());
         splitPane1 = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT); // 左右分割面板
         splitPane1.setResizeWeight(0.8);
+        splitPane1.setDividerSize(0);
 
         splitPane2 = new JSplitPane(JSplitPane.VERTICAL_SPLIT); // 左边的上下分割面板
         splitPane2.setResizeWeight(0.5);
@@ -110,19 +112,23 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
         splitPane2.add(xjSplitPane, JSplitPane.BOTTOM);
 
 
-        // 面板
+
         panel1 = new JPanel();
         panel1.setLayout(new BoxLayout(panel1, BoxLayout.Y_AXIS));
+
         JPanel row1Panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         startPluginbutton = new JCheckBox("启用插件");
         row1Panel.add(startPluginbutton);
         delOriginalValuebutton = new JCheckBox("删除原始值");
         row1Panel.add(delOriginalValuebutton);
-        whitedomainStatusbutton = new JCheckBox("开启域名白名单");
-        row1Panel.add(whitedomainStatusbutton);
-        enableCookiebutton = new JCheckBox("开启cookie检测");
-        row1Panel.add(enableCookiebutton);
         panel1.add(row1Panel);
+
+        JPanel row2Panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        whitedomainStatusbutton = new JCheckBox("开启域名白名单");
+        row2Panel.add(whitedomainStatusbutton);
+        enableCookiebutton = new JCheckBox("开启cookie检测");
+        row2Panel.add(enableCookiebutton);
+        panel1.add(row2Panel);
 
 
         // 初始化删除按钮是否选中
@@ -140,19 +146,10 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
         startPluginbutton.addItemListener(new ItemListener() {
             @Override public void itemStateChanged(ItemEvent e) {
                 if (startPluginbutton.isSelected()){
-                    Config config = new Config();
-                    config.setModule("sql");
-                    config.setType("startPlugin");
-                    config.setValue("true");
-                    updateConfigSetting(config);
+                    scanProxy = true;
                     whitedomain.setEnabled(false);
                     sqlpayload.setEnabled(false);
                 }else {
-                    Config config = new Config();
-                    config.setModule("sql");
-                    config.setType("startPlugin");
-                    config.setValue("false");
-                    updateConfigSetting(config);
                     whitedomain.setEnabled(true);
                     sqlpayload.setEnabled(true);
                 }
@@ -209,20 +206,21 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
                     updateConfigSetting(config);
                 }
         }});
-        JPanel row2Panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+
+        JPanel row3Panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton refershButton = new JButton("刷新表格数据");
-        row2Panel.add(refershButton);
-
+        row3Panel.add(refershButton);
         JButton delallButton = new JButton("删除表格全部");
-        row2Panel.add(delallButton);
+        row3Panel.add(delallButton);
+        panel1.add(row3Panel);
 
+        JPanel row4Panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton saveDomainButton = new JButton("保存白名单域名");
-        row2Panel.add(saveDomainButton);
-        panel1.add(row2Panel);
-
+        row4Panel.add(saveDomainButton);
         JButton saveSqlPayloadButton = new JButton("保存sqlpayload");
-        row2Panel.add(saveSqlPayloadButton);
-        panel1.add(row2Panel);
+        row4Panel.add(saveSqlPayloadButton);
+        panel1.add(row4Panel);
 
         // 当点击刷新表格数据时，刷新表格数据
         refershButton.addActionListener(new ActionListener() {
@@ -642,8 +640,6 @@ public class SqlUI extends AbstractTableModel implements UIHandler, IMessageEdit
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
-        Config enableSqli = getValueByModuleAndType("sql", "startPlugin");
-        boolean scanProxy = enableSqli.getValue().equals("true");
         if (scanProxy && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest){
             synchronized (log){
                 Thread thread = new Thread(new Runnable() {

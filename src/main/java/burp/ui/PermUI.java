@@ -107,7 +107,7 @@ public class PermUI extends AbstractTableModel implements UIHandler, IMessageEdi
         row1Panel.add(startplugin);
         JButton saveButton = new JButton("保存数据");
         row1Panel.add(saveButton);
-        JButton deleteButton = new JButton("删除历史数据");
+        JButton deleteButton = new JButton("删除缓存数据");
         row1Panel.add(deleteButton);
         jPanel.add(row1Panel);
 
@@ -198,7 +198,7 @@ public class PermUI extends AbstractTableModel implements UIHandler, IMessageEdi
                 String domainText = whiteDomain.getText();
                 String lowAuthText = lowAuth.getText();
                 String noAuthText = noAuth.getText();
-                if (domainText.equals("白名单域名 eg:www.baidu.com,不填则不运行插件")){
+                if (domainText.equals("")){
                     JOptionPane.showMessageDialog(null, "请填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -237,6 +237,7 @@ public class PermUI extends AbstractTableModel implements UIHandler, IMessageEdi
                     lowAuth.setEnabled(false); // 禁用输入框
                     noAuth.setEnabled(false); // 禁用输入框
                 } else { // 单选框未被选中
+                    scanProxy = false;
                     whiteDomain.setEnabled(true); // 启用输入框
                     lowAuth.setEnabled(true); // 启用输入框
                     noAuth.setEnabled(true); // 启用输入框
