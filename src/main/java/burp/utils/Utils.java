@@ -21,7 +21,7 @@ public class Utils {
     public static PrintWriter stdout;
     public static PrintWriter stderr;
     public static String name = "gatherBurp";
-    public static String version = "1.0.1";
+    public static String version = "1.0.3";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
 
