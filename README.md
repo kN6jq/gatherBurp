@@ -15,6 +15,7 @@
 5. 工具调用
 7. log4j检测
 8. 复杂数据提交
+9. 一键生成nuclei模板
 
 # 使用说明
 
@@ -97,6 +98,10 @@
 2. 请将数据进行base64后,放在`<datab64></datab64>`中,然后点击提交即可
 
 ![img.png](images/base64file.png)
+
+## 一键生成nuclei模板
+
+1. 在request面板使用右击可生成nuclei模板
 
 # 后期计划
 
