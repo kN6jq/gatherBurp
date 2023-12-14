@@ -1,12 +1,17 @@
 package burp.utils;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class DbUtils {
-    public static String DB_NAME = "gather_dev.db";
+    public static String DB_NAME = "gatherburp.db";
+    public static String PROJECT_PATH = System.getProperty("user.home") + "/.gather/";
     public static String DB_PATH = System.getProperty("user.home") + "/.gather/" + DB_NAME;
     public static String DB_URL = "jdbc:sqlite:" + DB_PATH;
     public static String DB_DRIVER = "org.sqlite.JDBC";
@@ -18,10 +23,17 @@ public class DbUtils {
         } catch (ClassNotFoundException e) {
             Utils.stderr.println(e.getMessage());
         }
-        File file = new File(DB_PATH);
-        if (!file.exists()) {
-            create();
+        // 判断文件夹是否存在 若不存在则先创建
+        Path path = Paths.get(PROJECT_PATH);
+        if (!Files.exists(path)){
+            try {
+                Files.createDirectories(path);
+            }catch (Exception e ){
+                Utils.stderr.println("创建文件夹失败");
+            }
         }
+        // 创建数据库
+        create();
     }
 
     public static Connection getConnection() throws SQLException {
