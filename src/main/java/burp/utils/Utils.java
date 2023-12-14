@@ -4,7 +4,6 @@ import burp.IBurpExtenderCallbacks;
 import burp.IExtensionHelpers;
 import burp.IHttpRequestResponse;
 import org.apache.commons.io.FileUtils;
-import org.springframework.util.DigestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +20,7 @@ public class Utils {
     public static PrintWriter stdout;
     public static PrintWriter stderr;
     public static String name = "gatherBurp";
-    public static String version = "1.0.3";
+    public static String version = "1.0.4";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
 
@@ -107,10 +106,6 @@ public class Utils {
         return URLEncoder.encode(input);
     }
 
-    // 对字符串进行MD5编码
-    public static String MD5Encode(String input) {
-        return DigestUtils.md5DigestAsHex(input.getBytes());
-    }
 
 
 }
