@@ -29,14 +29,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static final List<UrlEntry> log = new ArrayList<>();
     private static final List<PayloadEntry> data = new ArrayList<>();
     private static final List<PayloadEntry> data2 = new ArrayList<>();
+    private static final List<String> parameterList = new ArrayList<>();
+    private static final List<String> urlHashList = new ArrayList<>();
     private static JTable sqlUrltable1;
     private static JTable sqlPayloadtable2;
     private static boolean isPassiveScan;
     private static boolean isDeleteOrgin;
     private static boolean isCheckCookie;
     private static boolean isWhiteDomain;
-    private static final List<String> parameterList = new ArrayList<>();
-    private static final List<String> urlHashList = new ArrayList<>();
     public AbstractTableModel model = new PayloadModel();
     private JPanel panel;
     private JCheckBox sqlPassiveScanCheckBox;

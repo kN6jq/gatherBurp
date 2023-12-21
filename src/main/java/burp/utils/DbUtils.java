@@ -1,7 +1,5 @@
 package burp.utils;
 
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -17,7 +15,6 @@ public class DbUtils {
     public static String DB_DRIVER = "org.sqlite.JDBC";
 
     static {
-
         try {
             Class.forName(DB_DRIVER);
         } catch (ClassNotFoundException e) {
@@ -25,15 +22,15 @@ public class DbUtils {
         }
         // 判断文件夹是否存在 若不存在则先创建
         Path path = Paths.get(PROJECT_PATH);
-        if (!Files.exists(path)){
+        if (!Files.exists(path)) {
             try {
                 Files.createDirectories(path);
-            }catch (Exception e ){
+            } catch (Exception e) {
                 Utils.stderr.println("创建文件夹失败");
             }
+            // 创建数据库
+            create();
         }
-        // 创建数据库
-        create();
     }
 
     public static Connection getConnection() throws SQLException {
@@ -46,7 +43,7 @@ public class DbUtils {
         try {
 
             Connection connection = DriverManager.getConnection(DB_URL);
-            Utils.stdout.println("init db success");
+
             List<String> sqls = new ArrayList<>();
             sqls.add("CREATE TABLE IF NOT EXISTS \"config\" (\n" +
                     "  \"id\" INTEGER,\n" +
@@ -145,6 +142,7 @@ public class DbUtils {
                 statement.execute(sql);
                 statement.close();
             }
+            Utils.stdout.println("init db success");
         } catch (SQLException e) {
             System.out.println(e.getMessage());
             Utils.stderr.println(e.getMessage());

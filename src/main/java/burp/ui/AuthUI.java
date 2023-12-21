@@ -24,10 +24,10 @@ import static burp.utils.Utils.getSuffix;
 
 public class AuthUI implements UIHandler, IMessageEditorController {
     private static final List<LogEntry> log = new ArrayList<>();
-    private static JTable authTable;
     // 去重存放的列表
     private static final List<String> parameterList = new ArrayList<>();
     private static final List<String> urlHashList = new ArrayList<>();
+    private static JTable authTable;
     private JPanel panel;
     private JPanel authPanel;
     private JButton authRefershButton;

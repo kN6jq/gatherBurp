@@ -23,11 +23,11 @@ import static burp.utils.Utils.getSuffix;
 
 public class PermUI implements UIHandler, IMessageEditorController, IHttpListener {
     private static final List<LogEntry> log = new ArrayList<>();
+    private static final List<String> parameterList = new ArrayList<>();
+    private static final List<String> urlHashList = new ArrayList<>();
     private static JTable permTable;
     private static boolean whiteDomain;
     private static boolean passiveScan;
-    private static final List<String> parameterList = new ArrayList<>();
-    private static final List<String> urlHashList = new ArrayList<>();
     private JPanel panel;
     private JTabbedPane tabbedPane2;
     private JPanel originTabbedPane;

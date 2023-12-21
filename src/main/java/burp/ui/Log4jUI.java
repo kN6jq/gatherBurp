@@ -25,14 +25,14 @@ import static burp.dao.Log4jDao.*;
 
 public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListener {
     private static final List<LogEntry> log = new ArrayList<>();
+    private static final List<String> parameterList = new ArrayList<>();
+    private static final List<String> urlHashList = new ArrayList<>();
     private static JTable log4jTable;
     private static boolean enableHeader;
     private static boolean enableParam;
     private static boolean enableWhiteDomain;
     private static boolean originalPayload;
     private static boolean passiveScan;
-    private static final List<String> parameterList = new ArrayList<>();
-    private static final List<String> urlHashList = new ArrayList<>();
     private JPanel panel;
     private JCheckBox passiveBox;
     private JCheckBox headerBox;
@@ -631,7 +631,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     }
 
     @Override
-    public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
+    public void processHttpMessage(int toolFlag, boolean messageIsRequest, final IHttpRequestResponse iHttpRequestResponse) {
 
         if (passiveScan && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
             synchronized (log) {
