@@ -46,9 +46,28 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         IHttpRequestResponse baseRequestResponse = iContextMenuInvocation.getSelectedMessages()[0];
 
         List<ConfigBean> toolParam = getToolConfig();
+
         for (ConfigBean config : toolParam) {
-            if (!Objects.equals(config.getType(), "") && !Objects.equals(config.getValue(), "")) {
-                listMenuItems.add(new JMenuItem(new AbstractAction(config.getType()) {
+            String name = config.getType();
+            String value = config.getValue();
+            if (!Objects.equals(name, "") && !Objects.equals(value, "")) {
+                String cmd = value;
+                if (requestResponses != null) {
+                    if (cmd.contains("{url}")) {
+                        String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
+                        cmd = cmd.replace("{url}", url);
+                    } else if (cmd.contains("{request}")) {
+                        String requestFilePath = writeReqFile(baseRequestResponse);
+                        assert requestFilePath != null;
+                        cmd = cmd.replace("{request}", requestFilePath);
+                    } else if (cmd.contains("{host}")) {
+                        String host = baseRequestResponse.getHttpService().getHost();
+                        cmd = cmd.replace("{host}", host);
+                    }
+                }
+                JMenuItem jMenuItem = new JMenuItem(name);
+                String finalCmd = cmd;
+                jMenuItem.addActionListener(new AbstractAction() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
                         Runnable toolRunner = new Runnable() {
@@ -56,21 +75,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                             public void run() {
                                 try {
                                     RobotInput ri = new RobotInput();
-                                    if (requestResponses != null) {
-                                        String cmd = config.getValue();
-                                        if (cmd.contains("{url}")) {
-                                            String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
-                                            cmd = cmd.replace("{url}", url);
-                                        } else if (cmd.contains("{request}")) {
-                                            String requestFilePath = writeReqFile(baseRequestResponse);
-                                            assert requestFilePath != null;
-                                            cmd = cmd.replace("{request}", requestFilePath);
-                                        } else if (cmd.contains("{host}")) {
-                                            String host = baseRequestResponse.getHttpService().getHost();
-                                            cmd = cmd.replace("{host}", host);
-                                        }
-                                        ri.inputString(cmd);
-                                    }
+                                    ri.inputString(finalCmd);
                                 } catch (Exception e1) {
                                     Utils.stderr.println(e1.getMessage());
                                 }
@@ -78,7 +83,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                         };
                         new Thread(toolRunner).start();
                     }
-                }));
+                });
+                listMenuItems.add(jMenuItem);
             }
         }
         JMenu fastjson = new JMenu("FastJson");
