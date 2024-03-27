@@ -411,6 +411,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 lowerresponse.setMessage(new byte[0], false);
                 norequest.setMessage(new byte[0], false);
                 noresponse.setMessage(new byte[0], false);
+                urlHashList.clear();
                 permTable.updateUI();
             }
         });

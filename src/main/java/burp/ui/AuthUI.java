@@ -305,6 +305,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                 log.clear();
                 HRequestTextEditor.setMessage(new byte[0], true);
                 HResponseTextEditor.setMessage(new byte[0], false);
+                urlHashList.clear();
                 authTable.updateUI();
             }
         });

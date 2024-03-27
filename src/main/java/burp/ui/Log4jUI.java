@@ -547,6 +547,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 log.clear();
                 HRequestTextEditor.setMessage(new byte[0], true);
                 HResponseTextEditor.setMessage(new byte[0], false);
+                urlHashList.clear();
                 log4jTable.updateUI();
             }
         });

@@ -525,6 +525,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             data2.clear();
             HRequestTextEditor.setMessage(new byte[0], true);
             HResponseTextEditor.setMessage(new byte[0], false);
+            urlHashList.clear();
             sqlUrltable1.updateUI();
             sqlPayloadtable2.updateUI();
         });
