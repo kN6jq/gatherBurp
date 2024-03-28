@@ -47,6 +47,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
 
         List<ConfigBean> toolParam = getToolConfig();
 
+        // todo: 此处有bug
         for (ConfigBean config : toolParam) {
             String name = config.getType();
             String value = config.getValue();

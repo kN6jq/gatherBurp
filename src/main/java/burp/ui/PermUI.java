@@ -512,7 +512,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
     @Override
     public String getTabName() {
-        return "未授权访问";
+        return "UnauthAccess";
     }
 
     static class PermModel extends AbstractTableModel {

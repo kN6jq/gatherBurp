@@ -13,6 +13,8 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -26,8 +28,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
     private static JTable fastjsonTable;
     private JPanel panel;
     private JPanel fastjsonPanel;
-    private JButton fastjsonRefershButton;
-    private JButton fastjsonClearButton;
+//    private JButton fastjsonRefershButton;
+//    private JButton fastjsonClearButton;
     private JSplitPane fastjsonJSplitPane1;
     private JSplitPane fastjsonJSplitPane2;
     private JTabbedPane fastjsonJTabbedPanetop;
@@ -51,12 +53,12 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         fastjsonPanel = new JPanel();
         fastjsonPanel.setLayout(new GridLayoutManager(2, 5, new Insets(0, 0, 0, 0), -1, -1));
         panel.add(fastjsonPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        fastjsonRefershButton = new JButton();
-        fastjsonRefershButton.setText("刷新");
-        fastjsonPanel.add(fastjsonRefershButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        fastjsonClearButton = new JButton();
-        fastjsonClearButton.setText("清空数据");
-        fastjsonPanel.add(fastjsonClearButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+//        fastjsonRefershButton = new JButton();
+//        fastjsonRefershButton.setText("刷新");
+//        fastjsonPanel.add(fastjsonRefershButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+//        fastjsonClearButton = new JButton();
+//        fastjsonClearButton.setText("清空数据");
+//        fastjsonPanel.add(fastjsonClearButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         fastjsonJSplitPane1 = new JSplitPane();
         fastjsonJSplitPane1.setDividerSize(2);
         fastjsonJSplitPane1.setOrientation(JSplitPane.VERTICAL_SPLIT);
@@ -85,23 +87,34 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
 
     private void setupData() {
 
-        fastjsonRefershButton.addActionListener(new AbstractAction() {
+//        fastjsonRefershButton.addActionListener(new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                fastjsonTable.updateUI();
+//            }
+//        });
+//        fastjsonClearButton.addActionListener(new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                log.clear();
+//                HRequestTextEditor.setMessage(new byte[0], true);
+//                HResponseTextEditor.setMessage(new byte[0], false);
+//
+//                fastjsonTable.updateUI();
+//            }
+//        });
+        // 监听表格右击
+        fastjsonTable.addMouseListener(new MouseAdapter() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                fastjsonTable.updateUI();
+            public void mouseClicked(MouseEvent e) {
+                if (e.getButton() == MouseEvent.BUTTON3){
+                    log.clear();
+                    HRequestTextEditor.setMessage(new byte[0], true);
+                    HResponseTextEditor.setMessage(new byte[0], false);
+                    fastjsonTable.updateUI();
+                }
             }
         });
-        fastjsonClearButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log.clear();
-                HRequestTextEditor.setMessage(new byte[0], true);
-                HResponseTextEditor.setMessage(new byte[0], false);
-
-                fastjsonTable.updateUI();
-            }
-        });
-
     }
 
     public void CheckDnslog(IHttpRequestResponse[] responses) {
@@ -306,7 +319,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
 
     @Override
     public String getTabName() {
-        return "fastjson";
+        return "FastjsonScan";
     }
 
     static class FastjsonModel extends AbstractTableModel {

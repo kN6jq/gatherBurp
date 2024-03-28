@@ -9,18 +9,21 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Utils {
     public static IBurpExtenderCallbacks callbacks;
     public static IExtensionHelpers helpers;
     public static PrintWriter stdout;
     public static PrintWriter stderr;
-    public static String name = "gatherBurp";
-    public static String version = "1.0.4";
+    public static String name = "GatherBurp";
+    public static String version = "1.0.5";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
 
@@ -101,10 +104,51 @@ public class Utils {
         return input.replaceAll("[\\n\\r]", "");
     }
 
+    // 去除字符串两边的双引号
+    public static String RemoveQuotes(String input) {
+        // 去除字符串两边的双引号
+        if (input.startsWith("\"") && input.endsWith("\"")) {
+            input = input.substring(1, input.length() - 1);
+        }
+
+        return input;
+    }
+
     // 对字符串进行url编码
     public static String UrlEncode(String input) {
         return URLEncoder.encode(input);
     }
+    // 从HTML响应体中提取标题
+    public static String extractTitle(String responseBody) {
+        String title = "";
 
+        String regex = "<title(.*?)>(.*?)</title>";
+        Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+        Matcher m = p.matcher(responseBody);
+        while (m.find()) {
+            title = m.group(2);// 注意
+            if (title != null && !title.equals("")) {
+                return title;
+            }
+        }
+
+        String regex1 = "<h[1-6](.*?)>(.*?)</h[1-6]>";
+        Pattern ph = Pattern.compile(regex1, Pattern.CASE_INSENSITIVE);
+        Matcher mh = ph.matcher(responseBody);
+        while (mh.find()) {
+            title = mh.group(2);
+            if (title != null && !title.equals("")) {
+                return title;
+            }
+        }
+        return title;
+    }
+
+    // 对字符串进行utf-8编码
+    public static String Utf8Encode(String originalString) {
+        byte[] utf8Bytes = originalString.getBytes(StandardCharsets.UTF_8); // 使用UTF-8编码转换成字节数组
+        String decodedString = new String(utf8Bytes, StandardCharsets.UTF_8);
+        return decodedString;
+    }
 
 }

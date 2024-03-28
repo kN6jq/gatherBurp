@@ -650,7 +650,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     @Override
     public String getTabName() {
-        return "sql";
+        return "Sqlinject";
     }
 
     @Override

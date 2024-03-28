@@ -675,7 +675,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
     @Override
     public String getTabName() {
-        return "log4j";
+        return "Log4jScan";
     }
 
     static class Log4jModel extends AbstractTableModel {

@@ -209,7 +209,7 @@ public class ConfigUI implements UIHandler {
 
     @Override
     public String getTabName() {
-        return "配置";
+        return "Setting";
     }
 
     // 表格模型

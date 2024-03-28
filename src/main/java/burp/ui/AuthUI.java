@@ -9,10 +9,15 @@ import com.intellij.uiDesigner.core.Spacer;
 import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -30,8 +35,8 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     private static JTable authTable;
     private JPanel panel;
     private JPanel authPanel;
-    private JButton authRefershButton;
-    private JButton authClearButton;
+//    private JButton authRefershButton;
+//    private JButton authClearButton;
     private JSplitPane authSPlitePane;
     private JTabbedPane authtabbedPane1;
     private JTabbedPane authtabbedPane2;
@@ -259,14 +264,14 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         authPanel = new JPanel();
         authPanel.setLayout(new GridLayoutManager(2, 4, new Insets(0, 0, 0, 0), -1, -1));
         panel.add(authPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        authRefershButton = new JButton();
-        authRefershButton.setText("刷新");
-        authPanel.add(authRefershButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+//        authRefershButton = new JButton();
+//        authRefershButton.setText("刷新");
+//        authPanel.add(authRefershButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer1 = new Spacer();
         authPanel.add(spacer1, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-        authClearButton = new JButton();
-        authClearButton.setText("清空数据");
-        authPanel.add(authClearButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+//        authClearButton = new JButton();
+//        authClearButton.setText("清空数据");
+//        authPanel.add(authClearButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JSplitPane splitPane1 = new JSplitPane();
         splitPane1.setDividerSize(2);
         splitPane1.setOrientation(JSplitPane.VERTICAL_SPLIT);
@@ -291,24 +296,38 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     }
 
     private void setupData() {
-        // 刷新按钮
-        authRefershButton.addActionListener(new AbstractAction() {
+//        // 刷新按钮
+//        authRefershButton.addActionListener(new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                authTable.updateUI();
+//            }
+//        });
+//        // 清空按钮
+//        authClearButton.addActionListener(new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                log.clear();
+//                HRequestTextEditor.setMessage(new byte[0], true);
+//                HResponseTextEditor.setMessage(new byte[0], false);
+//                urlHashList.clear();
+//                authTable.updateUI();
+//            }
+//        });
+        // 监听表格右击
+        authTable.addMouseListener(new MouseAdapter() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                authTable.updateUI();
+            public void mouseClicked(MouseEvent e) {
+                if (e.getButton() == MouseEvent.BUTTON3){
+                    log.clear();
+                    HRequestTextEditor.setMessage(new byte[0], true);
+                    HResponseTextEditor.setMessage(new byte[0], false);
+                    urlHashList.clear();
+                    authTable.updateUI();
+                }
             }
         });
-        // 清空按钮
-        authClearButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log.clear();
-                HRequestTextEditor.setMessage(new byte[0], true);
-                HResponseTextEditor.setMessage(new byte[0], false);
-                urlHashList.clear();
-                authTable.updateUI();
-            }
-        });
+
 
     }
 
@@ -340,7 +359,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
 
     @Override
     public String getTabName() {
-        return "权限绕过";
+        return "BypassAuth";
     }
 
     private static class AuthModel extends AbstractTableModel {
