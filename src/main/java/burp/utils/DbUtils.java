@@ -77,6 +77,14 @@ public class DbUtils {
                     "  \"url\" TEXT,\n" +
                     "  PRIMARY KEY (\"id\")\n" +
                     ");");
+            sqls.add("CREATE TABLE IF NOT EXISTS \"route\" (\n" +
+                    "  \"id\" INTEGER,\n" +
+                    "  \"enable\" INTEGER,\n" +
+                    "  \"name\" TEXT,\n" +
+                    "  \"path\" TEXT,\n" +
+                    "  \"express\" TEXT,\n" +
+                    "  PRIMARY KEY (\"id\")\n" +
+                    ");");
             sqls.add("INSERT INTO \"sqli\" VALUES (1, \"'\");");
             sqls.add("INSERT INTO \"sqli\" VALUES (2, \"''\");");
             sqls.add("INSERT INTO \"sqli\" VALUES (3, \"'''\");");
@@ -134,6 +142,7 @@ public class DbUtils {
             sqls.add("INSERT INTO \"config\" VALUES (160, 'log4j', 'log4jHeaderCheckBox', 'false');");
             sqls.add("INSERT INTO \"config\" VALUES (161, 'log4j', 'log4jParamCheckBox', 'false');");
             sqls.add("INSERT INTO \"config\" VALUES (162, 'config', 'dnslog', 'asd.com');");
+            sqls.add("INSERT INTO \"route\" VALUES (1,1, 'xxl-job', '/xxl-job-admin/toLogin', 'code=200 && title=\"任务调度中心\"');");
 
 
             // 创建表
