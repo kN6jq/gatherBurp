@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IBurpExtenderCallbacks;
 import burp.bean.ConfigBean;
+import burp.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -33,7 +34,7 @@ public class ConfigUI implements UIHandler {
     private JLabel toolArgvLabel;
     private JButton refershButton;
     private JButton deleteSelectButton;
-    private JButton clearHostButton;
+    private JButton clearCacheButton;
     private JTable configTable;
     private JScrollPane configPanelDownJscrollPanel;
     private JPanel configPanelTop;
@@ -85,9 +86,9 @@ public class ConfigUI implements UIHandler {
         deleteSelectButton = new JButton();
         deleteSelectButton.setText("删除选中");
         configPanelTop.add(deleteSelectButton, new GridConstraints(3, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        clearHostButton = new JButton();
-        clearHostButton.setText("清空host过滤");
-        configPanelTop.add(clearHostButton, new GridConstraints(3, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        clearCacheButton = new JButton();
+        clearCacheButton.setText("删除req缓存文件");
+        configPanelTop.add(clearCacheButton, new GridConstraints(3, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         configPanelDown = new JPanel();
         configPanelDown.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         configPanel.add(configPanelDown, BorderLayout.CENTER);
@@ -139,12 +140,17 @@ public class ConfigUI implements UIHandler {
                 }
             }
         });
-        clearHostButton.addActionListener(new AbstractAction() {
+        clearCacheButton.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 // mark
                 // 弹出提示框
-                JOptionPane.showMessageDialog(null, "功能未实现", "提示", JOptionPane.INFORMATION_MESSAGE);
+                boolean deleteReqFile = Utils.deleteReqFile();
+                if (deleteReqFile){
+                    JOptionPane.showMessageDialog(null, "删除成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                }else {
+                    JOptionPane.showMessageDialog(null, "删除失败", "提示", JOptionPane.INFORMATION_MESSAGE);
+                }
             }
         });
 

@@ -44,7 +44,25 @@ public class Utils {
             return null;
         }
     }
+    // 删除后缀为req的缓存文件
+    public static boolean deleteReqFile() {
+        File file = new File(workdir);
+        if (!file.exists()) {
+            return false;
+        }
+        File[] files = file.listFiles();
+        if (files == null) {
+            return false;
+        }
+        for (File f : files) {
+            if (f.getName().endsWith(".req")) {
+                f.delete();
+            }
+        }
+        return true;
+    }
 
+    // 获取后缀列表
     public static List<String> getSuffix() {
         List<String> suffix = new ArrayList<>();
         suffix.add(".js");
