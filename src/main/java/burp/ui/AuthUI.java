@@ -176,7 +176,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             path = "/" + path.substring(2).replaceAll("/+", "/");
         }
         List<AuthBean> authRequests = new ArrayList<>();
-        String[] prefix = {";/", ".;/", "images/..;/", ";a/", "%23/../"};
+        String[] prefix = {";/", ".;/", "images/..;/", ";a/", "%23/../","..;/..;/"};
         for (String s : prefix) {
             // 将路径按 / 分割为多个部分
             String[] pathParts = path.split("/");
