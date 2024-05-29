@@ -98,7 +98,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         listMenuItems.add(new Log4jMenu(requestResponses));
         listMenuItems.add(new PermMenu(requestResponses));
         listMenuItems.add(new SqlMenu(requestResponses));
-        listMenuItems.add(new Base64DataMenu(requestResponses));
+        listMenuItems.add(new Base64DataMenu());
+        listMenuItems.add(new DirtyMenu());
         listMenuItems.add(new NucleiMenu(requestResponses));
         return listMenuItems;
     }

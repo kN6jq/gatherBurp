@@ -8,14 +8,14 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 
 public class Base64DataMenu extends JMenuItem {
-    public Base64DataMenu(IHttpRequestResponse[] requestResponses) {
+    public Base64DataMenu() {
         this.setText("^_^ Insert Base64 Data");
         this.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        CheckBase64Data(requestResponses);
+                        CheckBase64Data();
                     }
                 });
                 thread.start();
@@ -24,7 +24,7 @@ public class Base64DataMenu extends JMenuItem {
         });
     }
 
-    private static void CheckBase64Data(IHttpRequestResponse[] requestResponses) {
+    private static void CheckBase64Data() {
         StringSelection stringSelection = null;
         stringSelection = new StringSelection("<datab64></datab64>");
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
