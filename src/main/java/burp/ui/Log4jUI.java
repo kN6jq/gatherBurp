@@ -78,17 +78,6 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             return;
         }
 
-
-        ConfigBean enableHeaderConfig = getConfig("log4j", "log4jHeaderCheckBox");
-        enableHeader = enableHeaderConfig.getValue().equals("true");
-        ConfigBean enableWhiteDomainConfig = getConfig("log4j", "log4jWhiteDomainCheckBox");
-        enableWhiteDomain = enableWhiteDomainConfig.getValue().equals("true");
-        ConfigBean originalPayloadConfig = getConfig("log4j", "log4jOrgPayloadCheckBox");
-        originalPayload = originalPayloadConfig.getValue().equals("true");
-        ConfigBean paramCheckBoxConfig = getConfig("log4j", "log4jParamCheckBox");
-        enableParam = paramCheckBoxConfig.getValue().equals("true");
-
-
         if (enableWhiteDomain) {
             ConfigBean whiteSqlDomain = getConfig("log4j", "log4jWhiteDomain");
             String whiteDomain = whiteSqlDomain.getValue();
@@ -333,6 +322,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     }
 
     private void setupUI() {
+        Utils.callbacks.registerHttpListener(this);
         panel = new JPanel();
         panel.setLayout(new BorderLayout(0, 0));
         final JPanel panel2 = new JPanel();
@@ -438,57 +428,77 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     }
 
     private void setupData() {
-        Utils.callbacks.registerHttpListener(this);
-        try {
-            // 检测是否开启被动扫描
-            ConfigBean log4jPassiveBox = getConfig("log4j", "log4jPassiveScanBox");
-            if (log4jPassiveBox.getValue().equals("true")) {
-                passiveScan = true;
-                passiveBox.setSelected(true);
-            } else {
-                passiveScan = false;
-                passiveBox.setSelected(false);
-            }
-            // 检测是否开启header检测
-            ConfigBean log4jHeaderBox = getConfig("log4j", "log4jHeaderCheckBox");
-            headerBox.setSelected(log4jHeaderBox.getValue().equals("true"));
-            // 检测是dns还是ip检测
-            ConfigBean log4jDnsIpCheckBox = getConfig("log4j", "log4jDnsIpCheckBox");
-            if (log4jDnsIpCheckBox.getValue().equals("true")) {
-                dnsIpCheckBox.setText("dns");
-                dnsIpCheckBox.setSelected(true);
-            } else {
-                dnsIpCheckBox.setText("ip");
-                dnsIpCheckBox.setSelected(false);
-            }
-            // 检测是否开启原始payload检测
-            ConfigBean log4jOrgpayloadCheckBox = getConfig("log4j", "log4jOrgPayloadCheckBox");
-            orgpayloadCheckBox.setSelected(log4jOrgpayloadCheckBox.getValue().equals("true"));
-            // 检测是否开启白名单域名检测
-            ConfigBean log4jWhiteDomainCheckBox = getConfig("log4j", "log4jWhiteDomainCheckBox");
-            whiteDomainCheckBox.setSelected(log4jWhiteDomainCheckBox.getValue().equals("true"));
-            // 获取白名单域名
-            ConfigBean log4jWhiteDomain = getConfig("log4j", "log4jWhiteDomain");
-            whiteDomaintextField.setText(log4jWhiteDomain.getValue());
-            // 获取自定义header
-            List<Log4jBean> log4jHeader = getHeaderList();
-            StringBuilder header = new StringBuilder();
-            for (Log4jBean log4j : log4jHeader) {
-                header.append(log4j.getValue()).append("\n");
-            }
-            headertextField.setText(header.toString());
-
-            // 获取自定义payload
-            List<Log4jBean> log4jPayload = getPayloadList();
-            StringBuilder payload = new StringBuilder();
-            for (Log4jBean log4j : log4jPayload) {
-                payload.append(log4j.getValue()).append("\n");
-            }
-            payloadtextField.setText(payload.toString());
-
-        } catch (Exception e) {
-            Utils.stderr.println("数据库初始化失败,请联系作者");
+        ConfigBean enableHeaderConfig = getConfig("log4j", "log4jHeaderCheckBox");
+        if (enableHeaderConfig.getValue().equals("true")){
+            enableHeader = true;
+            headerBox.setSelected(true);
+        }else{
+            enableHeader = false;
+            headerBox.setSelected(false);
         }
+        ConfigBean enableWhiteDomainConfig = getConfig("log4j", "log4jWhiteDomainCheckBox");
+        if (enableWhiteDomainConfig.getValue().equals("true")){
+            enableWhiteDomain = true;
+            whiteDomainCheckBox.setSelected(true);
+        }else {
+            enableWhiteDomain = false;
+            whiteDomainCheckBox.setSelected(false);
+        }
+        ConfigBean originalPayloadConfig = getConfig("log4j", "log4jOrgPayloadCheckBox");
+        if (originalPayloadConfig.getValue().equals("true")){
+            originalPayload = true;
+            orgpayloadCheckBox.setSelected(true);
+        }else {
+            originalPayload = false;
+            orgpayloadCheckBox.setSelected(false);
+        }
+        ConfigBean paramCheckBoxConfig = getConfig("log4j", "log4jParamCheckBox");
+        if (paramCheckBoxConfig.getValue().equals("true")){
+            enableParam = true;
+            paramBox.setSelected(true);
+        }else{
+            enableParam = false;
+            paramBox.setSelected(false);
+        }
+
+
+        // 检测是否开启被动扫描
+        ConfigBean log4jPassiveBox = getConfig("log4j", "log4jPassiveScanBox");
+        if (log4jPassiveBox.getValue().equals("true")) {
+            passiveScan = true;
+            passiveBox.setSelected(true);
+        } else {
+            passiveScan = false;
+            passiveBox.setSelected(false);
+        }
+        // 检测是dns还是ip检测
+        ConfigBean log4jDnsIpCheckBox = getConfig("log4j", "log4jDnsIpCheckBox");
+        if (log4jDnsIpCheckBox.getValue().equals("true")) {
+            dnsIpCheckBox.setText("dns");
+            dnsIpCheckBox.setSelected(true);
+        } else {
+            dnsIpCheckBox.setText("ip");
+            dnsIpCheckBox.setSelected(false);
+        }
+
+        // 获取白名单域名
+        ConfigBean log4jWhiteDomain = getConfig("log4j", "log4jWhiteDomain");
+        whiteDomaintextField.setText(log4jWhiteDomain.getValue());
+        // 获取自定义header
+        List<Log4jBean> log4jHeader = getHeaderList();
+        StringBuilder header = new StringBuilder();
+        for (Log4jBean log4j : log4jHeader) {
+            header.append(log4j.getValue()).append("\n");
+        }
+        headertextField.setText(header.toString());
+
+        // 获取自定义payload
+        List<Log4jBean> log4jPayload = getPayloadList();
+        StringBuilder payload = new StringBuilder();
+        for (Log4jBean log4j : log4jPayload) {
+            payload.append(log4j.getValue()).append("\n");
+        }
+        payloadtextField.setText(payload.toString());
         // 保存白名单域名
         saveWhiteDomainButton.addActionListener(new AbstractAction() {
             @Override
@@ -569,9 +579,11 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (headerBox.isSelected()) {
+                    enableHeader = true;
                     ConfigBean log4jHeaderBox = new ConfigBean("log4j", "log4jHeaderCheckBox", "true");
                     saveConfig(log4jHeaderBox);
                 } else {
+                    enableHeader = false;
                     ConfigBean log4jHeaderBox = new ConfigBean("log4j", "log4jHeaderCheckBox", "false");
                     saveConfig(log4jHeaderBox);
                 }
@@ -581,9 +593,11 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (paramBox.isSelected()) {
+                    enableParam = true;
                     ConfigBean log4jParamBox = new ConfigBean("log4j", "log4jParamCheckBox", "true");
                     saveConfig(log4jParamBox);
                 } else {
+                    enableParam = false;
                     ConfigBean log4jParamBox = new ConfigBean("log4j", "log4jParamCheckBox", "false");
                     saveConfig(log4jParamBox);
                 }
@@ -608,9 +622,11 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (orgpayloadCheckBox.isSelected()) {
+                    originalPayload = true;
                     ConfigBean log4jOrgpayloadCheckBox = new ConfigBean("log4j", "log4jOrgPayloadCheckBox", "true");
                     saveConfig(log4jOrgpayloadCheckBox);
                 } else {
+                    originalPayload = false;
                     ConfigBean log4jOrgpayloadCheckBox = new ConfigBean("log4j", "log4jOrgPayloadCheckBox", "false");
                     saveConfig(log4jOrgpayloadCheckBox);
                 }
@@ -620,9 +636,11 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (whiteDomainCheckBox.isSelected()) {
+                    enableWhiteDomain = true;
                     ConfigBean log4jWhiteDomainCheckBox = new ConfigBean("log4j", "log4jWhiteDomainCheckBox", "true");
                     saveConfig(log4jWhiteDomainCheckBox);
                 } else {
+                    enableWhiteDomain = false;
                     ConfigBean log4jWhiteDomainCheckBox = new ConfigBean("log4j", "log4jWhiteDomainCheckBox", "false");
                     saveConfig(log4jWhiteDomainCheckBox);
                 }
