@@ -1,6 +1,13 @@
 > 希望大家有好的idea,可以提issue,我会尽量实现
 
 
+# 加群
+
+1. 加入wx群:
+
+![img.png](images/img_wxgroup.png)
+
+
 # 目前功能
 
 1. fastjson扫描
