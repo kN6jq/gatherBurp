@@ -44,6 +44,13 @@ public class Utils {
             return null;
         }
     }
+    // 写入socks代理配置文件
+    public static File SocksConfigFile(String filename) {
+        return new File(workdir, filename);
+    }
+
+
+
     // 删除后缀为req的缓存文件
     public static boolean deleteReqFile() {
         File file = new File(workdir);
@@ -167,6 +174,11 @@ public class Utils {
         byte[] utf8Bytes = originalString.getBytes(StandardCharsets.UTF_8); // 使用UTF-8编码转换成字节数组
         String decodedString = new String(utf8Bytes, StandardCharsets.UTF_8);
         return decodedString;
+    }
+
+    public static String getCurrentTime() {
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return simpleDateFormat.format(new Date());
     }
 
 }

@@ -1,8 +1,5 @@
 package burp.menu;
 
-import burp.IHttpRequestResponse;
-import burp.ui.AuthUI;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
