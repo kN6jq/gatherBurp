@@ -74,7 +74,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             String paraName = paraList.getName();
             parameterList.add(paraName);
         }
-        if (!checkUrlHash(method + url + parameterList.toString())) {
+        if (!checkUrlHash(method + url + parameterList)) {
             return;
         }
 

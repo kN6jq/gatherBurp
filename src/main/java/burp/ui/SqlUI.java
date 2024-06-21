@@ -100,8 +100,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 对url进行hash去重
         for (IParameter paraList : paraLists) {
             String paraName = paraList.getName();
-            String paraValue = paraList.getValue();
-            parameterList.add(paraName + "=" + paraValue);
+//            String paraValue = paraList.getValue();
+//            parameterList.add(paraName + "=" + paraValue);
+            parameterList.add(paraName);
         }
         if (!checkUrlHash(method + url + parameterList)) {
             return;
