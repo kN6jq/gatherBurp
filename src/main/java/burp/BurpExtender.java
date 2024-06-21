@@ -44,6 +44,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         List<JMenuItem> listMenuItems = new ArrayList<JMenuItem>(1);
         IHttpRequestResponse[] requestResponses = iContextMenuInvocation.getSelectedMessages();
         IHttpRequestResponse baseRequestResponse = iContextMenuInvocation.getSelectedMessages()[0];
+        // 如果是个空的, 则返回null
+        if (baseRequestResponse.getHttpService() == null) {
+            return null;
+        }
 
         List<ConfigBean> toolParam = getToolConfig();
 

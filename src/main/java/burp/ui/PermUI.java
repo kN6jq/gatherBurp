@@ -62,7 +62,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             String paraName = paraList.getName();
             parameterList.add(paraName);
         }
-        if (!checkUrlHash(method + url + parameterList.toString())) {
+        if (!checkUrlHash(method + url + parameterList)) {
             return;
         }
 
