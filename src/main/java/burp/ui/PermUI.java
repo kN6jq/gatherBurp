@@ -1,14 +1,14 @@
 package burp.ui;
 
 import burp.*;
-import burp.bean.ConfigBean;
+import burp.bean.Perm;
+import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
-import com.intellij.uiDesigner.core.GridConstraints;
-import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -16,467 +16,50 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static burp.dao.ConfigDao.getConfig;
-import static burp.dao.ConfigDao.saveConfig;
+import static burp.dao.PermDao.*;
 import static burp.utils.Utils.getSuffix;
 
-
+/**
+ * @Author Xm17
+ * @Date 2024-06-22 9:11
+ */
 public class PermUI implements UIHandler, IMessageEditorController, IHttpListener {
-    private static final List<LogEntry> log = new ArrayList<>();
-    private static final List<String> parameterList = new ArrayList<>();
-    private static final List<String> urlHashList = new ArrayList<>();
-    private static JTable permTable;
-    private static boolean whiteDomain;
-    private static boolean passiveScan;
-    private JPanel panel;
-    private JTabbedPane tabbedPane2;
-    private JPanel originTabbedPane;
-    private JPanel lowTabbedPane;
-    private JPanel noTabbedPane;
-    private JPanel permleftJpanel;
-    private JCheckBox permPassiveCheckBox;
-    private JCheckBox permWhiteDomainCheckBox;
-    private JTextField permWhiteDomaintextField;
-    private JButton permRefershButton;
-    private JButton permClearButton;
-    private JButton permSaveDomainButton;
-    private JButton permSaveAuthButton;
-    private JEditorPane permLowEditorPane1;
-    private JEditorPane permNoEditorPane1;
-    private JPanel permrightJpanel;
-    private IHttpRequestResponse currentlyDisplayedItem;
-    private IMessageEditor originarequest;
-    private IMessageEditor originaresponse;
-    private IMessageEditor lowerrequest;
-    private IMessageEditor lowerresponse;
-    private IMessageEditor norequest;
-    private IMessageEditor noresponse;
-
-    public static void Check(IHttpRequestResponse[] responses) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String method = analyzeRequest.getMethod();
-        String url = analyzeRequest.getUrl().toString();
-        List<IParameter> paraLists = analyzeRequest.getParameters();
-        for (IParameter paraList : paraLists) {
-            String paraName = paraList.getName();
-            parameterList.add(paraName);
-        }
-        if (!checkUrlHash(method + url + parameterList)) {
-            return;
-        }
-
-        try {
-            // 静态资源不检测
-            List<String> suffix = getSuffix();
-            if (!suffix.isEmpty()) {
-                for (String s : suffix) {
-                    if (url.endsWith(s) || url.contains(s)) {
-                        return;
-                    }
-                }
-            }
-
-            if (whiteDomain) {
-                ConfigBean configPermWhiteDomain = getConfig("perm", "permWhiteDomain");
-                if (configPermWhiteDomain.getValue().isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                if (!url.contains(configPermWhiteDomain.getValue())) {
-                    return;
-                }
-            }
-
-            // 原始请求
-            List<String> originalheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-            byte[] byte_Request = baseRequestResponse.getRequest();
-            int bodyOffset = analyzeRequest.getBodyOffset();
-            int len = byte_Request.length;
-            byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-            byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
-            IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-            byte[] responseBody = originalRequestResponse.getResponse();
-            String originallength = "";
-            if (responseBody != null) {
-                IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-                List<String> headers = originalReqResponse.getHeaders();
-                for (String header : headers) {
-                    if (header.contains("Content-Length")) {
-                        originallength = header.split(":")[1].trim();
-                        break;
-                    }
-                }
-            }
-            if (originallength.isEmpty()) {
-                assert responseBody != null;
-                originallength = String.valueOf(responseBody.length);
-            }
-
-
-            // 低权限请求
-            List<String> lowheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-            ConfigBean permLow = getConfig("perm", "permLowAuth");
-            String lowAuthText = permLow.getValue();
-            if (lowAuthText.contains("|XXXXX|")) {
-                String[] lowAuths = lowAuthText.split("\\|XXXXX\\|");
-                for (String lowAuth : lowAuths) {
-                    String head = lowAuth.split(":")[0];
-                    boolean headerFound = false;
-                    for (int i = 0; i < lowheaders.size(); i++) {
-                        String lowheader = lowheaders.get(i);
-                        if (lowheader.contains(head)) {
-                            lowheaders.set(i, lowAuth);
-                            headerFound = true;
-                            break;
-                        }
-                    }
-                    if (!headerFound) {
-                        lowheaders.add(lowAuth);
-                    }
-                }
-            } else {
-                String head = lowAuthText.split(":")[0];
-                boolean headerFound = false;
-
-                for (int i = 0; i < lowheaders.size(); i++) {
-                    String lowheader = lowheaders.get(i);
-                    if (lowheader.contains(head)) {
-                        lowheaders.set(i, lowAuthText);
-                        headerFound = true;
-                        break;
-                    }
-                }
-
-                if (!headerFound) {
-                    lowheaders.add(lowAuthText);
-                }
-            }
-            byte[] lowMessage = Utils.helpers.buildHttpMessage(lowheaders, body);
-            IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), lowMessage);
-            byte[] lowresponseBody = lowRequestResponse.getResponse();
-            String lowlength = "";
-            IResponseInfo lowReqResponse = Utils.helpers.analyzeResponse(lowresponseBody);
-            List<String> lowReqResheaders = lowReqResponse.getHeaders();
-            for (String header : lowReqResheaders) {
-                if (header.contains("Content-Length")) {
-                    lowlength = header.split(":")[1].trim();
-                    break;
-                }
-            }
-            if (lowlength.isEmpty()) {
-                lowlength = String.valueOf(lowresponseBody.length);
-            }
-
-
-            // 无权限请求
-            List<String> noheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-            ConfigBean permNo = getConfig("perm", "permNoAuth");
-            String noAuthText = permNo.getValue();
-            if (noAuthText.contains("|XXXXX|")) {
-                String[] noAuths = noAuthText.split("\\|XXXXX\\|");
-                for (String noAuth : noAuths) {
-                    noheaders.removeIf(noheader -> noheader.contains(noAuth));
-                }
-            } else {
-                noheaders.removeIf(noheader -> noheader.contains(noAuthText));
-            }
-            byte[] noMessage = Utils.helpers.buildHttpMessage(noheaders, body);
-            IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), noMessage);
-            byte[] noresponseBody = noRequestResponse.getResponse();
-            String nolength = "";
-            IResponseInfo noReqResponse = Utils.helpers.analyzeResponse(noresponseBody);
-            List<String> noReqResheaders = noReqResponse.getHeaders();
-            for (String header : noReqResheaders) {
-                if (header.contains("Content-Length")) {
-                    nolength = header.split(":")[1].trim();
-                    break;
-                }
-            }
-            if (nolength.isEmpty()) {
-                nolength = String.valueOf(noresponseBody.length);
-            }
-            String isSuccess = "×";
-            if (originallength.equals(lowlength) && lowlength.equals(nolength)) {
-                isSuccess = "√";
-            } else {
-                isSuccess = "×";
-            }
-
-            add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
-        }
-    }
-
-    public static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
-
-    private static void add(String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse baseRequestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
-        synchronized (log) {
-            int id = log.size();
-            log.add(new LogEntry(id, method, url, originalength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse));
-            permTable.updateUI();
-        }
-    }
-
-    private void setupUI() {
-        Utils.callbacks.registerHttpListener(this);
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout(0, 0));
-        permleftJpanel = new JPanel();
-        permleftJpanel.setLayout(new BorderLayout(0, 0));
-        panel.add(permleftJpanel, BorderLayout.CENTER);
-        final JSplitPane splitPane1 = new JSplitPane();
-        splitPane1.setDividerSize(2);
-        splitPane1.setOrientation(JSplitPane.VERTICAL_SPLIT);
-        splitPane1.setResizeWeight(0.3);
-        permleftJpanel.add(splitPane1, BorderLayout.CENTER);
-        final JScrollPane scrollPane1 = new JScrollPane();
-        splitPane1.setLeftComponent(scrollPane1);
-        PermModel permModel = new PermModel();
-        permTable = new URLTable(permModel);
-        scrollPane1.setViewportView(permTable);
-        tabbedPane2 = new JTabbedPane();
-        splitPane1.setRightComponent(tabbedPane2);
-        originTabbedPane = new JPanel();
-        originTabbedPane.setLayout(new BorderLayout(0, 0));
-        tabbedPane2.addTab("原始请求包", originTabbedPane);
-        final JSplitPane splitPane2 = new JSplitPane();
-        splitPane2.setDividerSize(1);
-        splitPane2.setResizeWeight(0.5);
-        originarequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
-        originaresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        splitPane2.setLeftComponent(originarequest.getComponent());
-        splitPane2.setRightComponent(originaresponse.getComponent());
-        originTabbedPane.add(splitPane2, BorderLayout.CENTER);
-        lowTabbedPane = new JPanel();
-        lowTabbedPane.setLayout(new BorderLayout(0, 0));
-        tabbedPane2.addTab("低权限请求包", lowTabbedPane);
-        final JSplitPane splitPane3 = new JSplitPane();
-        splitPane3.setDividerSize(1);
-        splitPane3.setResizeWeight(0.5);
-        lowerrequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
-        lowerresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        splitPane3.setLeftComponent(lowerrequest.getComponent());
-        splitPane3.setRightComponent(lowerresponse.getComponent());
-        lowTabbedPane.add(splitPane3, BorderLayout.CENTER);
-        noTabbedPane = new JPanel();
-        noTabbedPane.setLayout(new BorderLayout(0, 0));
-        tabbedPane2.addTab("无权限请求包", noTabbedPane);
-        final JSplitPane splitPane4 = new JSplitPane();
-        splitPane4.setDividerSize(1);
-        splitPane4.setResizeWeight(0.5);
-        norequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
-        noresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        splitPane4.setLeftComponent(norequest.getComponent());
-        splitPane4.setRightComponent(noresponse.getComponent());
-        noTabbedPane.add(splitPane4, BorderLayout.CENTER);
-        permrightJpanel = new JPanel();
-        permrightJpanel.setLayout(new BorderLayout(0, 0));
-        panel.add(permrightJpanel, BorderLayout.EAST);
-        final JSplitPane splitPane5 = new JSplitPane();
-        splitPane5.setDividerSize(0);
-        splitPane5.setOrientation(JSplitPane.VERTICAL_SPLIT);
-        splitPane5.setResizeWeight(0.3);
-        permrightJpanel.add(splitPane5, BorderLayout.CENTER);
-        final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(5, 2, new Insets(0, 0, 0, 0), -1, -1));
-        splitPane5.setLeftComponent(panel2);
-        permPassiveCheckBox = new JCheckBox();
-        permPassiveCheckBox.setText("被动扫描");
-        panel2.add(permPassiveCheckBox, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        permWhiteDomainCheckBox = new JCheckBox();
-        permWhiteDomainCheckBox.setText("白名单域名");
-        panel2.add(permWhiteDomainCheckBox, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JLabel label1 = new JLabel();
-        label1.setText("白名单域名");
-        panel2.add(label1, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        permWhiteDomaintextField = new JTextField();
-        panel2.add(permWhiteDomaintextField, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        permRefershButton = new JButton();
-        permRefershButton.setText("刷新");
-        panel2.add(permRefershButton, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        permClearButton = new JButton();
-        permClearButton.setText("清空数据");
-        panel2.add(permClearButton, new GridConstraints(4, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        permSaveDomainButton = new JButton();
-        permSaveDomainButton.setText("保存白名单");
-        panel2.add(permSaveDomainButton, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        permSaveAuthButton = new JButton();
-        permSaveAuthButton.setText("保存认证数据");
-        panel2.add(permSaveAuthButton, new GridConstraints(3, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JSplitPane splitPane6 = new JSplitPane();
-        splitPane6.setDividerSize(0);
-        splitPane6.setOrientation(JSplitPane.VERTICAL_SPLIT);
-        splitPane6.setResizeWeight(0.5);
-        splitPane5.setRightComponent(splitPane6);
-        final JPanel panel3 = new JPanel();
-        panel3.setLayout(new BorderLayout(0, 0));
-        splitPane6.setLeftComponent(panel3);
-        final JLabel label2 = new JLabel();
-        label2.setText("低权限认证请求头信息");
-        panel3.add(label2, BorderLayout.NORTH);
-        permLowEditorPane1 = new JEditorPane();
-        panel3.add(permLowEditorPane1, BorderLayout.CENTER);
-        final JPanel panel4 = new JPanel();
-        panel4.setLayout(new BorderLayout(0, 0));
-        splitPane6.setRightComponent(panel4);
-        final JLabel label3 = new JLabel();
-        label3.setText("未授权请求头(输入请求头即可)");
-        panel4.add(label3, BorderLayout.NORTH);
-        permNoEditorPane1 = new JEditorPane();
-        panel4.add(permNoEditorPane1, BorderLayout.CENTER);
-    }
-
-    private void setupData() {
-
-
-        ConfigBean configPassiveScan = getConfig("perm", "permPassiveScanBox");
-        if (configPassiveScan.getValue().equals("true")) {
-            permPassiveCheckBox.setSelected(true);
-            passiveScan = true;
-        } else {
-            permPassiveCheckBox.setSelected(false);
-            passiveScan = false;
-        }
-        ConfigBean configWhiteDomain = getConfig("perm", "permWhiteDomain");
-        permWhiteDomaintextField.setText(configWhiteDomain.getValue());
-        ConfigBean configLowAuth = getConfig("perm", "permLowAuth");
-        if (configLowAuth.getValue().contains("|XXXXX|")) {
-            String[] lowAuths = configLowAuth.getValue().split("\\|XXXXX\\|");
-            StringBuilder lowAuthText = new StringBuilder();
-            for (String lowAuth : lowAuths) {
-                lowAuthText.append(lowAuth).append("\n");
-            }
-            permLowEditorPane1.setText(lowAuthText.toString());
-        } else {
-            permLowEditorPane1.setText(configLowAuth.getValue());
-        }
-        ConfigBean configNoAuth = getConfig("perm", "permNoAuth");
-        if (configNoAuth.getValue().contains("|XXXXX|")) {
-            String[] noAuths = configNoAuth.getValue().split("\\|XXXXX\\|");
-            StringBuilder noAuthText = new StringBuilder();
-            for (String noAuth : noAuths) {
-                noAuthText.append(noAuth).append("\n");
-            }
-            permNoEditorPane1.setText(noAuthText.toString());
-        } else {
-            permNoEditorPane1.setText(configNoAuth.getValue());
-        }
-        ConfigBean configWhiteDomainCheckBox = getConfig("perm", "permWhiteDomainCheckBox");
-        if (configWhiteDomainCheckBox.getValue().equals("true")) {
-            permWhiteDomainCheckBox.setSelected(true);
-            whiteDomain = true;
-        } else {
-            permWhiteDomainCheckBox.setSelected(false);
-            whiteDomain = false;
-        }
-
-        permPassiveCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (permPassiveCheckBox.isSelected()) {
-                    passiveScan = true;
-                    ConfigBean configBean = new ConfigBean("perm", "permPassiveScanBox", "true");
-                    saveConfig(configBean);
-                } else {
-                    passiveScan = false;
-                    ConfigBean configBean = new ConfigBean("perm", "permPassiveScanBox", "false");
-                    saveConfig(configBean);
-                }
-            }
-        });
-        permRefershButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                permTable.updateUI();
-            }
-        });
-        permClearButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log.clear();
-                originarequest.setMessage(new byte[0], true);
-                originaresponse.setMessage(new byte[0], false);
-                lowerrequest.setMessage(new byte[0], false);
-                lowerresponse.setMessage(new byte[0], false);
-                norequest.setMessage(new byte[0], false);
-                noresponse.setMessage(new byte[0], false);
-                urlHashList.clear();
-                permTable.updateUI();
-            }
-        });
-        permSaveAuthButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String low = permLowEditorPane1.getText();
-                String no = permNoEditorPane1.getText();
-                if (low.isEmpty() || no.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "认证数据不能为空", "提示", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                if (low.contains("\n")) {
-                    low = low.replaceAll("\n", "|XXXXX|");
-                }
-                if (no.contains("\n")) {
-                    no = no.replaceAll("\n", "|XXXXX|");
-                }
-                ConfigBean configLowAuth = new ConfigBean("perm", "permLowAuth", low);
-                saveConfig(configLowAuth);
-                ConfigBean configNoAuth = new ConfigBean("perm", "permNoAuth", no);
-                saveConfig(configNoAuth);
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        permSaveDomainButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String domain = permWhiteDomaintextField.getText();
-                if (domain.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "域名不能为空", "提示", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                ConfigBean configWhiteDomain = new ConfigBean("perm", "permWhiteDomain", domain);
-                saveConfig(configWhiteDomain);
-
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        permWhiteDomainCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (permWhiteDomainCheckBox.isSelected()) {
-                    whiteDomain = true;
-                    ConfigBean configBean = new ConfigBean("perm", "permWhiteDomainCheckBox", "true");
-                    saveConfig(configBean);
-                } else {
-                    whiteDomain = false;
-                    ConfigBean configBean = new ConfigBean("perm", "permWhiteDomainCheckBox", "false");
-                    saveConfig(configBean);
-                }
-            }
-        });
-
-    }
+    private JPanel panel; // 主面板
+    private static JTable permTable; // perm表格
+    private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
+    private JTabbedPane tabbedPanereqresp; // 请求tab
+    private JPanel originPane; // 原始请求面板
+    private JPanel lowpermPane; // 低权限请求面板
+    private JPanel nopermPane; // 无权限请求面板
+    private JCheckBox passiveScanCheckBox; // 被动扫描选择框
+    private JCheckBox whiteDomainListCheckBox; // 白名单域名选择框
+    private JTextArea whiteDomainListTextArea; // 白名单域名输入框
+    private JButton saveWhiteDomainButton; // 保存白名单按钮
+    private JButton saveAuthDataButton; // 保存认证数据按钮
+    private JButton refreshButton; // 刷新按钮
+    private JButton clearButton; // 清空数据按钮
+    private JTextArea lowPermAuthTextArea; // 低权限认证请求信息输入框
+    private JTextArea noPermAuthTextArea; // 无权限认证请求信息输入框
+    private IMessageEditor originarequest;  // 原始请求
+    private IMessageEditor originaresponse; // 原始响应
+    private IMessageEditor lowpermrequest; // 低权限请求
+    private IMessageEditor lowpermresponse; // 低权限响应
+    private IMessageEditor nopermrequest; // 无权限请求
+    private IMessageEditor nopermresponse; // 无权限响应
+    private static final List<PermEntry> permlog = new ArrayList<>(); // permlog 用于存储请求
+    private static final List<String> parameterList = new ArrayList<>(); // 参数列表
+    private static final List<String> urlHashList = new ArrayList<>(); // url hash list
+    private static boolean ispassiveScan; // 是否被动扫描
+    private static boolean isWhiteDomainList; // 是否白名单
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
-
-        if (passiveScan && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
-            synchronized (log) {
+        if (ispassiveScan && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
+            synchronized (permlog) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        Check(new IHttpRequestResponse[]{iHttpRequestResponse});
+                        Check(new IHttpRequestResponse[]{iHttpRequestResponse}, false);
                     }
                 });
                 thread.start();
@@ -505,6 +88,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         setupData();
     }
 
+
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
         return panel;
@@ -512,14 +96,484 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
     @Override
     public String getTabName() {
-        return "UnauthAccess";
+        return "PermAccess";
     }
 
+    // 初始化数据
+    private void setupData() {
+        // 被动扫描选择框
+        Perm permPassiveScanConfig = getPermListByType("permPassiveScan");
+        if (permPassiveScanConfig.getValue().equals("true")) {
+            passiveScanCheckBox.setSelected(true);
+            ispassiveScan = true;
+        } else {
+            passiveScanCheckBox.setSelected(false);
+            ispassiveScan = false;
+        }
+        // 白名单域名选择框
+        Perm permWhiteDomainConfig = getPermListByType("permWithDomain");
+        if (permWhiteDomainConfig.getValue().equals("true")) {
+            whiteDomainListCheckBox.setSelected(true);
+            isWhiteDomainList = true;
+        } else {
+            whiteDomainListCheckBox.setSelected(false);
+            isWhiteDomainList = false;
+        }
+        // 白名单域名输入框
+        List<Perm> whiteDomain = getPermListsByType("domain");
+        for (Perm permBean : whiteDomain) {
+            // 如果是最后一个，就不加换行符
+            if (whiteDomain.indexOf(permBean) == whiteDomain.size() - 1) {
+                whiteDomainListTextArea.setText(whiteDomainListTextArea.getText() + permBean.getValue());
+                break;
+            }
+            whiteDomainListTextArea.setText(whiteDomainListTextArea.getText() + permBean.getValue() + "\n");
+        }
+
+        // permLowAuth输入框
+        List<Perm> permLowAuth = getPermListsByType("permLowAuth");
+        for (Perm perm : permLowAuth) {
+            // 如果是最后一个，就不加换行符
+            if (permLowAuth.indexOf(perm) == permLowAuth.size() - 1) {
+                lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + perm.getValue());
+                break;
+            }
+            lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + perm.getValue() + "\n");
+        }
+
+        // permNoAuth输入框
+        List<Perm> permNoAuth = getPermListsByType("permNoAuth");
+        for (Perm perm : permNoAuth) {
+            // 如果是最后一个，就不加换行符
+            if (permNoAuth.indexOf(perm) == permNoAuth.size() - 1) {
+                noPermAuthTextArea.setText(noPermAuthTextArea.getText() + perm.getValue());
+                break;
+            }
+            noPermAuthTextArea.setText(noPermAuthTextArea.getText() + perm.getValue() + "\n");
+        }
+        // 被动扫描选择框
+        passiveScanCheckBox.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (passiveScanCheckBox.isSelected()) {
+                    ispassiveScan = true;
+                    Perm permPassiveScanConfig = new Perm("permPassiveScan", "true");
+                    updatePerm(permPassiveScanConfig);
+                } else {
+                    ispassiveScan = false;
+                    Perm permPassiveScanConfig = new Perm("permPassiveScan", "false");
+                    updatePerm(permPassiveScanConfig);
+                }
+            }
+        });
+        // 白名单域名选择框
+        whiteDomainListCheckBox.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (whiteDomainListCheckBox.isSelected()) {
+                    isWhiteDomainList = true;
+                    Perm permWhiteDomainConfig = new Perm("permWithDomain", "true");
+                    updatePerm(permWhiteDomainConfig);
+                } else {
+                    isWhiteDomainList = false;
+                    Perm permWhiteDomainConfig = new Perm("permWithDomain", "false");
+                    updatePerm(permWhiteDomainConfig);
+                }
+            }
+        });
+        // 保存白名单
+        saveWhiteDomainButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String whiteDomainList = whiteDomainListTextArea.getText();
+                deletePerm("domain");
+                if (whiteDomainList.contains("\n")) {
+                    String[] split = whiteDomainList.split("\n");
+                    for (String domain : split) {
+                        Perm perm = new Perm("domain", domain);
+                        savePerm(perm);
+                    }
+                } else {
+                    Perm perm = new Perm("domain", whiteDomainList);
+                    savePerm(perm);
+                }
+                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        // 保存认证数据
+        saveAuthDataButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String lowPermAuthText = lowPermAuthTextArea.getText();
+                String noPermAuthText = noPermAuthTextArea.getText();
+                deletePerm("permLowAuth");
+                deletePerm("permNoAuth");
+                if (lowPermAuthText.contains("\n")) {
+                    String[] split = lowPermAuthText.split("\n");
+                    for (String lowAuth : split) {
+                        Perm perm = new Perm("permLowAuth", lowAuth);
+                        savePerm(perm);
+                    }
+                } else {
+                    Perm perm = new Perm("permLowAuth", lowPermAuthText);
+                    savePerm(perm);
+                }
+                if (noPermAuthText.contains("\n")) {
+                    String[] split = noPermAuthText.split("\n");
+                    for (String noAuth : split) {
+                        Perm perm = new Perm("permNoAuth", noAuth);
+                        savePerm(perm);
+                    }
+                } else {
+                    Perm perm = new Perm("permNoAuth", noPermAuthText);
+                    savePerm(perm);
+                }
+                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        // 刷新
+        refreshButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                permTable.updateUI();
+            }
+        });
+        // 清空
+        clearButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                permlog.clear();
+                originarequest.setMessage(new byte[0], true);
+                originaresponse.setMessage(new byte[0], false);
+                lowpermrequest.setMessage(new byte[0], false);
+                lowpermresponse.setMessage(new byte[0], false);
+                nopermrequest.setMessage(new byte[0], false);
+                nopermresponse.setMessage(new byte[0], false);
+                urlHashList.clear();
+                permTable.updateUI();
+            }
+        });
+
+    }
+
+    // 初始化ui
+    private void setupUI() {
+        // 注册被动扫描监听器
+        Utils.callbacks.registerHttpListener(this);
+        panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setMaximumSize(panel.getPreferredSize()); // 设置最大尺寸等于首选尺寸，禁止自动调整
+        JPanel mainsplitPane = new JPanel(new BorderLayout());
+
+        // 左边的面板
+        // 左边的面板上下分割,比例为7：3
+        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        leftSplitPane.setResizeWeight(0.7);
+        leftSplitPane.setDividerLocation(0.7);
+
+        // 将urlTable添加到leftSplitPane的上边
+        JScrollPane leftScrollPane = new JScrollPane();
+        permTable = new URLTable(new PermModel());
+        leftScrollPane.setViewportView(permTable);
+        leftSplitPane.setTopComponent(leftScrollPane);
+
+        // 左边的面板下部分对称分割，比例为5：5
+        JSplitPane leftBottomSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        leftBottomSplitPane.setResizeWeight(0.5);
+        leftBottomSplitPane.setDividerLocation(0.5);
+        leftSplitPane.setBottomComponent(leftBottomSplitPane);
+
+        // 请求tab
+        tabbedPanereqresp = new JTabbedPane();
+        // 添加原始请求面板
+        originPane = new JPanel(new BorderLayout());
+        final JSplitPane originPaneSplitPane = new JSplitPane();
+        originPaneSplitPane.setDividerSize(1);
+        originPaneSplitPane.setResizeWeight(0.5);
+        originarequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
+        originaresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
+        originPaneSplitPane.setLeftComponent(originarequest.getComponent());
+        originPaneSplitPane.setRightComponent(originaresponse.getComponent());
+        originPane.add(originPaneSplitPane, BorderLayout.CENTER);
+        tabbedPanereqresp.addTab("原始请求包", originPane);
+        // 添加低权限请求面板
+        lowpermPane = new JPanel(new BorderLayout());
+        final JSplitPane lowpermPaneSplitPane = new JSplitPane();
+        lowpermPaneSplitPane.setDividerSize(1);
+        lowpermPaneSplitPane.setResizeWeight(0.5);
+        lowpermrequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
+        lowpermresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
+        lowpermPaneSplitPane.setLeftComponent(lowpermrequest.getComponent());
+        lowpermPaneSplitPane.setRightComponent(lowpermresponse.getComponent());
+        lowpermPane.add(lowpermPaneSplitPane, BorderLayout.CENTER);
+        tabbedPanereqresp.addTab("低权限请求包", lowpermPane);
+        // 添加无权限请求面板
+        nopermPane = new JPanel(new BorderLayout());
+        final JSplitPane nopermPaneSplitPane = new JSplitPane();
+        nopermPaneSplitPane.setDividerSize(1);
+        nopermPaneSplitPane.setResizeWeight(0.5);
+        nopermrequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
+        nopermresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
+        nopermPaneSplitPane.setLeftComponent(nopermrequest.getComponent());
+        nopermPaneSplitPane.setRightComponent(nopermresponse.getComponent());
+        nopermPane.add(nopermPaneSplitPane, BorderLayout.CENTER);
+        tabbedPanereqresp.addTab("无权限请求包", nopermPane);
+
+        // 请求tab添加到leftBottomSplitPane的左边
+        leftBottomSplitPane.setLeftComponent(tabbedPanereqresp);
+
+        // 将leftSplitPane添加到mainsplitPane的左边
+        mainsplitPane.add(leftSplitPane, BorderLayout.CENTER);
+
+        JPanel rightSplitPane = new JPanel(new GridBagLayout());
+        // 右边的上面
+        // 被动扫描选择框
+        passiveScanCheckBox = new JCheckBox("被动扫描");
+        // 白名单域名选择框
+        whiteDomainListCheckBox = new JCheckBox("白名单域名");
+        // 白名单域名Label
+        JLabel whiteListLabel = new JLabel("白名单域名");
+        // 白名单域名输入框
+        whiteDomainListTextArea = new JTextArea();
+        whiteDomainListTextArea.setLineWrap(true); // 自动换行
+        whiteDomainListTextArea.setWrapStyleWord(true); // 按单词换行
+        JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteDomainListTextArea);
+        // 保存白名单按钮
+        saveWhiteDomainButton = new JButton("保存白名单");
+        // 保存认证数据按钮
+        saveAuthDataButton = new JButton("保存认证数据");
+        // 刷新按钮
+        refreshButton = new JButton("刷新表格");
+        // 清空数据按钮
+        clearButton = new JButton("清空表格");
+
+        // 右边的下部分
+        // 低权限认证请求信息Label
+        JLabel lowPermAuthLabel = new JLabel("低权限认证请求信息");
+        // 低权限认证请求信息输入框
+        lowPermAuthTextArea = new JTextArea();
+        lowPermAuthTextArea.setLineWrap(true); // 自动换行
+        lowPermAuthTextArea.setWrapStyleWord(true); // 按单词换行
+        JScrollPane lowPermAuthTextAreascrollPane = new JScrollPane(lowPermAuthTextArea);
+
+        // 无权限认证请求信息Label
+        JLabel noPermAuthLabel = new JLabel("无权限认证请求信息(输入请求头信息，不输入请求体信息)");
+        // 无权限认证请求信息输入框
+        noPermAuthTextArea = new JTextArea();
+        noPermAuthTextArea.setLineWrap(true); // 自动换行
+        noPermAuthTextArea.setWrapStyleWord(true); // 按单词换行
+        JScrollPane noPermAuthTextAreascrollPane = new JScrollPane(noPermAuthTextArea);
+
+        // passiveScanCheckBox和whiteDomainListCheckBox在第一行
+        rightSplitPane.add(passiveScanCheckBox, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightSplitPane.add(whiteDomainListCheckBox, new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // saveWhiteListButton和saveAuthDataButton在第二行
+        rightSplitPane.add(saveWhiteDomainButton, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightSplitPane.add(saveAuthDataButton, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // whiteListLabel在第三行
+        rightSplitPane.add(whiteListLabel, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // whiteListTextArea在第四行
+        rightSplitPane.add(whiteListTextAreascrollPane, new GridBagConstraintsHelper(0, 3, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
+        // refreshButton和clearButton在第五行
+        rightSplitPane.add(refreshButton, new GridBagConstraintsHelper(0, 4, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightSplitPane.add(clearButton, new GridBagConstraintsHelper(1, 4, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // lowPermAuthLabel在第六行
+        rightSplitPane.add(lowPermAuthLabel, new GridBagConstraintsHelper(0, 5, 2, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // lowPermAuthTextArea在第七行
+        rightSplitPane.add(lowPermAuthTextAreascrollPane, new GridBagConstraintsHelper(0, 6, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
+        // noPermAuthLabel在第八行
+        rightSplitPane.add(noPermAuthLabel, new GridBagConstraintsHelper(0, 7, 2, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // noPermAuthTextArea在第九行
+        rightSplitPane.add(noPermAuthTextAreascrollPane, new GridBagConstraintsHelper(0, 8, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
+
+        // 将rightSplitPane添加到mainsplitPane的右边
+        mainsplitPane.add(rightSplitPane, BorderLayout.EAST);
+        panel.add(mainsplitPane, BorderLayout.CENTER);
+    }
+
+    // url hash list
+    public static boolean checkUrlHash(String url) {
+        parameterList.clear();
+        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
+        if (urlHashList.contains(md5)) {
+            return false;
+        } else {
+            urlHashList.add(md5);
+            return true;
+        }
+    }
+
+    // 核心检测方法
+    public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
+        IHttpRequestResponse baseRequestResponse = responses[0];
+        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+        String method = analyzeRequest.getMethod();
+        String url = analyzeRequest.getUrl().toString();
+        List<IParameter> paraLists = analyzeRequest.getParameters();
+        // 如果是右键发送的则不进行去重
+        if (!isSend) {
+            for (IParameter paraList : paraLists) {
+                String paraName = paraList.getName();
+                parameterList.add(paraName);
+            }
+            // 检测url hash 去重
+            if (!checkUrlHash(method + url + parameterList)) {
+                return;
+            }
+        } else {
+            isWhiteDomainList = false;
+        }
+
+
+        // 静态资源不检测
+        List<String> suffix = getSuffix();
+        if (!suffix.isEmpty()) {
+            for (String s : suffix) {
+                if (url.endsWith(s) || url.contains(s)) {
+                    return;
+                }
+            }
+        }
+        // 开启白名单域名检测
+        if (isWhiteDomainList) {
+            List<Perm> permWhiteDomain = getPermListsByType("domain");
+            if (permWhiteDomain.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            for (Perm perm : permWhiteDomain) {
+                if (url.contains(perm.getValue())) {
+                    return;
+                }
+            }
+
+        }
+
+        // 原始请求
+        List<String> originalheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+        byte[] byte_Request = baseRequestResponse.getRequest();
+        int bodyOffset = analyzeRequest.getBodyOffset();
+        int len = byte_Request.length;
+        byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
+        byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
+        IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
+        byte[] responseBody = originalRequestResponse.getResponse();
+        String originallength = "";
+        if (responseBody != null) {
+            IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
+            List<String> headers = originalReqResponse.getHeaders();
+            for (String header : headers) {
+                if (header.contains("Content-Length")) {
+                    originallength = header.split(":")[1].trim();
+                    break;
+                }
+            }
+        }
+        if (originallength.isEmpty()) {
+            assert responseBody != null;
+            originallength = String.valueOf(responseBody.length);
+        }
+        // 如果原始请求的响应体为空，则不进行后续操作
+        if (responseBody == null) {
+            return;
+        }
+        // 获取低权限数据去构造请求
+        List<String> lowheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+        List<Perm> permLowAuth = getPermListsByType("permLowAuth");
+        for (Perm perm : permLowAuth) {
+            String lowAuthText = perm.getValue();
+            String head = lowAuthText.split(":")[0];
+            boolean headerFound = false;
+            for (int i = 0; i < lowheaders.size(); i++) {
+                String lowheader = lowheaders.get(i);
+                if (lowheader.contains(head)) {
+                    lowheaders.set(i, lowAuthText);
+                    headerFound = true;
+                    break;
+                }
+            }
+            if (!headerFound) {
+                lowheaders.add(lowAuthText);
+            }
+        }
+        byte[] lowMessage = Utils.helpers.buildHttpMessage(lowheaders, body);
+        IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), lowMessage);
+        byte[] lowresponseBody = lowRequestResponse.getResponse();
+        String lowlength = "";
+        IResponseInfo lowReqResponse = Utils.helpers.analyzeResponse(lowresponseBody);
+        List<String> lowReqResheaders = lowReqResponse.getHeaders();
+        for (String header : lowReqResheaders) {
+            if (header.contains("Content-Length")) {
+                lowlength = header.split(":")[1].trim();
+                break;
+            }
+        }
+        if (lowlength.isEmpty()) {
+            lowlength = String.valueOf(lowresponseBody.length);
+        }
+        // 无权限请求
+        List<String> noheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+        List<Perm> permNoAuth = getPermListsByType("permNoAuth");
+        List<String> updatedHeaders = new ArrayList<>();
+
+        for (String header : noheaders) {
+            boolean shouldKeep = true;
+            for (Perm perm : permNoAuth) {
+                String noAuthText = perm.getValue();
+                if (header.contains(noAuthText)) {
+                    shouldKeep = false;
+                    break;
+                }
+            }
+            if (shouldKeep) {
+                updatedHeaders.add(header);
+            }
+        }
+        // 更新原始的noheaders列表
+        noheaders.clear();
+        noheaders.addAll(updatedHeaders);
+
+        byte[] noMessage = Utils.helpers.buildHttpMessage(noheaders, body);
+        IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), noMessage);
+        byte[] noresponseBody = noRequestResponse.getResponse();
+        String nolength = "";
+        IResponseInfo noReqResponse = Utils.helpers.analyzeResponse(noresponseBody);
+        List<String> noReqResheaders = noReqResponse.getHeaders();
+        for (String header : noReqResheaders) {
+            if (header.contains("Content-Length")) {
+                nolength = header.split(":")[1].trim();
+                break;
+            }
+        }
+        if (nolength.isEmpty()) {
+            nolength = String.valueOf(noresponseBody.length);
+        }
+        String isSuccess = "×";
+        if (originallength.equals(lowlength) && lowlength.equals(nolength)) {
+            isSuccess = "可能存在";
+        } else {
+            isSuccess = "不存在";
+        }
+
+        add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
+
+    }
+
+    private static void add(String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse baseRequestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
+        synchronized (permlog) {
+            int id = permlog.size();
+            permlog.add(new PermEntry(id, method, url, originalength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse));
+            permTable.updateUI();
+        }
+    }
+
+    // perm 模型
     static class PermModel extends AbstractTableModel {
 
         @Override
         public int getRowCount() {
-            return log.size();
+            return permlog.size();
         }
 
         @Override
@@ -531,19 +585,19 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         public Object getValueAt(int rowIndex, int columnIndex) {
             switch (columnIndex) {
                 case 0:
-                    return log.get(rowIndex).id;
+                    return permlog.get(rowIndex).id;
                 case 1:
-                    return log.get(rowIndex).method;
+                    return permlog.get(rowIndex).method;
                 case 2:
-                    return log.get(rowIndex).url;
+                    return permlog.get(rowIndex).url;
                 case 3:
-                    return log.get(rowIndex).originalength;
+                    return permlog.get(rowIndex).originalength;
                 case 4:
-                    return log.get(rowIndex).lowlength;
+                    return permlog.get(rowIndex).lowlength;
                 case 5:
-                    return log.get(rowIndex).nolength;
+                    return permlog.get(rowIndex).nolength;
                 case 6:
-                    return log.get(rowIndex).isSuccess;
+                    return permlog.get(rowIndex).isSuccess;
                 default:
                     return null;
             }
@@ -572,7 +626,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
     }
 
-    private static class LogEntry {
+    // perm 实体
+    private static class PermEntry {
         final int id;
         final String method;
         final String url;
@@ -584,7 +639,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         IHttpRequestResponse lowRequestResponse;
         IHttpRequestResponse noRequestResponse;
 
-        public LogEntry(int id, String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse requestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
+        public PermEntry(int id, String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse requestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
             this.id = id;
             this.method = method;
             this.url = url;
@@ -598,27 +653,30 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
     }
 
+    // perm 表格
     private class URLTable extends JTable {
         public URLTable(TableModel tableModel) {
             super(tableModel);
+            TableColumnModel columnModel = getColumnModel();
+            columnModel.getColumn(0).setMaxWidth(50);
         }
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            LogEntry logEntry = log.get(row);
+            PermEntry logEntry = permlog.get(row);
             originarequest.setMessage(logEntry.requestResponse.getRequest(), true);
             originaresponse.setMessage(logEntry.requestResponse.getResponse(), false);
             if (logEntry.lowRequestResponse == null || logEntry.noRequestResponse == null) {
-                lowerrequest.setMessage(null, false);
-                lowerresponse.setMessage(null, false);
-                norequest.setMessage(null, false);
-                noresponse.setMessage(null, false);
+                lowpermrequest.setMessage(null, false);
+                lowpermresponse.setMessage(null, false);
+                nopermrequest.setMessage(null, false);
+                nopermresponse.setMessage(null, false);
                 return;
             }
-            lowerrequest.setMessage(logEntry.lowRequestResponse.getRequest(), true);
-            lowerresponse.setMessage(logEntry.lowRequestResponse.getResponse(), false);
-            norequest.setMessage(logEntry.noRequestResponse.getRequest(), true);
-            noresponse.setMessage(logEntry.noRequestResponse.getResponse(), false);
+            lowpermrequest.setMessage(logEntry.lowRequestResponse.getRequest(), true);
+            lowpermresponse.setMessage(logEntry.lowRequestResponse.getResponse(), false);
+            nopermrequest.setMessage(logEntry.noRequestResponse.getRequest(), true);
+            nopermresponse.setMessage(logEntry.noRequestResponse.getResponse(), false);
             currentlyDisplayedItem = logEntry.requestResponse;
             super.changeSelection(row, col, toggle, extend);
         }

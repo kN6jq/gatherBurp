@@ -92,16 +92,18 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                 listMenuItems.add(jMenuItem);
             }
         }
+
         JMenu fastjson = new JMenu("FastJson");
         fastjson.add(new FastjsonMenu().FastjsonDnslogMenu(requestResponses));
         fastjson.add(new FastjsonMenu().FastjsonEchoMenu(requestResponses));
         fastjson.add(new FastjsonMenu().FastjsonJNDIMenu(requestResponses));
         fastjson.add(new FastjsonMenu().FastjsonVersionMenu(requestResponses));
         listMenuItems.add(fastjson);
+        listMenuItems.add(new SqlMenu(requestResponses));
         listMenuItems.add(new AuthMenu(requestResponses));
+        listMenuItems.add(new RouteMenu(requestResponses));
         listMenuItems.add(new Log4jMenu(requestResponses));
         listMenuItems.add(new PermMenu(requestResponses));
-        listMenuItems.add(new SqlMenu(requestResponses));
         listMenuItems.add(new Base64DataMenu());
         listMenuItems.add(new DirtyMenu());
         listMenuItems.add(new NucleiMenu(requestResponses));

@@ -1,23 +1,27 @@
 package burp.bean;
 
-public class FastjsonBean {
-    private Integer id;
+/**
+ * @Author Xm17
+ * @Date 2024-06-22 10:47
+ */
+public class Perm {
+    private int id;
     private String type;
     private String value;
 
-    public FastjsonBean() {
+    public Perm() {
     }
 
-    public FastjsonBean(String type, String value) {
+    public Perm(String type, String value) {
         this.type = type;
         this.value = value;
     }
 
-    public Integer getId() {
+    public int getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(int id) {
         this.id = id;
     }
 

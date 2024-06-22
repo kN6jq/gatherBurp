@@ -1,6 +1,7 @@
 package burp.bean;
 
 public class RouteBean {
+    private int id;
     private int enable;
     private String name;
     private String path;
@@ -9,11 +10,20 @@ public class RouteBean {
     public RouteBean() {
     }
 
-    public RouteBean(int enable, String name, String path, String express) {
+    public RouteBean(int id, int enable, String name, String path, String express) {
+        this.id = id;
         this.enable = enable;
         this.name = name;
         this.path = path;
         this.express = express;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
     public int getEnable() {

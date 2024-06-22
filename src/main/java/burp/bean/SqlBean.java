@@ -2,18 +2,15 @@ package burp.bean;
 
 public class SqlBean {
     private int id;
-    private String sql;
+    private String type;
+    private String value;
 
     public SqlBean() {
     }
 
-    public SqlBean(String sql) {
-        this.sql = sql;
-    }
-
-    public SqlBean(int id, String sql) {
-        this.id = id;
-        this.sql = sql;
+    public SqlBean(String type, String value) {
+        this.type = type;
+        this.value = value;
     }
 
     public int getId() {
@@ -24,11 +21,19 @@ public class SqlBean {
         this.id = id;
     }
 
-    public String getSql() {
-        return sql;
+    public String getType() {
+        return type;
     }
 
-    public void setSql(String sql) {
-        this.sql = sql;
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 }

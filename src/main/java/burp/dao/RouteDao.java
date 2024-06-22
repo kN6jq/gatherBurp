@@ -13,11 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RouteDao {
-
-    // 获取所有路由
-    public static List<RouteBean> getRouteList(){
-        List<RouteBean> datas = new ArrayList<>();
-        String routesql = "select * from route ";
+    // 获取所有规则
+    public static List<RouteBean> getRouteLists(){
+        String sql = "SELECT * FROM route";
         Connection connection = null;
         try {
             connection = DbUtils.getConnection();
@@ -25,62 +23,29 @@ public class RouteDao {
             throw new RuntimeException(e);
         }
         PreparedStatement ps = null;
-        ResultSet resultSet = null;
+        ResultSet rs = null;
+        List<RouteBean> routeBeans = new ArrayList<>();
         try {
-            ps = connection.prepareStatement(routesql);
-            resultSet = ps.executeQuery();
-            while (resultSet.next()) {
-                RouteBean route = new RouteBean();
-                route.setEnable(resultSet.getInt("enable"));
-                route.setName(resultSet.getString("name"));
-                route.setPath(resultSet.getString("path"));
-                route.setExpress(resultSet.getString("express"));
-                datas.add(route);
-
+            ps = connection.prepareStatement(sql);
+            rs = ps.executeQuery();
+            while (rs.next()){
+                RouteBean routeBean = new RouteBean();
+                routeBean.setEnable(rs.getInt("enable"));
+                routeBean.setName(rs.getString("name"));
+                routeBean.setPath(rs.getString("path"));
+                routeBean.setExpress(rs.getString("express"));
+                routeBeans.add(routeBean);
             }
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
         } finally {
-            DbUtils.close(connection, ps, resultSet);
+            DbUtils.close(connection, ps, rs);
         }
-        return datas;
+        return routeBeans;
     }
-
-    // 获取没有关闭的路由
-    public static List<RouteBean> getRouteListNoClose(){
-        List<RouteBean> datas = new ArrayList<>();
-        String routesql = "select * from route where enable =1 ";
-        Connection connection = null;
-        try {
-            connection = DbUtils.getConnection();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-        PreparedStatement ps = null;
-        ResultSet resultSet = null;
-        try {
-            ps = connection.prepareStatement(routesql);
-            resultSet = ps.executeQuery();
-            while (resultSet.next()) {
-                RouteBean route = new RouteBean();
-                route.setEnable(resultSet.getInt("enable"));
-                route.setName(resultSet.getString("name"));
-                route.setPath(resultSet.getString("path"));
-                route.setExpress(resultSet.getString("express"));
-                datas.add(route);
-
-            }
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
-        } finally {
-            DbUtils.close(connection, ps, resultSet);
-        }
-        return datas;
-    }
-
-    // 关闭指定路由
-    public static void closeOrOpenRoute(int enable, String name){
-        String sql = "update route set enable = ? where name = ?";
+    // 通过id修改规则
+    public static void updateRouteById(RouteBean routeBean){
+        String sql = "UPDATE route SET enable = ?, name = ?, path = ?, express = ? WHERE id = ?";
         Connection connection = null;
         try {
             connection = DbUtils.getConnection();
@@ -90,8 +55,11 @@ public class RouteDao {
         PreparedStatement ps = null;
         try {
             ps = connection.prepareStatement(sql);
-            ps.setInt(1, enable);
-            ps.setString(2, name);
+            ps.setInt(1, routeBean.getEnable());
+            ps.setString(2, routeBean.getName());
+            ps.setString(3, routeBean.getPath());
+            ps.setString(4, routeBean.getExpress());
+            ps.setInt(5, routeBean.getId());
             ps.executeUpdate();
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
@@ -99,9 +67,9 @@ public class RouteDao {
             DbUtils.close(connection, ps, null);
         }
     }
-    // 添加路由
-    public static void addRoute(RouteBean route){
-        String sql = "insert into route (enable, name, path, express) values (?, ?, ?, ?)";
+    // 通过id修改enable
+    public static void updateRouteEnable(RouteBean routeBean){
+        String sql = "UPDATE route SET enable = ? WHERE name = ? and path = ? and express = ?";
         Connection connection = null;
         try {
             connection = DbUtils.getConnection();
@@ -111,10 +79,59 @@ public class RouteDao {
         PreparedStatement ps = null;
         try {
             ps = connection.prepareStatement(sql);
-            ps.setInt(1, route.getEnable());
-            ps.setString(2, route.getName());
-            ps.setString(3, route.getPath());
-            ps.setString(4, route.getExpress());
+            ps.setInt(1, routeBean.getEnable());
+            ps.setString(2, routeBean.getName());
+            ps.setString(3, routeBean.getPath());
+            ps.setString(4, routeBean.getExpress());
+            ps.executeUpdate();
+        } catch (Exception e) {
+            Utils.stderr.println(e.getMessage());
+        } finally {
+            DbUtils.close(connection, ps, null);
+        }
+
+    }
+    // 删除
+    public static boolean deleteRoute(RouteBean routeBean){
+        String sql = "DELETE FROM route WHERE name = ? and path = ? and express = ?";
+        Connection connection = null;
+        try {
+            connection = DbUtils.getConnection();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        PreparedStatement ps = null;
+        try {
+            ps = connection.prepareStatement(sql);
+            ps.setString(1, routeBean.getName());
+            ps.setString(2, routeBean.getPath());
+            ps.setString(3, routeBean.getExpress());
+            ps.executeUpdate();
+            return true;
+        } catch (Exception e) {
+            Utils.stderr.println(e.getMessage());
+            return false;
+        } finally {
+            DbUtils.close(connection, ps, null);
+        }
+
+    }
+    // 添加规则
+    public static void addRoute(RouteBean routeBean){
+        String sql = "INSERT INTO route (enable, name, path, express) VALUES (?, ?, ?, ?)";
+        Connection connection = null;
+        try {
+            connection = DbUtils.getConnection();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        PreparedStatement ps = null;
+        try {
+            ps = connection.prepareStatement(sql);
+            ps.setInt(1, routeBean.getEnable());
+            ps.setString(2, routeBean.getName());
+            ps.setString(3, routeBean.getPath());
+            ps.setString(4, routeBean.getExpress());
             ps.executeUpdate();
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
@@ -122,5 +139,4 @@ public class RouteDao {
             DbUtils.close(connection, ps, null);
         }
     }
-
 }

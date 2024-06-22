@@ -14,7 +14,7 @@ public class Log4jMenu extends JMenuItem {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        Log4jUI.Check(requestResponses);
+                        Log4jUI.Check(requestResponses,true);
                     }
                 });
                 thread.start();

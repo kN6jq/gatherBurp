@@ -3,21 +3,14 @@ package burp.ui;
 import burp.*;
 import burp.bean.AuthBean;
 import burp.utils.Utils;
-import com.intellij.uiDesigner.core.GridConstraints;
-import com.intellij.uiDesigner.core.GridLayoutManager;
-import com.intellij.uiDesigner.core.Spacer;
 import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
-import javax.swing.event.AncestorEvent;
-import javax.swing.event.AncestorListener;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -27,27 +20,110 @@ import java.util.Objects;
 
 import static burp.utils.Utils.getSuffix;
 
+/**
+ * @Author Xm17
+ * @Date 2024-06-22 8:46
+ */
 public class AuthUI implements UIHandler, IMessageEditorController {
-    private static final List<LogEntry> log = new ArrayList<>();
-    // 去重存放的列表
-    private static final List<String> parameterList = new ArrayList<>();
-    private static final List<String> urlHashList = new ArrayList<>();
-    private static JTable authTable;
-    private JPanel panel;
-    private JPanel authPanel;
-//    private JButton authRefershButton;
-//    private JButton authClearButton;
-    private JSplitPane authSPlitePane;
-    private JTabbedPane authtabbedPane1;
-    private JTabbedPane authtabbedPane2;
-    private JScrollPane authJScrollPane;
-    private IHttpRequestResponse currentlyDisplayedItem;
-    private IMessageEditor HRequestTextEditor;
-    private IMessageEditor HResponseTextEditor;
+    private JPanel panel; // 主面板
+    private static JTable authTable; // auth表格
+    private JButton btnClear; // 清空按钮
+    private JTabbedPane authtabbedPanereq; // 请求tab
+    private JTabbedPane authtabbedPaneresp; // 响应tab
+    private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
+    private IMessageEditor HRequestTextEditor; // 请求编辑器
+    private IMessageEditor HResponseTextEditor; // 响应编辑器
+    private static final List<AuthEntry> authlog = new ArrayList<>(); //authlog 列表
+    private static final List<String> parameterList = new ArrayList<>(); // 参数列表
+    private static final List<String> urlHashList = new ArrayList<>(); // url hash列表
+    @Override
+    public IHttpService getHttpService() {
+        return currentlyDisplayedItem.getHttpService();
+    }
 
-    // 检测方法
-    public static void Check(IHttpRequestResponse[] requestResponses) {
-        // 检查是否存在权限绕过
+    @Override
+    public byte[] getRequest() {
+        return currentlyDisplayedItem.getRequest();
+    }
+
+    @Override
+    public byte[] getResponse() {
+        return currentlyDisplayedItem.getResponse();
+    }
+
+    @Override
+    public void init() {
+        setupUI();
+        setupData();
+    }
+    // 初始化数据
+    private void setupData() {
+        btnClear.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // 清空urltable
+                authlog.clear();
+                HRequestTextEditor.setMessage(new byte[0], true);
+                HResponseTextEditor.setMessage(new byte[0], false);
+                urlHashList.clear();
+                authTable.updateUI();
+            }
+        });
+    }
+
+    // 初始化ui
+    private void setupUI() {
+        panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        // 添加FlowLayout布局,将清空按钮添加
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        btnClear = new JButton("Clear");
+        topPanel.add(btnClear);
+        panel.add(topPanel, BorderLayout.NORTH);
+
+        // 上下分割面板,比例是7：3
+        JSplitPane mainsplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainsplitPane.setResizeWeight(0.7);
+        mainsplitPane.setDividerLocation(0.7);
+
+        // 添加URLTable到mainsplitPane的上边
+        authTable = new URLTable(new AuthModel());
+        JScrollPane scrollPane = new JScrollPane(authTable);
+        mainsplitPane.setTopComponent(scrollPane);
+
+        // 左右分割面板,对称分割
+        JSplitPane splitPaneDown = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        splitPaneDown.setResizeWeight(0.5);
+        splitPaneDown.setDividerLocation(0.5);
+        // 添加请求响应到左右分割面板
+        authtabbedPanereq = new JTabbedPane();
+        HRequestTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, true);
+        authtabbedPanereq.addTab("request", HRequestTextEditor.getComponent());
+
+        authtabbedPaneresp = new JTabbedPane();
+        HResponseTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, false);
+        authtabbedPaneresp.addTab("response", HResponseTextEditor.getComponent());
+        splitPaneDown.setLeftComponent(authtabbedPanereq);
+        splitPaneDown.setRightComponent(authtabbedPaneresp);
+
+
+        // 添加splitPaneDown到mainsplitPane的下边
+        mainsplitPane.setBottomComponent(splitPaneDown);
+
+        panel.add(mainsplitPane, BorderLayout.CENTER);
+    }
+
+    @Override
+    public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
+        return panel;
+    }
+
+    @Override
+    public String getTabName() {
+        return "BypassAuth";
+    }
+    // auth核心检测方法
+    public static void Check(IHttpRequestResponse[] requestResponses){
         IHttpRequestResponse baseRequestResponse = requestResponses[0];
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         String method = analyzeRequest.getMethod();
@@ -125,7 +201,14 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             add(method, url, statusCode, length, response);
         }
     }
-
+    // 添加数据到表格
+    private static void add(String method, String url, String statuscode, String length, IHttpRequestResponse baseRequestResponse) {
+        synchronized (authlog) {
+            int id = authlog.size();
+            authlog.add(new AuthEntry(id, method, url, statuscode, length, baseRequestResponse));
+            authTable.updateUI();
+        }
+    }
     // 对url进行hash去重
     public static boolean checkUrlHash(String url) {
         parameterList.clear();
@@ -137,7 +220,6 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             return true;
         }
     }
-
     // 添加后缀
     public static List<AuthBean> suffix(String method, String path) {
         if (path.startsWith("//")) {
@@ -249,124 +331,32 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         add(method, url, statusCode, length, response);
     }
 
-    private static void add(String method, String url, String statuscode, String length, IHttpRequestResponse baseRequestResponse) {
-        synchronized (log) {
-            int id = log.size();
-            log.add(new LogEntry(id, method, url, statuscode, length, baseRequestResponse));
-            authTable.updateUI();
+    // auth实体
+    private static class AuthEntry {
+        private final int id;
+        private final String method;
+        private final String url;
+        private final String status;
+        private final String length;
+        private final IHttpRequestResponse requestResponse;
+
+
+        public AuthEntry(int id, String method, String url, String status, String length, IHttpRequestResponse requestResponse) {
+            this.id = id;
+            this.method = method;
+            this.url = url;
+            this.status = status;
+            this.length = length;
+            this.requestResponse = requestResponse;
         }
     }
 
-    private void setupUI() {
-
-        panel = new JPanel();
-        panel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        authPanel = new JPanel();
-        authPanel.setLayout(new GridLayoutManager(2, 4, new Insets(0, 0, 0, 0), -1, -1));
-        panel.add(authPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-//        authRefershButton = new JButton();
-//        authRefershButton.setText("刷新");
-//        authPanel.add(authRefershButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final Spacer spacer1 = new Spacer();
-        authPanel.add(spacer1, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-//        authClearButton = new JButton();
-//        authClearButton.setText("清空数据");
-//        authPanel.add(authClearButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        final JSplitPane splitPane1 = new JSplitPane();
-        splitPane1.setDividerSize(2);
-        splitPane1.setOrientation(JSplitPane.VERTICAL_SPLIT);
-        authPanel.add(splitPane1, new GridConstraints(1, 0, 1, 4, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(200, 200), null, 0, false));
-        authSPlitePane = new JSplitPane();
-        authSPlitePane.setDividerSize(2);
-        authSPlitePane.setResizeWeight(0.5);
-        splitPane1.setRightComponent(authSPlitePane);
-        authtabbedPane1 = new JTabbedPane();
-        authSPlitePane.setLeftComponent(authtabbedPane1);
-        HRequestTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, true);
-        HResponseTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, false);
-        authtabbedPane1.addTab("request", HRequestTextEditor.getComponent());
-        authtabbedPane2 = new JTabbedPane();
-        authSPlitePane.setRightComponent(authtabbedPane2);
-        authtabbedPane2.addTab("response", HResponseTextEditor.getComponent());
-        authJScrollPane = new JScrollPane();
-        splitPane1.setLeftComponent(authJScrollPane);
-        AuthModel authModel = new AuthModel();
-        authTable = new URLTable(authModel);
-        authJScrollPane.setViewportView(authTable);
-    }
-
-    private void setupData() {
-//        // 刷新按钮
-//        authRefershButton.addActionListener(new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                authTable.updateUI();
-//            }
-//        });
-//        // 清空按钮
-//        authClearButton.addActionListener(new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                log.clear();
-//                HRequestTextEditor.setMessage(new byte[0], true);
-//                HResponseTextEditor.setMessage(new byte[0], false);
-//                urlHashList.clear();
-//                authTable.updateUI();
-//            }
-//        });
-        // 监听表格右击
-        authTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getButton() == MouseEvent.BUTTON3){
-                    log.clear();
-                    HRequestTextEditor.setMessage(new byte[0], true);
-                    HResponseTextEditor.setMessage(new byte[0], false);
-                    urlHashList.clear();
-                    authTable.updateUI();
-                }
-            }
-        });
-
-
-    }
-
-    @Override
-    public IHttpService getHttpService() {
-        return currentlyDisplayedItem.getHttpService();
-    }
-
-    @Override
-    public byte[] getRequest() {
-        return currentlyDisplayedItem.getRequest();
-    }
-
-    @Override
-    public byte[] getResponse() {
-        return currentlyDisplayedItem.getResponse();
-    }
-
-    @Override
-    public void init() {
-        setupUI();
-        setupData();
-    }
-
-    @Override
-    public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
-        return panel;
-    }
-
-    @Override
-    public String getTabName() {
-        return "BypassAuth";
-    }
-
+    // auth 模型
     private static class AuthModel extends AbstractTableModel {
 
         @Override
         public int getRowCount() {
-            return log.size();
+            return authlog.size();
         }
 
         @Override
@@ -378,15 +368,15 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         public Object getValueAt(int rowIndex, int columnIndex) {
             switch (columnIndex) {
                 case 0:
-                    return log.get(rowIndex).id;
+                    return authlog.get(rowIndex).id;
                 case 1:
-                    return log.get(rowIndex).method;
+                    return authlog.get(rowIndex).method;
                 case 2:
-                    return log.get(rowIndex).url;
+                    return authlog.get(rowIndex).url;
                 case 3:
-                    return log.get(rowIndex).status;
+                    return authlog.get(rowIndex).status;
                 case 4:
-                    return log.get(rowIndex).length;
+                    return authlog.get(rowIndex).length;
                 default:
                     return null;
             }
@@ -411,33 +401,18 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         }
     }
 
-    private static class LogEntry {
-        private final int id;
-        private final String method;
-        private final String url;
-        private final String status;
-        private final String length;
-        private final IHttpRequestResponse requestResponse;
-
-
-        public LogEntry(int id, String method, String url, String status, String length, IHttpRequestResponse requestResponse) {
-            this.id = id;
-            this.method = method;
-            this.url = url;
-            this.status = status;
-            this.length = length;
-            this.requestResponse = requestResponse;
-        }
-    }
-
+    // auth 表格
     private class URLTable extends JTable {
         public URLTable(TableModel dm) {
             super(dm);
+            TableColumnModel columnModel = getColumnModel();
+            columnModel.getColumn(0).setMaxWidth(50);
+            columnModel.getColumn(4).setMaxWidth(50);
         }
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            LogEntry logEntry = log.get(row);
+            AuthEntry logEntry = authlog.get(row);
             HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             if (logEntry.requestResponse.getResponse() == null) {
                 HResponseTextEditor.setMessage(new byte[0], false);
@@ -448,4 +423,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             super.changeSelection(row, col, toggle, extend);
         }
     }
+
+
+
 }

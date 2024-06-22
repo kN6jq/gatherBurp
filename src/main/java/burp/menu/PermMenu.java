@@ -14,7 +14,7 @@ public class PermMenu extends JMenuItem {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        PermUI.Check(requestResponses);
+                        PermUI.Check(requestResponses,true);
                     }
                 });
                 thread.start();
