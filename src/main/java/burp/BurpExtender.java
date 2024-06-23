@@ -51,42 +51,43 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
 
         List<ConfigBean> toolParam = getToolConfig();
 
-        // todo: 此处有bug
         for (ConfigBean config : toolParam) {
             String name = config.getType();
             String value = config.getValue();
-            if (!Objects.equals(name, "") && !Objects.equals(value, "")) {
-                String cmd = value;
-                if (requestResponses != null) {
-                    if (cmd.contains("{url}")) {
-                        String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
-                        cmd = cmd.replace("{url}", url);
-                    } else if (cmd.contains("{request}")) {
-                        String requestFilePath = writeReqFile(baseRequestResponse);
-                        assert requestFilePath != null;
-                        cmd = cmd.replace("{request}", requestFilePath);
-                    } else if (cmd.contains("{host}")) {
-                        String host = baseRequestResponse.getHttpService().getHost();
-                        cmd = cmd.replace("{host}", host);
-                    }
-                }
+            if (!name.isEmpty() && !value.isEmpty()) {
                 JMenuItem jMenuItem = new JMenuItem(name);
-                String finalCmd = cmd;
                 jMenuItem.addActionListener(new AbstractAction() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
-                        Runnable toolRunner = new Runnable() {
-                            @Override
-                            public void run() {
+                        if (value.contains("{url}")){
+                            String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
+                            try {
+                                RobotInput ri = new RobotInput();
+                                ri.inputString(value.replace("{url}", url));
+                            } catch (Exception ex) {
+                                Utils.stderr.println(ex.getMessage());
+                            }
+                        }else if (value.contains("{host}")) {
+                            String host = baseRequestResponse.getHttpService().getHost();
+                            try {
+                                RobotInput ri = new RobotInput();
+                                ri.inputString(value.replace("{host}", host));
+                            } catch (Exception ex) {
+                                Utils.stderr.println(ex.getMessage());
+                            }
+                        } else if (value.contains("{request}")) {
+                            String requestFilePath = writeReqFile(baseRequestResponse);
+                            if (requestFilePath != null) {
                                 try {
                                     RobotInput ri = new RobotInput();
-                                    ri.inputString(finalCmd);
-                                } catch (Exception e1) {
-                                    Utils.stderr.println(e1.getMessage());
+                                    ri.inputString(value.replace("{request}", requestFilePath));
+                                } catch (Exception ex) {
+                                    Utils.stderr.println(ex.getMessage());
                                 }
+                            } else {
+                                Utils.stderr.println("Failed to write request file.");
                             }
-                        };
-                        new Thread(toolRunner).start();
+                        }
                     }
                 });
                 listMenuItems.add(jMenuItem);

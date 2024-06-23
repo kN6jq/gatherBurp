@@ -579,6 +579,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private class RouteTable extends JTable {
         public RouteTable(TableModel tableModel) {
             super(tableModel);
+            // 设置列宽
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
             columnModel.getColumn(1).setMaxWidth(50);

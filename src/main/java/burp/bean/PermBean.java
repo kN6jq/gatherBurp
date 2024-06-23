@@ -4,15 +4,15 @@ package burp.bean;
  * @Author Xm17
  * @Date 2024-06-22 10:47
  */
-public class Perm {
+public class PermBean {
     private int id;
     private String type;
     private String value;
 
-    public Perm() {
+    public PermBean() {
     }
 
-    public Perm(String type, String value) {
+    public PermBean(String type, String value) {
         this.type = type;
         this.value = value;
     }

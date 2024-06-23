@@ -1,6 +1,6 @@
 package burp.dao;
 
-import burp.bean.Perm;
+import burp.bean.PermBean;
 import burp.utils.DbUtils;
 import burp.utils.Utils;
 
@@ -17,7 +17,7 @@ import java.util.List;
  */
 public class PermDao {
     // 保存
-    public static void savePerm(Perm perm){
+    public static void savePerm(PermBean permBean){
         String sql = "INSERT OR REPLACE INTO perm (type, value) VALUES (?, ?)";
         Connection connection = null;
         try {
@@ -28,8 +28,8 @@ public class PermDao {
         PreparedStatement ps = null;
         try {
             ps = connection.prepareStatement(sql);
-            ps.setString(1, perm.getType());
-            ps.setString(2, perm.getValue());
+            ps.setString(1, permBean.getType());
+            ps.setString(2, permBean.getValue());
             ps.executeUpdate();
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
@@ -39,7 +39,7 @@ public class PermDao {
 
     }
     // 更新
-    public static void updatePerm(Perm perm){
+    public static void updatePerm(PermBean permBean){
         String sql = "update perm set value = ? where type = ?";
         Connection connection = null;
         try {
@@ -50,8 +50,8 @@ public class PermDao {
         PreparedStatement ps = null;
         try {
             ps = connection.prepareStatement(sql);
-            ps.setString(1, perm.getValue());
-            ps.setString(2, perm.getType());
+            ps.setString(1, permBean.getValue());
+            ps.setString(2, permBean.getType());
             ps.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
@@ -81,8 +81,8 @@ public class PermDao {
 
     }
     // 查询一个
-    public static Perm getPermListByType(String type) {
-        Perm perm = new Perm();
+    public static PermBean getPermListByType(String type) {
+        PermBean permBean = new PermBean();
         String routesql = "select * from perm where type = ?";
         Connection connection = null;
         try {
@@ -97,21 +97,21 @@ public class PermDao {
             ps.setString(1, type);
             resultSet = ps.executeQuery();
             while (resultSet.next()) {
-                perm.setId(resultSet.getInt("id"));
-                perm.setType(resultSet.getString("type"));
-                perm.setValue(resultSet.getString("value"));
+                permBean.setId(resultSet.getInt("id"));
+                permBean.setType(resultSet.getString("type"));
+                permBean.setValue(resultSet.getString("value"));
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             DbUtils.close(connection, ps, null);
         }
-        return perm;
+        return permBean;
 
     }
     // 查询所有
-    public static List<Perm> getPermListsByType(String type){
-        List<Perm> permLists = new ArrayList<>();
+    public static List<PermBean> getPermListsByType(String type){
+        List<PermBean> permBeanLists = new ArrayList<>();
         String routesql = "select * from perm where type = ?";
         Connection connection = null;
         try {
@@ -126,18 +126,18 @@ public class PermDao {
             ps.setString(1, type);
             resultSet = ps.executeQuery();
             while (resultSet.next()) {
-                Perm perm = new Perm();
-                perm.setId(resultSet.getInt("id"));
-                perm.setType(resultSet.getString("type"));
-                perm.setValue(resultSet.getString("value"));
-                permLists.add(perm);
+                PermBean permBean = new PermBean();
+                permBean.setId(resultSet.getInt("id"));
+                permBean.setType(resultSet.getString("type"));
+                permBean.setValue(resultSet.getString("value"));
+                permBeanLists.add(permBean);
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             DbUtils.close(connection, ps, null);
         }
-        return permLists;
+        return permBeanLists;
     }
 
 }

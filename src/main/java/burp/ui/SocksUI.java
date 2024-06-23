@@ -8,6 +8,9 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
@@ -43,6 +46,7 @@ public class SocksUI implements UIHandler {
     }
 
     private void setupData() {
+
     }
 
     private void setupUI() {
@@ -61,8 +65,9 @@ public class SocksUI implements UIHandler {
         JSplitPane jSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         // 代理池文本输入框
         ipTextField = new JTextPane();
+        // 设置ipTextField提示
         //ipTextField 设置边框
-        ipTextField.setBorder(BorderFactory.createTitledBorder("Proxy Pool"));
+        ipTextField.setBorder(BorderFactory.createTitledBorder("Proxy Pool: (example 1.2.3.4:7890)"));
         ipTextField.setEditable(true);
         logTextField = new JTextPane();
         logTextField.setBorder(BorderFactory.createTitledBorder("Log"));
@@ -75,6 +80,7 @@ public class SocksUI implements UIHandler {
         jSplitPane.setRightComponent(logTextField);
         panel.add(jSplitPane,new GridBagConstraintsHelper(0, 1, 0, 0).setInsets(5).setIpad(0, 0).setWeight(1.0d, 1.0d).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
     }
+
 
     // 获取配置
     public void getSettings(IBurpExtenderCallbacks callbacks) {

@@ -1,7 +1,7 @@
 package burp.ui;
 
 import burp.*;
-import burp.bean.Perm;
+import burp.bean.PermBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
 import org.springframework.util.DigestUtils;
@@ -102,8 +102,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     // 初始化数据
     private void setupData() {
         // 被动扫描选择框
-        Perm permPassiveScanConfig = getPermListByType("permPassiveScan");
-        if (permPassiveScanConfig.getValue().equals("true")) {
+        PermBean permBeanPassiveScanConfig = getPermListByType("permPassiveScan");
+        if (permBeanPassiveScanConfig.getValue().equals("true")) {
             passiveScanCheckBox.setSelected(true);
             ispassiveScan = true;
         } else {
@@ -111,8 +111,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             ispassiveScan = false;
         }
         // 白名单域名选择框
-        Perm permWhiteDomainConfig = getPermListByType("permWithDomain");
-        if (permWhiteDomainConfig.getValue().equals("true")) {
+        PermBean permBeanWhiteDomainConfig = getPermListByType("permWithDomain");
+        if (permBeanWhiteDomainConfig.getValue().equals("true")) {
             whiteDomainListCheckBox.setSelected(true);
             isWhiteDomainList = true;
         } else {
@@ -120,8 +120,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             isWhiteDomainList = false;
         }
         // 白名单域名输入框
-        List<Perm> whiteDomain = getPermListsByType("domain");
-        for (Perm permBean : whiteDomain) {
+        List<PermBean> whiteDomain = getPermListsByType("domain");
+        for (PermBean permBean : whiteDomain) {
             // 如果是最后一个，就不加换行符
             if (whiteDomain.indexOf(permBean) == whiteDomain.size() - 1) {
                 whiteDomainListTextArea.setText(whiteDomainListTextArea.getText() + permBean.getValue());
@@ -131,25 +131,25 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
 
         // permLowAuth输入框
-        List<Perm> permLowAuth = getPermListsByType("permLowAuth");
-        for (Perm perm : permLowAuth) {
+        List<PermBean> permBeanLowAuth = getPermListsByType("permLowAuth");
+        for (PermBean permBean : permBeanLowAuth) {
             // 如果是最后一个，就不加换行符
-            if (permLowAuth.indexOf(perm) == permLowAuth.size() - 1) {
-                lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + perm.getValue());
+            if (permBeanLowAuth.indexOf(permBean) == permBeanLowAuth.size() - 1) {
+                lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + permBean.getValue());
                 break;
             }
-            lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + perm.getValue() + "\n");
+            lowPermAuthTextArea.setText(lowPermAuthTextArea.getText() + permBean.getValue() + "\n");
         }
 
         // permNoAuth输入框
-        List<Perm> permNoAuth = getPermListsByType("permNoAuth");
-        for (Perm perm : permNoAuth) {
+        List<PermBean> permBeanNoAuth = getPermListsByType("permNoAuth");
+        for (PermBean permBean : permBeanNoAuth) {
             // 如果是最后一个，就不加换行符
-            if (permNoAuth.indexOf(perm) == permNoAuth.size() - 1) {
-                noPermAuthTextArea.setText(noPermAuthTextArea.getText() + perm.getValue());
+            if (permBeanNoAuth.indexOf(permBean) == permBeanNoAuth.size() - 1) {
+                noPermAuthTextArea.setText(noPermAuthTextArea.getText() + permBean.getValue());
                 break;
             }
-            noPermAuthTextArea.setText(noPermAuthTextArea.getText() + perm.getValue() + "\n");
+            noPermAuthTextArea.setText(noPermAuthTextArea.getText() + permBean.getValue() + "\n");
         }
         // 被动扫描选择框
         passiveScanCheckBox.addActionListener(new AbstractAction() {
@@ -157,12 +157,12 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             public void actionPerformed(ActionEvent e) {
                 if (passiveScanCheckBox.isSelected()) {
                     ispassiveScan = true;
-                    Perm permPassiveScanConfig = new Perm("permPassiveScan", "true");
-                    updatePerm(permPassiveScanConfig);
+                    PermBean permBeanPassiveScanConfig = new PermBean("permPassiveScan", "true");
+                    updatePerm(permBeanPassiveScanConfig);
                 } else {
                     ispassiveScan = false;
-                    Perm permPassiveScanConfig = new Perm("permPassiveScan", "false");
-                    updatePerm(permPassiveScanConfig);
+                    PermBean permBeanPassiveScanConfig = new PermBean("permPassiveScan", "false");
+                    updatePerm(permBeanPassiveScanConfig);
                 }
             }
         });
@@ -172,12 +172,12 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             public void actionPerformed(ActionEvent e) {
                 if (whiteDomainListCheckBox.isSelected()) {
                     isWhiteDomainList = true;
-                    Perm permWhiteDomainConfig = new Perm("permWithDomain", "true");
-                    updatePerm(permWhiteDomainConfig);
+                    PermBean permBeanWhiteDomainConfig = new PermBean("permWithDomain", "true");
+                    updatePerm(permBeanWhiteDomainConfig);
                 } else {
                     isWhiteDomainList = false;
-                    Perm permWhiteDomainConfig = new Perm("permWithDomain", "false");
-                    updatePerm(permWhiteDomainConfig);
+                    PermBean permBeanWhiteDomainConfig = new PermBean("permWithDomain", "false");
+                    updatePerm(permBeanWhiteDomainConfig);
                 }
             }
         });
@@ -190,12 +190,12 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 if (whiteDomainList.contains("\n")) {
                     String[] split = whiteDomainList.split("\n");
                     for (String domain : split) {
-                        Perm perm = new Perm("domain", domain);
-                        savePerm(perm);
+                        PermBean permBean = new PermBean("domain", domain);
+                        savePerm(permBean);
                     }
                 } else {
-                    Perm perm = new Perm("domain", whiteDomainList);
-                    savePerm(perm);
+                    PermBean permBean = new PermBean("domain", whiteDomainList);
+                    savePerm(permBean);
                 }
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
@@ -211,22 +211,22 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 if (lowPermAuthText.contains("\n")) {
                     String[] split = lowPermAuthText.split("\n");
                     for (String lowAuth : split) {
-                        Perm perm = new Perm("permLowAuth", lowAuth);
-                        savePerm(perm);
+                        PermBean permBean = new PermBean("permLowAuth", lowAuth);
+                        savePerm(permBean);
                     }
                 } else {
-                    Perm perm = new Perm("permLowAuth", lowPermAuthText);
-                    savePerm(perm);
+                    PermBean permBean = new PermBean("permLowAuth", lowPermAuthText);
+                    savePerm(permBean);
                 }
                 if (noPermAuthText.contains("\n")) {
                     String[] split = noPermAuthText.split("\n");
                     for (String noAuth : split) {
-                        Perm perm = new Perm("permNoAuth", noAuth);
-                        savePerm(perm);
+                        PermBean permBean = new PermBean("permNoAuth", noAuth);
+                        savePerm(permBean);
                     }
                 } else {
-                    Perm perm = new Perm("permNoAuth", noPermAuthText);
-                    savePerm(perm);
+                    PermBean permBean = new PermBean("permNoAuth", noPermAuthText);
+                    savePerm(permBean);
                 }
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
@@ -437,13 +437,13 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
         // 开启白名单域名检测
         if (isWhiteDomainList) {
-            List<Perm> permWhiteDomain = getPermListsByType("domain");
-            if (permWhiteDomain.isEmpty()) {
+            List<PermBean> permBeanWhiteDomain = getPermListsByType("domain");
+            if (permBeanWhiteDomain.isEmpty()) {
                 JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            for (Perm perm : permWhiteDomain) {
-                if (url.contains(perm.getValue())) {
+            for (PermBean permBean : permBeanWhiteDomain) {
+                if (url.contains(permBean.getValue())) {
                     return;
                 }
             }
@@ -480,9 +480,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
         // 获取低权限数据去构造请求
         List<String> lowheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<Perm> permLowAuth = getPermListsByType("permLowAuth");
-        for (Perm perm : permLowAuth) {
-            String lowAuthText = perm.getValue();
+        List<PermBean> permBeanLowAuth = getPermListsByType("permLowAuth");
+        for (PermBean permBean : permBeanLowAuth) {
+            String lowAuthText = permBean.getValue();
             String head = lowAuthText.split(":")[0];
             boolean headerFound = false;
             for (int i = 0; i < lowheaders.size(); i++) {
@@ -514,13 +514,13 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
         // 无权限请求
         List<String> noheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<Perm> permNoAuth = getPermListsByType("permNoAuth");
+        List<PermBean> permBeanNoAuth = getPermListsByType("permNoAuth");
         List<String> updatedHeaders = new ArrayList<>();
 
         for (String header : noheaders) {
             boolean shouldKeep = true;
-            for (Perm perm : permNoAuth) {
-                String noAuthText = perm.getValue();
+            for (PermBean permBean : permBeanNoAuth) {
+                String noAuthText = permBean.getValue();
                 if (header.contains(noAuthText)) {
                     shouldKeep = false;
                     break;
