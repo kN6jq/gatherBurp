@@ -4,6 +4,7 @@ import burp.*;
 import burp.bean.Log4jBean;
 import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
+import burp.utils.CustomScanIssue;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
 import com.alibaba.fastjson.JSON;
@@ -14,6 +15,8 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
@@ -225,6 +228,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkey = "存在报错";
+                                    IScanIssue issues = null;
+                                    try{
+                                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                "SqlInject Error", "SqlInject 发现报错",
+                                                "High", "Certain");
+                                        Utils.callbacks.addScanIssue(issues);
+                                    }catch (MalformedURLException e){
+                                        throw new RuntimeException(e);
+                                    }
                                     break;
                                 }
                             }
@@ -280,6 +292,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkey = "存在报错";
+                                    IScanIssue issues = null;
+                                    try{
+                                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                "SqlInject Error", "SqlInject 发现报错",
+                                                "High", "Certain");
+                                        Utils.callbacks.addScanIssue(issues);
+                                    }catch (MalformedURLException e){
+                                        throw new RuntimeException(e);
+                                    }
                                     break;
                                 }
                             }
@@ -335,6 +356,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
+                                        IScanIssue issues = null;
+                                        try{
+                                            issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                    "SqlInject Error", "SqlInject 发现报错",
+                                                    "High", "Certain");
+                                            Utils.callbacks.addScanIssue(issues);
+                                        }catch (MalformedURLException e){
+                                            throw new RuntimeException(e);
+                                        }
                                         break;
                                     }
                                 }
@@ -410,6 +440,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
+                                        IScanIssue issues = null;
+                                        try{
+                                            issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                    "SqlInject Error", "SqlInject 发现报错",
+                                                    "High", "Certain");
+                                            Utils.callbacks.addScanIssue(issues);
+                                        }catch (MalformedURLException e){
+                                            throw new RuntimeException(e);
+                                        }
                                         break;
                                     }
                                 }

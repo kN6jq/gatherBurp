@@ -3,6 +3,7 @@ package burp.ui;
 import burp.*;
 import burp.bean.RouteBean;
 import burp.dao.RouteDao;
+import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
 import burp.utils.Utils;
 import org.springframework.util.DigestUtils;
@@ -359,6 +360,15 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     boolean process = expressionUtils.process(routeBean.getExpress());
                     if (process) {
                         addIssus(routeBean.getName(),expressionUtils.getUrl(),  String.valueOf(expressionUtils.getCode()), response);
+                        IScanIssue issues = null;
+                        try {
+                            issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
+                                    "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
+                                    "High", "Certain");
+                            Utils.callbacks.addScanIssue(issues);
+                        } catch (MalformedURLException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 } else if (Objects.equals(method, "POST")) {
                     String new_request = request.replaceFirst(path, reqList);
@@ -367,6 +377,15 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     boolean process = expressionUtils.process(routeBean.getExpress());
                     if (process) {
                         addIssus(routeBean.getName(),expressionUtils.getUrl(), String.valueOf(expressionUtils.getCode()), response);
+                        IScanIssue issues = null;
+                        try {
+                            issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
+                                    "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
+                                    "High", "Certain");
+                            Utils.callbacks.addScanIssue(issues);
+                        } catch (MalformedURLException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }
             }

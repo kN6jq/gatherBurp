@@ -4,6 +4,7 @@ import burp.*;
 import burp.bean.ConfigBean;
 import burp.bean.FastjsonBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
+import burp.utils.CustomScanIssue;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -12,6 +13,8 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -195,6 +198,15 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
             }
             if (containsContentAuth) {
                 add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果", resp);
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(iHttpService, new URL(url), new IHttpRequestResponse[]{resp},
+                            "Fastjson echo", "Fastjson echo命令检测完成,发现结果",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException(e);
+                }
             } else {
                 add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果", resp);
             }
