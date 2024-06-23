@@ -46,7 +46,10 @@ public class SocksUI implements UIHandler {
     }
 
     private void setupData() {
-
+        // 如果配置文件不存在,则新建配置文件
+        if (!isConfigFileExist()){
+            saveSettings(Utils.callbacks);
+        }
     }
 
     private void setupUI() {
@@ -81,85 +84,11 @@ public class SocksUI implements UIHandler {
         panel.add(jSplitPane,new GridBagConstraintsHelper(0, 1, 0, 0).setInsets(5).setIpad(0, 0).setWeight(1.0d, 1.0d).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
     }
 
-
-    // 获取配置
-    public void getSettings(IBurpExtenderCallbacks callbacks) {
-        String jsonStr = callbacks.saveConfigAsJson("project_options.connections.socks_proxy");
-        JSONObject jsonObject = JSON.parseObject(jsonStr);
-        use_proxy = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getBoolean("use_proxy");
-        dns_over_socks = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getBoolean("dns_over_socks");
-        use_user_options = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getBoolean("use_user_options");
-        host = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getString("host");
-        password = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getString("password");
-        port = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getInteger("port");
-        username = jsonObject.getJSONObject("project_options").getJSONObject("connections").getJSONObject("socks_proxy").getString("username");
-        Utils.stdout.println(jsonObject.toJSONString());
-    }
-
-    // 加载配置
-    public void loadSettings(IBurpExtenderCallbacks callbacks) {
-        try{
-            String jsonStr = FileUtils.readFileToString(Utils.SocksConfigFile("socks.json"), "utf-8");
-            JSONObject jsonObject = JSON.parseObject(jsonStr);
-            boolean use_proxy_update = jsonObject.getBoolean("use_proxy");
-            boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
-            boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
-            String host_update = jsonObject.getString("host");
-            int port_update = jsonObject.getInteger("port");
-            String username_update = jsonObject.getString("username");
-            String password_update = jsonObject.getString("password");
-
-            String socksDnsOverSocksPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"dns_over_socks\":";
-            String socksDnsOverSocksSuffix = "}}}}";
-            String reconstitutedsocksDnsOverSocks = socksDnsOverSocksPrefix + dns_over_socks_update + socksDnsOverSocksSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksDnsOverSocks);
-
-            String socksUseUserOptionsPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"use_user_options\":";
-            String socksUseUserOptionsSuffix = "}}}}";
-            String reconstitutedsocksUseUserOptions = socksUseUserOptionsPrefix + use_user_options_update + socksUseUserOptionsSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksUseUserOptions);
-
-            String socksHostPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"host\":\"";
-            String socksHostSuffix = "\"}}}}";
-            String reconstitutedsocksHost = socksHostPrefix + host_update + socksHostSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksHost);
-
-            String socksPortPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"port\":";
-            String socksPortSuffix = "}}}}";
-            String reconstitutedsocksPort = socksPortPrefix + port_update + socksPortSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksPort);
-
-            String socksUsernamePrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"username\":\"";
-            String socksUsernameSuffix = "\"}}}}";
-            String reconstitutedsocksUsername = socksUsernamePrefix + username_update + socksUsernameSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksUsername);
-
-            String socksPasswordPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"password\":\"";
-            String socksPasswordSuffix = "\"}}}}";
-            String reconstitutedsocksPassword = socksPasswordPrefix + password_update + socksPasswordSuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksPassword);
-
-
-            String socksUseProxyPrefix = "{\"project_options\":{\"connections\":{\"socks_proxy\":{\"use_proxy\":";
-            String socksUseProxySuffix = "}}}}";
-            String reconstitutedsocksUseProxy = socksUseProxyPrefix + use_proxy_update + socksUseProxySuffix;
-            callbacks.loadConfigFromJson(reconstitutedsocksUseProxy);
-
-            Utils.stdout.println("SOCKS Settings Loaded");
-            Utils.stdout.println(jsonStr);
-        }catch (Exception e2){
-            Utils.stderr.println(e2.getMessage());
-        }
-    }
-
     // 写数据
     public void writeIpPortSettings(IBurpExtenderCallbacks callbacks,String ip,String port,boolean enable) {
         // port转为int
         int port_update = Integer.parseInt(port.trim());
 
-        if (!isConfigFileExist()){
-            saveSettings(callbacks);
-        }
 
         try{
             String jsonStr = FileUtils.readFileToString(Utils.SocksConfigFile("socks.json"), "utf-8");
@@ -216,9 +145,7 @@ public class SocksUI implements UIHandler {
 
     // 开启或关闭代理
     public void isEnableSettings(IBurpExtenderCallbacks callbacks,boolean enable) {
-        if (!isConfigFileExist()){
-            saveSettings(callbacks);
-        }
+
         try{
             String jsonStr = FileUtils.readFileToString(Utils.SocksConfigFile("socks.json"), "utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
@@ -274,13 +201,13 @@ public class SocksUI implements UIHandler {
     public void saveSettings(IBurpExtenderCallbacks callbacks) {
         // 创建Fastjson的JSONObject
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("use_proxy", use_proxy);
-        jsonObject.put("use_user_options", use_user_options);
-        jsonObject.put("dns_over_socks", dns_over_socks);
-        jsonObject.put("host", host);
-        jsonObject.put("port", port);
-        jsonObject.put("username", username);
-        jsonObject.put("password", password);
+        jsonObject.put("use_proxy", false);
+        jsonObject.put("use_user_options", false);
+        jsonObject.put("dns_over_socks", false);
+        jsonObject.put("host", "127.0.0.1");
+        jsonObject.put("port", "7890");
+        jsonObject.put("username", "");
+        jsonObject.put("password", "");
         // 将JSONObject转换为JSON字符串
         String sockinfo = jsonObject.toJSONString();
         try{
@@ -300,10 +227,9 @@ public class SocksUI implements UIHandler {
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
 
 
-        // 保存按钮
+        // 保存到ipPortPairs中
         saveButton.addActionListener(new AbstractAction() {
             public void actionPerformed(ActionEvent evt) {
-//                ipPortPairs.clear();
                 String ipTextFieldText = ipTextField.getText();
                 String[] ipTextFieldTextSplit = ipTextFieldText.split("\n");
                 ipPortPairs = new ArrayList<>();
