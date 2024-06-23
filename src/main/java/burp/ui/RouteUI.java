@@ -17,6 +17,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static burp.dao.RouteDao.*;
 import static burp.utils.Utils.getSuffix;
@@ -326,6 +328,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         String url = iRequestInfo.getUrl().toString();
         String method = iRequestInfo.getMethod();
         String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
+        String requestx = "";
         String path = iRequestInfo.getUrl().getPath();
 
         if (!isSend){
@@ -351,10 +354,19 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             if (routeBean.getEnable() != 1){
                 continue;
             }
+            // 定义正则表达式，匹配 ? 及其后面的内容
+            String regex = "\\?[^\\s]*";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(request);
+
+            // 删除请求数据包中的参数部分
+            if (matcher.find()) {
+                requestx = request.replace(matcher.group(), "");
+            }
             List<String> reqLists = append(path, routeBean.getPath());
             for (String reqList : reqLists) {
                 if (Objects.equals(method, "GET")) {
-                    String new_request = request.replaceFirst(path, reqList);
+                    String new_request = requestx.replaceFirst(path, reqList);
                     IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
                     ExpressionUtils expressionUtils = new ExpressionUtils(response);
                     boolean process = expressionUtils.process(routeBean.getExpress());
@@ -371,7 +383,9 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                         }
                     }
                 } else if (Objects.equals(method, "POST")) {
-                    String new_request = request.replaceFirst(path, reqList);
+                    // 删除post数据中的body部分
+                    String request_data = request.split("\r\n\r\n")[0]+"\r\n\r\n";
+                    String new_request = request_data.replaceFirst(path, reqList);
                     IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
                     ExpressionUtils expressionUtils = new ExpressionUtils(response);
                     boolean process = expressionUtils.process(routeBean.getExpress());
