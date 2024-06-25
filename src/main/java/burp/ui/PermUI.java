@@ -335,9 +335,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // 白名单域名Label
         JLabel whiteListLabel = new JLabel("白名单域名");
         // 白名单域名输入框
-        whiteDomainListTextArea = new JTextArea();
-        whiteDomainListTextArea.setLineWrap(true); // 自动换行
-        whiteDomainListTextArea.setWrapStyleWord(true); // 按单词换行
+        whiteDomainListTextArea = new JTextArea(5,10);
+        whiteDomainListTextArea.setLineWrap(false); // 自动换行
+        whiteDomainListTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteDomainListTextArea);
         // 保存白名单按钮
         saveWhiteDomainButton = new JButton("保存白名单");
@@ -352,17 +352,17 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // 低权限认证请求信息Label
         JLabel lowPermAuthLabel = new JLabel("低权限认证请求信息");
         // 低权限认证请求信息输入框
-        lowPermAuthTextArea = new JTextArea();
-        lowPermAuthTextArea.setLineWrap(true); // 自动换行
-        lowPermAuthTextArea.setWrapStyleWord(true); // 按单词换行
+        lowPermAuthTextArea = new JTextArea(5,10);
+        lowPermAuthTextArea.setLineWrap(false); // 自动换行
+        lowPermAuthTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane lowPermAuthTextAreascrollPane = new JScrollPane(lowPermAuthTextArea);
 
         // 无权限认证请求信息Label
         JLabel noPermAuthLabel = new JLabel("无权限认证请求信息(输入请求头信息，不输入请求体信息)");
         // 无权限认证请求信息输入框
-        noPermAuthTextArea = new JTextArea();
-        noPermAuthTextArea.setLineWrap(true); // 自动换行
-        noPermAuthTextArea.setWrapStyleWord(true); // 按单词换行
+        noPermAuthTextArea = new JTextArea(5,10);
+        noPermAuthTextArea.setLineWrap(false); // 自动换行
+        noPermAuthTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane noPermAuthTextAreascrollPane = new JScrollPane(noPermAuthTextArea);
 
         // passiveScanCheckBox和whiteDomainListCheckBox在第一行

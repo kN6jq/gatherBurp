@@ -450,15 +450,15 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         // 保存header按钮
         saveHeaderListButton = new JButton("保存header");
         // 白名单域名输入框列表
-        whiteListTextArea = new JTextArea();
-        whiteListTextArea.setLineWrap(true); // 自动换行
-        whiteListTextArea.setWrapStyleWord(true); // 按单词换行
+        whiteListTextArea = new JTextArea(5,10);
+        whiteListTextArea.setLineWrap(false); // 自动换行
+        whiteListTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteListTextArea);
 
         // header检测数据框列表
-        headerTextArea = new JTextArea();
-        headerTextArea.setLineWrap(true); // 自动换行
-        headerTextArea.setWrapStyleWord(true); // 按单词换行
+        headerTextArea = new JTextArea(5,10);
+        headerTextArea.setLineWrap(false); // 自动换行
+        headerTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
         // 刷新表格按钮
         refreshTableButton = new JButton("刷新表格");
@@ -496,9 +496,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         JLabel PayloadLabel = new JLabel("payload 列表");
         // log4j payload输入框
         // log4j payload保存按钮
-        payloadTextArea = new JTextArea();
-        payloadTextArea.setLineWrap(true); // 自动换行
-        payloadTextArea.setWrapStyleWord(true); // 按单词换行
+        payloadTextArea = new JTextArea(5,10);
+        payloadTextArea.setLineWrap(false); // 自动换行
+        payloadTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane payloadTextAreascrollPane = new JScrollPane(payloadTextArea);
         savePayloadButton = new JButton("保存payload");
         JPanel rightDownLeftPanel = new JPanel();

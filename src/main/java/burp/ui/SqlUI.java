@@ -793,8 +793,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         Utils.callbacks.registerHttpListener(this);
         panel = new JPanel();
         panel.setLayout(new BorderLayout());
-        // 左右分割
-        JPanel splitPane = new JPanel(new BorderLayout());
 
         // 左边的面板
         // 左边的上下分割 上部分和下部分占比6:4
@@ -863,13 +861,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 保存header按钮
         saveHeaderListButton = new JButton("保存header");
         // 白名单域名输入框列表
-        whiteListTextArea = new JTextArea();
-        whiteListTextArea.setLineWrap(true); // 自动换行
-        whiteListTextArea.setWrapStyleWord(true); // 按单词换行
+        whiteListTextArea = new JTextArea(5,10);
+        whiteListTextArea.setLineWrap(false); // 自动换行
+        whiteListTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteListTextArea);
 
         // header检测数据框列表
-        headerTextArea = new JTextArea();
+        headerTextArea = new JTextArea(5,10);
         headerTextArea.setLineWrap(true); // 自动换行
         headerTextArea.setWrapStyleWord(true); // 按单词换行
         JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
@@ -908,43 +906,38 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         JLabel sqlPayloadLabel = new JLabel("sql payload");
         // sqlpayload输入框
         // sqlpayload保存按钮
-        sqlPayloadTextArea = new JTextArea();
-        sqlPayloadTextArea.setLineWrap(true); // 自动换行
-        sqlPayloadTextArea.setWrapStyleWord(true); // 按单词换行
+        sqlPayloadTextArea = new JTextArea(5, 10);
+        sqlPayloadTextArea.setLineWrap(false); // 自动换行
+        sqlPayloadTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlPayloadTextAreascrollPane = new JScrollPane(sqlPayloadTextArea);
+
         saveSqlPayloadButton = new JButton("保存sql payload");
         JPanel rightDownLeftPanel = new JPanel();
-        rightDownLeftPanel.setLayout(new GridBagLayout());
-        rightDownLeftPanel.add(sqlPayloadLabel, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightDownLeftPanel.add(sqlPayloadTextAreascrollPane, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightDownLeftPanel.add(saveSqlPayloadButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-
+        rightDownLeftPanel.setLayout(new BorderLayout());
+        rightDownLeftPanel.add(sqlPayloadLabel, BorderLayout.NORTH);
+        rightDownLeftPanel.add(sqlPayloadTextAreascrollPane, BorderLayout.CENTER);
+        rightDownLeftPanel.add(saveSqlPayloadButton, BorderLayout.SOUTH);
         // 右边的下部分左边
         JLabel sqlErrKey = new JLabel("sql error key");
-        sqlErrorKeyTextArea = new JTextArea();
-        sqlErrorKeyTextArea.setLineWrap(true); // 自动换行
-        sqlErrorKeyTextArea.setWrapStyleWord(true); // 按单词换行
+        sqlErrorKeyTextArea = new JTextArea(5, 10);
+        sqlErrorKeyTextArea.setLineWrap(false); // 自动换行
+        sqlErrorKeyTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlErrorKeyTextAreascrollPane = new JScrollPane(sqlErrorKeyTextArea);
         saveSqlErrorKeyButton = new JButton("保存sql error key");
-        JPanel rightDownRightPanel = new JPanel();
-        rightDownRightPanel.setLayout(new GridBagLayout());
-        rightDownRightPanel.add(sqlErrKey, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightDownRightPanel.add(sqlErrorKeyTextAreascrollPane, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightDownRightPanel.add(saveSqlErrorKeyButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-
+        JPanel rightDownRightPanel = new JPanel();rightDownRightPanel.setLayout(new BorderLayout());
+        rightDownRightPanel.add(sqlErrKey, BorderLayout.NORTH);
+        rightDownRightPanel.add(sqlErrorKeyTextAreascrollPane, BorderLayout.CENTER);
+        rightDownRightPanel.add(saveSqlErrorKeyButton, BorderLayout.SOUTH);
         // 左右分割面板添加rightDownLeftPanel和rightDownRightPanel
-        JSplitPane rightDownPanel = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        JSplitPane rightDownPanel = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         rightDownPanel.setResizeWeight(0.5);
         rightDownPanel.setDividerLocation(0.5);
-        rightDownPanel.setLeftComponent(rightDownLeftPanel);
-        rightDownPanel.setRightComponent(rightDownRightPanel);
+        rightDownPanel.setTopComponent(rightDownLeftPanel);
+        rightDownPanel.setBottomComponent(rightDownRightPanel);
         rightSplitPane.setBottomComponent(rightDownPanel);
 
-        //splitPane添加到splitPane左边
-
-        splitPane.add(leftSplitPane, BorderLayout.CENTER);
-        splitPane.add(rightSplitPane, BorderLayout.EAST);
-        panel.add(splitPane, BorderLayout.CENTER);
+        panel.add(leftSplitPane, BorderLayout.CENTER);
+        panel.add(rightSplitPane, BorderLayout.EAST);
 
     }
 
