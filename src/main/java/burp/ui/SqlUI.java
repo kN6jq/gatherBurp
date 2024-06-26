@@ -67,6 +67,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static final List<String> parameterList = new ArrayList<>(); // 去重参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // 存放url的hash值
+    private static boolean isVul = false; // 是否存在漏洞
+
 
 
     @Override
@@ -228,6 +230,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkey = "存在报错";
+                                    isVul = true;
                                     IScanIssue issues = null;
                                     try{
                                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -292,6 +295,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkey = "存在报错";
+                                    isVul = true;
                                     IScanIssue issues = null;
                                     try{
                                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -356,6 +360,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
+                                        isVul = true;
                                         IScanIssue issues = null;
                                         try{
                                             issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -378,8 +383,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         break;
                     }
                 }
-                // 更新url tables
-                updateUrl(logid, method, url, originalLength, originalRequestResponse);
+                if (isVul){
+                    // 更新url tables
+                    updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);
+                }else {
+                    // 更新url tables
+                    updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
+                }
             }
         }
         // 检测header注入
@@ -395,7 +405,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
             // 新建一个用于存储新请求头的列表，并复制原始请求头到新列表中
             List<String> newReqheaders = new ArrayList<>(reqheadersxs);
-
             for (String reqheadersx : reqheadersxs) {
                 for (SqlBean sqlBean : header) {
                     String headerName = sqlBean.getValue();
@@ -440,6 +449,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
+                                        isVul = true;
                                         IScanIssue issues = null;
                                         try{
                                             issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -466,8 +476,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     }
                 }
             }
-            // 更新url tables
-            updateUrl(logid, method, url, originalLength, originalRequestResponse);
+            if (isVul){
+                // 更新url tables
+                updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);
+            }else {
+                // 更新url tables
+                updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
+            }
         }
 
     }
@@ -497,11 +512,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     }
 
     // 更新url数据到表格
-    public static void updateUrl(int index, String method, String url, int length, IHttpRequestResponse
+    public static void updateUrl(int index, String method, String url, int length,String message, IHttpRequestResponse
             requestResponse) {
         synchronized (urldata) {
             if (index >= 0 && index < urldata.size()) {
-                urldata.set(index, new UrlEntry(index, method, url, length, "完成", requestResponse));
+                urldata.set(index, new UrlEntry(index, method, url, length, message, requestResponse));
             }
             urltable.updateUI();
             payloadtable.updateUI();

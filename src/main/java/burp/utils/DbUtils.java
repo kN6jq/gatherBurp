@@ -121,7 +121,7 @@ public class DbUtils {
             sqls.add("INSERT INTO \"sqli\" VALUES (14, 'header', 'User-Agent');");
             sqls.add("INSERT INTO \"sqli\" VALUES (15, 'header', 'Cookie');");
             sqls.add("INSERT INTO \"sqli\" VALUES (16, 'payload', '''');");
-            sqls.add("INSERT INTO \"sqli\" VALUES (17, 'payload', '\"');");
+            sqls.add("INSERT INTO \"sqli\" VALUES (17, 'payload', '''''');");
             sqls.add("INSERT INTO \"sqli\" VALUES (18, 'payload', '''''''');");
             sqls.add("INSERT INTO \"sqli\" VALUES (19, 'payload', '0''XOR(if(now()=sysdate(),sleep(3*2),0))XOR''Z');");
             sqls.add("INSERT INTO \"sqli\" VALUES (20, 'sqlErrorKey', 'SQL syntax');");
