@@ -6,6 +6,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 
 public class RobotInput extends Robot {
+
     public RobotInput() throws AWTException {
         super();
     }
@@ -16,7 +17,9 @@ public class RobotInput extends Robot {
         StringSelection tText = new StringSelection(str);
         clip.setContents(tText, tText); //设置剪切板内容,在Linux中这会修改ctrl+shift+v的内容
         delay(100);
-        // 弹窗提示右键粘贴
-        JOptionPane.showMessageDialog(null, "请到命令行终端右键粘贴");
+        if (!Utils.isSelect){
+            Utils.isSelect = true;
+            JOptionPane.showMessageDialog(null, "请打开cmd终端按下Ctrl+V或者邮件粘贴(只提醒一次)", "提示", JOptionPane.INFORMATION_MESSAGE);
+        }
     }
 }

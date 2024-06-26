@@ -26,6 +26,8 @@ public class Utils {
     public static String version = "1.1.0";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
+    public static boolean isSelect = false;
+
 
     public static String writeReqFile(IHttpRequestResponse message) {
         try {
