@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.Log4jBean;
+import burp.bean.PermBean;
 import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.CustomScanIssue;
@@ -125,12 +126,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             List<SqlBean> domain = getSqlListsByType("domain");
             // 如果白名单为空，直接返回
             if (domain.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            for (SqlBean sqlBean : domain) {
-                if (!url.contains(sqlBean.getValue())) {
-                    return;
+            boolean containsWhiteDomain = false;
+            for (SqlBean domainBean : domain) {
+                if (url.contains(domainBean.getValue())) {
+                    containsWhiteDomain = true;
+                    break; // 如果包含白名单域名，则跳出循环
                 }
+            }
+            if (!containsWhiteDomain) {
+                return;
             }
         }
         // 原始请求包发送一次,用来比对

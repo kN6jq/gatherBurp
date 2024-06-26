@@ -442,12 +442,16 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            boolean containsWhiteDomain = false;
             for (PermBean permBean : permBeanWhiteDomain) {
                 if (url.contains(permBean.getValue())) {
-                    return;
+                    containsWhiteDomain = true;
+                    break; // 如果包含白名单域名，则跳出循环
                 }
             }
-
+            if (!containsWhiteDomain) {
+                return;
+            }
         }
 
         // 原始请求

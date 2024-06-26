@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.Log4jBean;
+import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
@@ -607,12 +608,18 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             List<Log4jBean> domain = getLog4jListsByType("domain");
             // 如果白名单为空，直接返回
             if (domain.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            boolean containsWhiteDomain = false;
             for (Log4jBean log4jBean : domain) {
-                if (!url.contains(log4jBean.getValue())) {
-                    return;
+                if (url.contains(log4jBean.getValue())) {
+                    containsWhiteDomain = true;
+                    break; // 如果包含白名单域名，则跳出循环
                 }
+            }
+            if (!containsWhiteDomain) {
+                return;
             }
         }
 
