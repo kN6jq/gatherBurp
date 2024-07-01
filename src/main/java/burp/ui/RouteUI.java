@@ -331,6 +331,11 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         String requestx = "";
         String path = iRequestInfo.getUrl().getPath();
 
+        // 如果method不是get或者post方式直接返回
+        if (!method.equals("GET") && !method.equals("POST")) {
+            return;
+        }
+
         if (!isSend){
             // 对url进行hash去重
             if (!checkUrlHash(method + url)) {

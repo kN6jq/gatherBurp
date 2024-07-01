@@ -583,6 +583,12 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         String method = analyzeRequest.getMethod();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
+
+        // 如果method不是get或者post方式直接返回
+        if (!method.equals("GET") && !method.equals("POST")) {
+            return;
+        }
+
         // url 中为静态资源，直接返回
         List<String> suffix = Utils.getSuffix();
         for (String s : suffix) {

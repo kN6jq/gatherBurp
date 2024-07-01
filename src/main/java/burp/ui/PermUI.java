@@ -411,6 +411,12 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         String method = analyzeRequest.getMethod();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
+
+        // 如果method不是get或者post方式直接返回
+        if (!method.equals("GET") && !method.equals("POST")) {
+            return;
+        }
+
         // 如果是右键发送的则不进行去重
         if (!isSend) {
             for (IParameter paraList : paraLists) {

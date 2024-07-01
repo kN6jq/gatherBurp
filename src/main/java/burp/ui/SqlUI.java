@@ -96,6 +96,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
 
+        // 如果method不是get或者post方式直接返回
+        if (!method.equals("GET") && !method.equals("POST")) {
+            return;
+        }
+
         // 如果参数为空并且没有开启header检测,则直接返回
         if (paraLists.isEmpty() && !isCheckHeader) {
             return;
