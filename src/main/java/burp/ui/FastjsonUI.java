@@ -177,6 +177,10 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         // 弹出一个输入框，用于获取用户输入的dnslog地址
         String defaultValue = "whoami";
         String echoVul = (String) JOptionPane.showInputDialog(null, "请输入echo 命令", "提示", JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
+        if (echoVul.isEmpty()){
+            JOptionPane.showMessageDialog(null, "请输入echo命令", "提示", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         IHttpService iHttpService = baseRequestResponse.getHttpService();
         Iterator<FastjsonBean> iterator = payloads.iterator();
         headers.add("Accept-Cache: " + echoVul);
