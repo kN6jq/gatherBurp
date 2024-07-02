@@ -370,6 +370,12 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             }
             List<String> reqLists = append(path, routeBean.getPath());
             for (String reqList : reqLists) {
+                String rdurlList = rdurlURL.getHost()+reqList;
+                // 如果uniqueUrl中没有则添加进来
+                if (uniqueUrl.contains(rdurlList)){
+                    continue;
+                }
+                uniqueUrl.add(rdurlList);
                 if (Objects.equals(method, "GET")) {
                     String new_request = requestx.replaceFirst(path, reqList);
                     IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
@@ -377,11 +383,6 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     ExpressionUtils expressionUtils = new ExpressionUtils(response);
                     boolean process = expressionUtils.process(routeBean.getExpress());
                     if (process) {
-                        // 如果uniqueUrl中没有则添加进来
-                        if (uniqueUrl.contains(expressionUtils.getUrl())){
-                            continue;
-                        }
-                        uniqueUrl.add(expressionUtils.getUrl());
                         addIssus(routeBean.getName(),expressionUtils.getUrl(),  String.valueOf(expressionUtils.getCode()), response);
                         IScanIssue issues = null;
                         try {
@@ -401,11 +402,6 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     ExpressionUtils expressionUtils = new ExpressionUtils(response);
                     boolean process = expressionUtils.process(routeBean.getExpress());
                     if (process) {
-                        // 如果uniqueUrl中没有则添加进来
-                        if (uniqueUrl.contains(expressionUtils.getUrl())){
-                            continue;
-                        }
-                        uniqueUrl.add(expressionUtils.getUrl());
                         addIssus(routeBean.getName(),expressionUtils.getUrl(), String.valueOf(expressionUtils.getCode()), response);
                         IScanIssue issues = null;
                         try {
