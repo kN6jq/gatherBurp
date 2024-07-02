@@ -101,6 +101,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             return;
         }
 
+        // 如果没有开启检测cookie和检测header 并且参数没有值 直接返回
+        if (paraLists.isEmpty() && !isCheckCookie && !isCheckHeader) {
+            return;
+        }
+
         // 如果参数为空并且没有开启header检测,则直接返回
         if (paraLists.isEmpty() && !isCheckHeader) {
             return;

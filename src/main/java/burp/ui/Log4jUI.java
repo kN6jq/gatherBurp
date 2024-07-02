@@ -588,6 +588,10 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
         }
+        // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
+        if (paraLists.isEmpty() && !isCheckParam && !isCheckHeader) {
+            return;
+        }
 
         // url 中为静态资源，直接返回
         List<String> suffix = Utils.getSuffix();
