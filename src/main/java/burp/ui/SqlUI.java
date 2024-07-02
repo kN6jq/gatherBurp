@@ -409,13 +409,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         break;
                     }
                 }
-                if (isVul){
-                    // 更新url tables
-                    updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);
-                }else {
-                    // 更新url tables
-                    updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
-                }
             }
         }
         // 检测header注入
@@ -506,16 +499,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     }
                 }
             }
-            if (isVul){
-                // 更新url tables
-                updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);
-            }else {
-                // 更新url tables
-                updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
-            }
+
         }
 
+        if (isVul){
+            // 更新url tables
+            updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);
+        }else {
+            // 更新url tables
+            updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
+        }
     }
+
 
 
     // url去重
