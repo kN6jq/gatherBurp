@@ -15,6 +15,7 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.net.URL;
 import java.util.*;
 import java.util.List;
 
@@ -581,6 +582,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         String method = analyzeRequest.getMethod();
+        URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
 
@@ -589,7 +591,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             return;
         }
         // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
-        if (paraLists.isEmpty() && !isCheckParam && !isCheckHeader) {
+        if (!isCheckParam && !isCheckHeader) {
             return;
         }
 
@@ -600,6 +602,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 return;
             }
         }
+        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果不是手动发送则需要进行url去重
         if (!isSend) {
             // 对url进行hash去重
@@ -607,7 +610,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 String paraName = paraList.getName();
                 parameterList.add(paraName);
             }
-            if (!checkUrlHash(method + url + parameterList)) {
+            if (!checkUrlHash(method + rdurl + parameterList)) {
                 return;
             }
         }else {

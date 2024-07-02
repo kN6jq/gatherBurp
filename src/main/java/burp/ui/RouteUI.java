@@ -324,23 +324,17 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         if (iHttpRequestResponse.getResponse() == null) {
             return;
         }
-        IRequestInfo iRequestInfo = Utils.helpers.analyzeRequest(iHttpRequestResponse);
-        String url = iRequestInfo.getUrl().toString();
-        String method = iRequestInfo.getMethod();
+        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(iHttpRequestResponse);
+        URL rdurlURL = analyzeRequest.getUrl();
+        String url = analyzeRequest.getUrl().toString();
+        String method = analyzeRequest.getMethod();
         String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
         String requestx = "";
-        String path = iRequestInfo.getUrl().getPath();
+        String path = analyzeRequest.getUrl().getPath();
 
         // 如果method不是get或者post方式直接返回
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
-        }
-
-        if (!isSend){
-            // 对url进行hash去重
-            if (!checkUrlHash(method + url)) {
-                return;
-            }
         }
 
         // url 中为静态资源，直接返回
@@ -350,7 +344,13 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 return;
             }
         }
-
+        // 对url进行hash去重
+        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
+        if (!isSend){
+            if (!checkUrlHash(method + rdurl)) {
+                return;
+            }
+        }
         // 获取payload
         List<RouteBean> routeList = getRouteLists();
 

@@ -12,6 +12,7 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -409,6 +410,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         IHttpRequestResponse baseRequestResponse = responses[0];
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         String method = analyzeRequest.getMethod();
+        URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
 
@@ -416,7 +418,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
         }
-
+        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果是右键发送的则不进行去重
         if (!isSend) {
             for (IParameter paraList : paraLists) {
@@ -424,7 +426,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 parameterList.add(paraName);
             }
             // 检测url hash 去重
-            if (!checkUrlHash(method + url + parameterList)) {
+            if (!checkUrlHash(method + rdurl + parameterList)) {
                 return;
             }
         } else {

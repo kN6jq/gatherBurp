@@ -129,6 +129,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         String method = analyzeRequest.getMethod();
         String path = analyzeRequest.getUrl().getPath();
         String request = Utils.helpers.bytesToString(baseRequestResponse.getRequest());
+        URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
 
         // url 中为静态资源，直接返回
@@ -138,14 +139,14 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                 return;
             }
         }
-
+        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 对url进行hash去重
         List<IParameter> paraLists = analyzeRequest.getParameters();
         for (IParameter paraList : paraLists) {
             String paraName = paraList.getName();
             parameterList.add(paraName);
         }
-        if (!checkUrlHash(method + url + parameterList)) {
+        if (!checkUrlHash(method + rdurl + parameterList)) {
             return;
         }
 

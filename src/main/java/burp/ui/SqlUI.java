@@ -11,6 +11,7 @@ import burp.utils.Utils;
 import com.alibaba.fastjson.JSON;
 import org.springframework.util.DigestUtils;
 
+import javax.rmi.CORBA.Util;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumnModel;
@@ -68,7 +69,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static final List<String> parameterList = new ArrayList<>(); // 去重参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // 存放url的hash值
-    private static boolean isVul = false; // 是否存在漏洞
+    private static boolean isVul; // 是否存在漏洞
 
 
 
@@ -93,6 +94,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         String method = analyzeRequest.getMethod();
+        URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
 
@@ -101,16 +103,23 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             return;
         }
 
-        // 如果没有开启检测cookie和检测header 并且参数没有值 直接返回
-        if (paraLists.isEmpty() && !isCheckCookie && !isCheckHeader) {
-            return;
+        boolean ruleHit = true; // 默认设置为true，表示命中规则
+        for (IParameter para : paraLists) {
+            if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
+                    || isCheckCookie || isCheckHeader) {
+                ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了 cookie 或 header 检测，则不命中规则
+                break;
+            }
         }
 
-        // 如果参数为空并且没有开启header检测,则直接返回
-        if (paraLists.isEmpty() && !isCheckHeader) {
-            return;
+        if (ruleHit) {
+            return; // 如果命中规则，则直接返回
         }
 
+
+
+
+        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果不是手动发送则需要进行url去重
         if (!isSend) {
             // 对url进行hash去重
@@ -118,7 +127,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 String paraName = paraList.getName();
                 parameterList.add(paraName);
             }
-            if (!checkUrlHash(method + url + parameterList)) {
+            if (!checkUrlHash(method + rdurl + parameterList)) {
                 return;
             }
         }else {
@@ -193,7 +202,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 拿到所有payload
         List<SqlBean> sqliPayload = getSqlListsByType("payload");
         int logid = addUrl(method, url, originalLength, originalRequestResponse);
-
+        isVul = false;
         // 检测常规注入
         for (IParameter para : paraLists) {
             if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_COOKIE || para.getType() == PARAM_JSON) {
@@ -431,6 +440,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         if (headerName.contains("Cookie")) {
                             return;
                         }
+                        // 分割 reqheadersx 获取 header 值
+                        String[] headerParts = reqheadersx.split(":", 2);
+                        String originalHeaderValue = headerParts.length > 1 ? headerParts[1].trim() : "";
+
                         for (SqlBean sql : sqliPayload) {
                             String errkey = "x";
                             String payload = "";
@@ -438,7 +451,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             if (isDeleteOrgin) {
                                 payload = sqlPayload;
                             } else {
-                                payload = headerName + sqlPayload;
+                                payload = originalHeaderValue + sqlPayload;
                             }
                             // 添加新的头部字段到新的列表中
                             newReqheaders.add(headerName + ": " + payload);

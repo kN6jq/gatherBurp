@@ -8,6 +8,7 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -28,7 +29,7 @@ public class Utils {
     public static String workdir = System.getProperty("user.home") + "/.gather/";
     public static boolean isSelect = false;
 
-
+    // 写req文件
     public static String writeReqFile(IHttpRequestResponse message) {
         try {
             String host = message.getHttpService().getHost();
@@ -178,9 +179,39 @@ public class Utils {
         return decodedString;
     }
 
+    // 获取当前时间
     public static String getCurrentTime() {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         return simpleDateFormat.format(new Date());
+    }
+
+    /*
+     * http://host:port/path/file.jpg -> http://host:port/path/
+     * 获取路径排除文件名
+     */
+    public static String getUrlWithoutFilename(URL url) {
+        String urlRootPath = getUrlRootPath(url);
+        String path = url.getPath();
+
+        if (path.length() == 0) {
+            path = "/";
+        }
+
+        if (url.getFile().endsWith("/?format=openapi")) { //对django swagger做单独处理
+            return urlRootPath + url.getFile();
+        }
+
+        if (path.endsWith("/")) {
+            return urlRootPath + path;
+        } else {
+            return urlRootPath + path.substring(0, path.lastIndexOf("/") + 1);
+        }
+    }
+    /**
+     * 获取根目录的 URL
+     */
+    public static String getUrlRootPath(URL url) {
+        return url.getProtocol() + "://" + url.getHost() + ":" + url.getPort();
     }
 
 }
