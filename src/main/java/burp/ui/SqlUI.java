@@ -202,6 +202,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 拿到所有payload
         List<SqlBean> sqliPayload = getSqlListsByType("payload");
         int logid = addUrl(method, url, originalLength, originalRequestResponse);
+        // 每次都初始化这个值
         isVul = false;
         // 检测常规注入
         for (IParameter para : paraLists) {
@@ -501,7 +502,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
 
         }
-
+        // 如果存在漏洞，更新url表格
         if (isVul){
             // 更新url tables
             updateUrl(logid, method, url, originalLength, "检测完成,存在报错", originalRequestResponse);

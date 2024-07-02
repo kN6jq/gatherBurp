@@ -1,7 +1,7 @@
 package burp.utils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +23,7 @@ public class JsonUtils {
     private static Object replaceUpdate(Object obj, String updateStr) {
         if (obj instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) obj;
-            Map<String, Object> updatedMap = new HashMap<>();
+            Map<String, Object> updatedMap = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 updatedMap.put(entry.getKey(), replaceUpdate(entry.getValue(), updateStr));
             }
@@ -35,22 +35,25 @@ public class JsonUtils {
                 updatedList.add(replaceUpdate(item, updateStr));
             }
             return updatedList;
-        } else if (obj instanceof String || obj instanceof Integer) {
+        } else if (obj instanceof String) {
             return updateStr;
-        } else if (obj instanceof Boolean) {
-            // Handle Boolean values here as per your requirements
-            // For example, you can return true or false based on the updateStr
+        } else if (obj instanceof Integer) {
+            return obj;
+        } else if (obj instanceof Double) {
+            return obj;
+        } else if (obj instanceof Long) {
+            return obj;
+        }else if (obj instanceof Boolean) {
             return obj;
         } else {
-            throw new IllegalArgumentException("Unsupported data type: " + obj.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported data type: " + obj.getClass().getName());
         }
     }
-
 
     private static Object appendUpdate(Object obj, String updateStr) {
         if (obj instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) obj;
-            Map<String, Object> updatedMap = new HashMap<>();
+            Map<String, Object> updatedMap = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 updatedMap.put(entry.getKey(), appendUpdate(entry.getValue(), updateStr));
             }
@@ -62,14 +65,18 @@ public class JsonUtils {
                 updatedList.add(appendUpdate(item, updateStr));
             }
             return updatedList;
-        } else if (obj instanceof String || obj instanceof Integer) {
-            return obj + updateStr;
-        } else if (obj instanceof Boolean) {
-            // Handle Boolean values here as per your requirements
-            // For example, you can return true or false based on the updateStr
+        } else if (obj instanceof String) {
+            return obj.toString() + updateStr;
+        } else if (obj instanceof Integer) {
             return obj;
-        } else {
-            throw new IllegalArgumentException("Unsupported data type: " + obj.getClass().getSimpleName());
+        } else if (obj instanceof Double) {
+            return obj;
+        } else if (obj instanceof Long) {
+            return obj;
+        }else if (obj instanceof Boolean) {
+            return obj;
+        }else {
+            throw new IllegalArgumentException("Unsupported data type: " + obj.getClass().getName());
         }
     }
 }
