@@ -1,0 +1,8 @@
+<configuration>
+    <!-- other configurations -->
+
+    <logger name="org.xm.similarity.text" level="INFO"/>
+
+    <!-- other loggers and appenders -->
+
+</configuration>

@@ -36,7 +36,7 @@ public class Nuclei {
             "        dsl:\n" +
             "          - \"#{[dsl]}\"\n";
     public static String[] severitys = {"critical", "high", "medium", "low", "info"};
-    public static String[] dslStr = {"contains(body_1, 'bingo')", "status_code_1 == 200 && !contains(body_3, 'bingo')", "regex('root:.*:0:0:', body)", "contains(body, 'bingo')", "contains(all_headers_1, 'text/html')"};
+    public static String[] dslStr = {"status_code == 200 && contains(body, 'bingo')", "status_code_1 == 200 && !contains(body_3, 'bingo')", "regex('root:.*:0:0:', body)", "contains(body, 'bingo')", "contains(all_headers_1, 'text/html')"};
     private static String dsl;
     private static String severity;
     private static String name;
@@ -61,7 +61,7 @@ public class Nuclei {
     public static String NucleiPost() {
         Map<String, Object> params = new HashMap<>();
         NucleiBean nuclei = new NucleiBean();
-        nuclei.setId(Utils.getTimeNow());
+        nuclei.setId(name);
         nuclei.setName(name);
         nuclei.setAuthor(author);
         nuclei.setSeverity(severity);
