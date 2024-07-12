@@ -276,6 +276,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // 将urlTable添加到leftSplitPane的上边
         JScrollPane leftScrollPane = new JScrollPane();
         permTable = new URLTable(new PermModel());
+        permTable.setAutoCreateRowSorter(true);
         leftScrollPane.setViewportView(permTable);
         leftSplitPane.setTopComponent(leftScrollPane);
 

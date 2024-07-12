@@ -1,8 +1,6 @@
 package burp.ui;
 
 import burp.*;
-import burp.bean.Log4jBean;
-import burp.bean.PermBean;
 import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.CustomScanIssue;
@@ -13,7 +11,6 @@ import org.springframework.util.DigestUtils;
 import org.xm.similarity.text.EditDistanceSimilarity;
 import org.xm.similarity.text.TextSimilarity;
 
-import javax.rmi.CORBA.Util;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -22,7 +19,6 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
 
@@ -105,7 +101,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
-        vulStr = new StringBuilder();
+        vulStr = new StringBuilder(); // 用于后续保存检测结果
 
         // 如果method不是get或者post方式直接返回
         if (!method.equals("GET") && !method.equals("POST")) {
@@ -196,6 +192,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         if (originalLength == 0) {
             return;
         }
+
+
+        // 原始请求包的返回包
         String sqlOrginBody = new String(responseBody);
         // 拿到所有报错关键字
         listErrorKey = new ArrayList<>();
@@ -245,7 +244,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                     "High", "Certain");
                             Utils.callbacks.addScanIssue(issues);
                         }catch (MalformedURLException e){
-                            throw new RuntimeException(e);
+                            throw new RuntimeException("CheckBlind"+e);
                         }
                     }
 
@@ -307,7 +306,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                                 "High", "Certain");
                                         Utils.callbacks.addScanIssue(issues);
                                     }catch (MalformedURLException e){
-                                        throw new RuntimeException(e);
+                                        throw new RuntimeException("CheckRaw"+e);
                                     }
                                     break;
                                 }
@@ -327,7 +326,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                         "High", "Certain");
                                 Utils.callbacks.addScanIssue(issues);
                             }catch (MalformedURLException e){
-                                throw new RuntimeException(e);
+                                throw new RuntimeException("CheckRaw"+e);
                             }
                         }
                         addPayload(logid, paraName, payload, sqlLengths4, String.valueOf(sqlLengths4 - originalLength), errkeys, responseTimes4, String.valueOf(statusCodes4), newRequestResponses4);
@@ -385,7 +384,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                                 "High", "Certain");
                                         Utils.callbacks.addScanIssue(issues);
                                     }catch (MalformedURLException e){
-                                        throw new RuntimeException(e);
+                                        throw new RuntimeException("CheckCookie"+e);
                                     }
                                     break;
                                 }
@@ -405,7 +404,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                         "High", "Certain");
                                 Utils.callbacks.addScanIssue(issues);
                             }catch (MalformedURLException e){
-                                throw new RuntimeException(e);
+                                throw new RuntimeException("CheckCookie"+e);
                             }
                         }
                         addPayload(logid, paraName, payload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -439,7 +438,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                         "High", "Certain");
                                 Utils.callbacks.addScanIssue(issues);
                             }catch (MalformedURLException e){
-                                throw new RuntimeException(e);
+                                throw new RuntimeException("CheckJson"+e);
                             }
                         }
 
@@ -497,7 +496,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                                     "High", "Certain");
                                             Utils.callbacks.addScanIssue(issues);
                                         }catch (MalformedURLException e){
-                                            throw new RuntimeException(e);
+                                            throw new RuntimeException("CheckJson"+e);
                                         }
                                         break;
                                     }
@@ -517,7 +516,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                             "High", "Certain");
                                     Utils.callbacks.addScanIssue(issues);
                                 }catch (MalformedURLException e){
-                                    throw new RuntimeException(e);
+                                    throw new RuntimeException("CheckJson"+e);
                                 }
                             }
                             addPayload(logid, "json", payload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -597,7 +596,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                                     "High", "Certain");
                                             Utils.callbacks.addScanIssue(issues);
                                         }catch (MalformedURLException e){
-                                            throw new RuntimeException(e);
+                                            throw new RuntimeException("CheckHeader"+e);
                                         }
                                         break;
                                     }
@@ -617,7 +616,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                             "High", "Certain");
                                     Utils.callbacks.addScanIssue(issues);
                                 }catch (MalformedURLException e){
-                                    throw new RuntimeException(e);
+                                    throw new RuntimeException("CheckHeader"+e);
                                 }
                             }
                             addPayload(logid, headerName, sqlPayload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -740,7 +739,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckSingleQuote"+e);
                     }
                     break;
                 }
@@ -806,7 +805,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckDoubleQuote"+e);
                     }
                     break;
                 }
@@ -873,7 +872,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckTripleQuote"+e);
                     }
                     break;
                 }
@@ -937,7 +936,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckJsonSingleQuote"+e);
                     }
                     break;
                 }
@@ -957,7 +956,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         "High", "Certain");
                 Utils.callbacks.addScanIssue(issues);
             }catch (MalformedURLException e){
-                throw new RuntimeException(e);
+                throw new RuntimeException("CheckJsonSingleQuote"+e);
             }
         }
         addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -1012,7 +1011,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckJsonDoubleQuote"+e);
                     }
                     break;
                 }
@@ -1032,7 +1031,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         "High", "Certain");
                 Utils.callbacks.addScanIssue(issues);
             }catch (MalformedURLException e){
-                throw new RuntimeException(e);
+                throw new RuntimeException("CheckJsonDoubleQuote"+e);
             }
         }
         addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -1088,7 +1087,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     }catch (MalformedURLException e){
-                        throw new RuntimeException(e);
+                        throw new RuntimeException("CheckJsonTripleQuote"+e);
                     }
                     break;
                 }
@@ -1108,7 +1107,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         "High", "Certain");
                 Utils.callbacks.addScanIssue(issues);
             }catch (MalformedURLException e){
-                throw new RuntimeException(e);
+                throw new RuntimeException("CheckJsonTripleQuote"+e);
             }
         }
         addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);

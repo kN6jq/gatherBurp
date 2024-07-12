@@ -21,6 +21,9 @@ public class JsonUtils {
     }
 
     private static Object replaceUpdate(Object obj, String updateStr) {
+        if (obj == null) {
+            return null;
+        }
         if (obj instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) obj;
             Map<String, Object> updatedMap = new LinkedHashMap<>();
@@ -51,6 +54,9 @@ public class JsonUtils {
     }
 
     private static Object appendUpdate(Object obj, String updateStr) {
+        if (obj == null) {
+            return null;
+        }
         if (obj instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) obj;
             Map<String, Object> updatedMap = new LinkedHashMap<>();

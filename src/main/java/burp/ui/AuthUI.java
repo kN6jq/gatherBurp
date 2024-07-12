@@ -88,6 +88,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
 
         // 添加URLTable到mainsplitPane的上边
         authTable = new URLTable(new AuthModel());
+        authTable.setAutoCreateRowSorter(true);
         JScrollPane scrollPane = new JScrollPane(authTable);
         mainsplitPane.setTopComponent(scrollPane);
 

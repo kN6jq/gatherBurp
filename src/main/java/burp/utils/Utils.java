@@ -3,7 +3,7 @@ package burp.utils;
 import burp.IBurpExtenderCallbacks;
 import burp.IExtensionHelpers;
 import burp.IHttpRequestResponse;
-import org.apache.commons.io.FileUtils;
+import cn.hutool.core.io.FileUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,21 +31,16 @@ public class Utils {
 
     // 写req文件
     public static String writeReqFile(IHttpRequestResponse message) {
-        try {
-            String host = message.getHttpService().getHost();
+        String host = message.getHttpService().getHost();
 
-            SimpleDateFormat simpleDateFormat =
-                    new SimpleDateFormat("MMdd-HHmmss");
-            String timeString = simpleDateFormat.format(new Date());
-            String filename = host + "." + timeString + ".req";
+        SimpleDateFormat simpleDateFormat =
+                new SimpleDateFormat("MMdd-HHmmss");
+        String timeString = simpleDateFormat.format(new Date());
+        String filename = host + "." + timeString + ".req";
 
-            File requestFile = new File(workdir, filename);
-            FileUtils.writeByteArrayToFile(requestFile, message.getRequest());
-            return requestFile.getAbsolutePath();
-        } catch (IOException e) {
-            Utils.stderr.println(e.getMessage());
-            return null;
-        }
+        File requestFile = new File(workdir, filename);
+        FileUtil.writeBytes(message.getRequest(),requestFile);
+        return requestFile.getAbsolutePath();
     }
     // 写入socks代理配置文件
     public static File SocksConfigFile(String filename) {

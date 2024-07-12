@@ -3,14 +3,11 @@ package burp.ui;
 import burp.IBurpExtenderCallbacks;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
+import cn.hutool.core.io.FileUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import org.apache.commons.io.FileUtils;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
@@ -91,7 +88,7 @@ public class SocksUI implements UIHandler {
 
 
         try{
-            String jsonStr = FileUtils.readFileToString(Utils.SocksConfigFile("socks.json"), "utf-8");
+            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
@@ -147,7 +144,7 @@ public class SocksUI implements UIHandler {
     public void isEnableSettings(IBurpExtenderCallbacks callbacks,boolean enable) {
 
         try{
-            String jsonStr = FileUtils.readFileToString(Utils.SocksConfigFile("socks.json"), "utf-8");
+            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
@@ -211,7 +208,7 @@ public class SocksUI implements UIHandler {
         // 将JSONObject转换为JSON字符串
         String sockinfo = jsonObject.toJSONString();
         try{
-            FileUtils.write(Utils.SocksConfigFile("socks.json"),sockinfo,"utf-8");
+            FileUtil.writeString(sockinfo,Utils.SocksConfigFile("socks.json"),"utf-8");
         }catch (Exception e){
             Utils.stderr.println(e.getMessage());
         }
