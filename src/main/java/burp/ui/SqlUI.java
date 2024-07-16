@@ -21,6 +21,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
@@ -68,12 +69,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static final List<String> parameterList = new ArrayList<>(); // 去重参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // 存放url的hash值
-    private static boolean isVul; // 是否存在漏洞
     private static String similarity1 = ""; // 一个单引号相似度
     private static String similarity2 = ""; // 两个单引号相似度
     private static String similarity3 = ""; // 三个单引号相似度
     private static List<String> listErrorKey; // // 存放错误key
-    private static StringBuilder vulStr; // 提示关键字
+    private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
 
 
 
@@ -101,7 +101,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
-        vulStr = new StringBuilder(); // 用于后续保存检测结果
+
 
         // 如果method不是get或者post方式直接返回
         if (!method.equals("GET") && !method.equals("POST")) {
@@ -120,9 +120,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         if (ruleHit) {
             return; // 如果命中规则，则直接返回
         }
-
-
-
 
         String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果不是手动发送则需要进行url去重
@@ -210,8 +207,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 拿到所有payload
         List<SqlBean> sqliPayload = getSqlListsByType("payload");
         int logid = addUrl(method, url, originalLength, originalRequestResponse);
-        // 每次都初始化这个值
-        isVul = false;
+        addToVulStr(logid, "检测完成");
         // 检测常规注入
         for (IParameter para : paraLists) {
             if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_COOKIE || para.getType() == PARAM_JSON) {
@@ -236,7 +232,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     double formattedScore4 = Double.parseDouble(String.format("%.2f", score4));
 
                     if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)){
-                        vulStr.append(paraName).append("存在盲注");
+                        addToVulStr(logid, "参数"+paraName+"存在盲注");
                         IScanIssue issues = null;
                         try{
                             issues = new CustomScanIssue(checkedDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedDoubleQuote},
@@ -297,8 +293,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkeys = "存在报错";
-                                    isVul = true;
-                                    vulStr.append(paraName).append("存在报错");
+                                    addToVulStr(logid, "参数"+paraName+"存在报错");
                                     IScanIssue issues = null;
                                     try{
                                         issues = new CustomScanIssue(newRequestResponses4.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses4},
@@ -317,8 +312,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             sqlLengths4 = sqlresponseBodys4.length;
                         }
                         if (Integer.parseInt(responseTimes4) > 6000){
-                            isVul = true;
-                            vulStr.append(paraName).append("存在延时");
+                            errkeys = "存在延时";
+                            addToVulStr(logid, "参数"+paraName+"存在延时");
                             IScanIssue issues = null;
                             try{
                                 issues = new CustomScanIssue(newRequestResponses4.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses4},
@@ -375,8 +370,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             for (String errorKey : listErrorKey) {
                                 if (sqlResponseBody.contains(errorKey)) {
                                     errkey = "存在报错";
-                                    isVul = true;
-                                    vulStr.append(paraName).append("cookie存在报错");
+                                    addToVulStr(logid, "参数"+paraName+"cookie存在报错");
                                     IScanIssue issues = null;
                                     try{
                                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -395,8 +389,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
                         }
                         if (Integer.parseInt(responseTime) > 6000){
-                            isVul = true;
-                            vulStr.append(paraName).append("cookie存在延时");
+                            addToVulStr(logid, "参数"+paraName+"cookie存在延时");
+                            errkey = "cookie存在延时";
                             IScanIssue issues = null;
                             try{
                                 issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -430,7 +424,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         double formattedScore4 = Double.parseDouble(String.format("%.2f", score4));
 
                         if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)){
-                            vulStr.append(paraName).append("存在盲注");
+                            addToVulStr(logid, "参数"+paraName+"存在盲注");
                             IScanIssue issues = null;
                             try{
                                 issues = new CustomScanIssue(checkedJsonDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedJsonDoubleQuote},
@@ -487,8 +481,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
-                                        isVul = true;
-                                        vulStr.append(paraName).append("存在报错");
+                                        addToVulStr(logid, "参数"+paraName+"存在报错");
                                         IScanIssue issues = null;
                                         try{
                                             issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -507,8 +500,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
                             }
                             if (Integer.parseInt(responseTime) > 6000){
-                                isVul = true;
-                                vulStr.append(paraName).append("存在延时");
+                                addToVulStr(logid, "参数"+paraName+"存在延时");
                                 IScanIssue issues = null;
                                 try{
                                     issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -587,8 +579,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
-                                        isVul = true;
-                                        vulStr.append("header存在报错");
+                                        addToVulStr(logid, "header存在报错");
                                         IScanIssue issues = null;
                                         try{
                                             issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -607,8 +598,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 sqlLength = sqlresponseBody.length;
                             }
                             if (Integer.parseInt(responseTime) > 6000){
-                                isVul = true;
-                                vulStr.append("header存在延时");
+                                addToVulStr(logid, "header存在延时");
                                 IScanIssue issues = null;
                                 try{
                                     issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -630,14 +620,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
 
         }
-        // 如果存在漏洞，更新url表格
-        if (isVul){
-            // 更新url tables
-            updateUrl(logid, method, url, originalLength, String.valueOf(vulStr), originalRequestResponse);
-        }else {
-            // 更新url tables
-            updateUrl(logid, method, url, originalLength, "检测完成", originalRequestResponse);
-        }
+        // 取出vul中的logid
+
+        updateUrl(logid, method, url, originalLength, vul.get(logid).toString(), originalRequestResponse);
     }
 
 
@@ -676,13 +661,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             payloadtable.updateUI();
         }
     }
-
+    public static void addToVulStr(int key, CharSequence value) {
+        // 检查是否已经存在该键，如果不存在则创建一个新的 ArrayList 存储值
+        vul.computeIfAbsent(key, k -> new StringBuilder()).append(value).append(", ");
+    }
     // 添加payload数据到表格
     public static void addPayload(int selectId, String key, String value, int length, String change, String
             errkey, String time, String status, IHttpRequestResponse requestResponse) {
-        int id = payloaddata2.size();
         synchronized (payloaddata2) {
-            payloaddata2.add(new PayloadEntry(id, selectId, key, value, length, change, errkey, time, status, requestResponse));
+            payloaddata2.add(new PayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse));
             urltable.updateUI();
             payloadtable.updateUI();
         }
@@ -730,8 +717,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append(paraName).append("存在报错");
+                    addToVulStr(logid, "参数"+paraName+"存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponses1.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses1},
@@ -796,8 +782,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append(paraName).append("存在报错");
+                    addToVulStr(logid, "参数"+paraName+"存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponses2.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses2},
@@ -863,8 +848,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append(paraName).append("存在报错");
+                    addToVulStr(logid, "参数"+paraName+"存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponses3.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses3},
@@ -927,8 +911,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append("json存在报错");
+                    addToVulStr(logid, "json存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -947,8 +930,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
         }
         if (Integer.parseInt(responseTime) > 6000){
-            isVul = true;
-            vulStr.append("json存在延时");
+            addToVulStr(logid, "json存在延时");
             IScanIssue issues = null;
             try{
                 issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -1002,8 +984,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append("json存在报错");
+                    addToVulStr(logid, "json存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -1022,8 +1003,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
         }
         if (Integer.parseInt(responseTime) > 6000){
-            isVul = true;
-            vulStr.append("json存在延时");
+            addToVulStr(logid, "json存在延时");
             IScanIssue issues = null;
             try{
                 issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -1078,8 +1058,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             for (String errorKey : listErrorKey) {
                 if (sqlResponseBody.contains(errorKey)) {
                     errkey = "存在报错";
-                    isVul = true;
-                    vulStr.append("json存在报错");
+                    addToVulStr(logid, "json存在报错");
                     IScanIssue issues = null;
                     try{
                         issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -1098,8 +1077,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
         }
         if (Integer.parseInt(responseTime) > 6000){
-            isVul = true;
-            vulStr.append("json存在延时");
+            addToVulStr(logid, "json存在延时");
             IScanIssue issues = null;
             try{
                 issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -1584,7 +1562,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     // payload 实体类
     public static class PayloadEntry {
-        final int id;
         final int selectId;
         final String key;
         final String value;
@@ -1595,8 +1572,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         final String status;
         final IHttpRequestResponse requestResponse;
 
-        PayloadEntry(int id, int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
-            this.id = id;
+        PayloadEntry(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
             this.selectId = selectId;
             this.key = key;
             this.value = value;
@@ -1669,27 +1645,25 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public int getColumnCount() {
-            return 8;
+            return 7;
         }
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             switch (columnIndex) {
                 case 0:
-                    return payloaddata.get(rowIndex).id;
-                case 1:
                     return payloaddata.get(rowIndex).key;
-                case 2:
+                case 1:
                     return payloaddata.get(rowIndex).value;
-                case 3:
+                case 2:
                     return payloaddata.get(rowIndex).length;
-                case 4:
+                case 3:
                     return payloaddata.get(rowIndex).change;
-                case 5:
+                case 4:
                     return payloaddata.get(rowIndex).errkey;
-                case 6:
+                case 5:
                     return payloaddata.get(rowIndex).time;
-                case 7:
+                case 6:
                     return payloaddata.get(rowIndex).status;
                 default:
                     return null;
@@ -1700,20 +1674,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         public String getColumnName(int column) {
             switch (column) {
                 case 0:
-                    return "id";
-                case 1:
                     return "参数";
-                case 2:
+                case 1:
                     return "参数值";
-                case 3:
+                case 2:
                     return "响应长度";
-                case 4:
+                case 3:
                     return "变化";
-                case 5:
+                case 4:
                     return "报错";
-                case 6:
+                case 5:
                     return "时间";
-                case 7:
+                case 6:
                     return "返回码";
                 default:
                     return null;
@@ -1761,7 +1733,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             super(model);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(7).setMaxWidth(50);
+            columnModel.getColumn(6).setMaxWidth(50);
         }
 
         @Override
