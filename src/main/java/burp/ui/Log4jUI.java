@@ -582,6 +582,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         String method = analyzeRequest.getMethod();
+        String host = baseRequestResponse.getHttpService().getHost();
         URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
@@ -595,12 +596,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             return;
         }
 
-        // url 中为静态资源，直接返回
-        List<String> suffix = Utils.getSuffix();
-        for (String s : suffix) {
-            if (url.endsWith(s) || url.contains(s)) {
-                return;
-            }
+        // url 中匹配为静态资源
+        if (Utils.isUrlBlackListSuffix(url)){
+            return;
         }
         String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果不是手动发送则需要进行url去重
@@ -624,14 +622,13 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            boolean containsWhiteDomain = false;
+            // 将domain转为List<String>
+            List<String> domainList = new ArrayList<>();
             for (Log4jBean log4jBean : domain) {
-                if (url.contains(log4jBean.getValue())) {
-                    containsWhiteDomain = true;
-                    break; // 如果包含白名单域名，则跳出循环
-                }
+                domainList.add(log4jBean.getValue());
             }
-            if (!containsWhiteDomain) {
+            // 如果未匹配到 直接返回
+            if (!Utils.isMatchDomainName(host,domainList)){
                 return;
             }
         }

@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.PermBean;
+import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
 import org.springframework.util.DigestUtils;
@@ -411,6 +412,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         IHttpRequestResponse baseRequestResponse = responses[0];
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         String method = analyzeRequest.getMethod();
+        String host = baseRequestResponse.getHttpService().getHost();
         URL rdurlURL = analyzeRequest.getUrl();
         String url = analyzeRequest.getUrl().toString();
         List<IParameter> paraLists = analyzeRequest.getParameters();
@@ -434,31 +436,24 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             isWhiteDomainList = false;
         }
 
-
-        // 静态资源不检测
-        List<String> suffix = getSuffix();
-        if (!suffix.isEmpty()) {
-            for (String s : suffix) {
-                if (url.endsWith(s) || url.contains(s)) {
-                    return;
-                }
-            }
+        // url 中匹配为静态资源
+        if (Utils.isUrlBlackListSuffix(url)){
+            return;
         }
         // 开启白名单域名检测
         if (isWhiteDomainList) {
-            List<PermBean> permBeanWhiteDomain = getPermListsByType("domain");
-            if (permBeanWhiteDomain.isEmpty()) {
+            List<PermBean> domain = getPermListsByType("domain");
+            if (domain.isEmpty()) {
                 JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            boolean containsWhiteDomain = false;
-            for (PermBean permBean : permBeanWhiteDomain) {
-                if (url.contains(permBean.getValue())) {
-                    containsWhiteDomain = true;
-                    break; // 如果包含白名单域名，则跳出循环
-                }
+            // 将domain转为List<String>
+            List<String> domainList = new ArrayList<>();
+            for (PermBean permBean : domain) {
+                domainList.add(permBean.getValue());
             }
-            if (!containsWhiteDomain) {
+            // 如果未匹配到 直接返回
+            if (!Utils.isMatchDomainName(host,domainList)){
                 return;
             }
         }

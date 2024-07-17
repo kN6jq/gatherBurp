@@ -336,12 +336,9 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             return;
         }
 
-        // url 中为静态资源，直接返回
-        List<String> suffix = getSuffix();
-        for (String s : suffix) {
-            if (url.endsWith(s)) {
-                return;
-            }
+        // url 中匹配为静态资源
+        if (Utils.isUrlBlackListSuffix(url)){
+            return;
         }
         // 对url进行hash去重
         String rdurl = Utils.getUrlWithoutFilename(rdurlURL);

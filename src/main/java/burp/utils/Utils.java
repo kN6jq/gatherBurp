@@ -13,6 +13,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -65,6 +66,104 @@ public class Utils {
             }
         }
         return true;
+    }
+
+    // 参考burpfastjsonscan
+    public static boolean isUrlBlackListSuffix(String burpUrl) {
+        String noParameterUrl = burpUrl.split("\\?")[0];
+        String urlSuffix = noParameterUrl.substring(noParameterUrl.lastIndexOf(".") + 1);
+
+        List<String> suffixList = getSuffix();
+        if (suffixList == null || suffixList.size() == 0) {
+            return false;
+        }
+
+        for (String s : suffixList) {
+            if (s.toLowerCase().equals(urlSuffix.toLowerCase())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 判断是否查找的到指定的域名
+     *
+     * @param domainName     需匹配的域名
+     * @param domainNameList 待匹配的域名列表
+     * @return
+     */
+    public static Boolean isMatchDomainName(String domainName, List<String> domainNameList) {
+        domainName = domainName.trim();
+
+        if (domainName.length() <= 0) {
+            return false;
+        }
+
+        if (domainNameList == null || domainNameList.size() <= 0) {
+            return false;
+        }
+
+        if (domainName.contains(":")) {
+            domainName = domainName.substring(0, domainName.indexOf(":"));
+        }
+
+        String reverseDomainName = new StringBuffer(domainName).reverse().toString();
+
+        for (String domainName2 : domainNameList) {
+            domainName2 = domainName2.trim();
+
+            if (domainName2.length() <= 0) {
+                continue;
+            }
+
+            if (domainName2.contains(":")) {
+                domainName2 = domainName2.substring(0, domainName2.indexOf(":"));
+            }
+
+            String reverseDomainName2 = new StringBuffer(domainName2).reverse().toString();
+
+            if (domainName.equals(domainName2)) {
+                return true;
+            }
+
+            if (reverseDomainName.contains(".") && reverseDomainName2.contains(".")) {
+                List<String> splitDomainName = new ArrayList<String>(Arrays.asList(reverseDomainName.split("[.]")));
+
+                List<String> splitDomainName2 = new ArrayList<String>(Arrays.asList(reverseDomainName2.split("[.]")));
+
+                if (splitDomainName.size() <= 0 || splitDomainName2.size() <= 0) {
+                    continue;
+                }
+
+                if (splitDomainName.size() < splitDomainName2.size()) {
+                    for (int i = splitDomainName.size(); i < splitDomainName2.size(); i++) {
+                        splitDomainName.add("*");
+                    }
+                }
+
+                if (splitDomainName.size() > splitDomainName2.size()) {
+                    for (int i = splitDomainName2.size(); i < splitDomainName.size(); i++) {
+                        splitDomainName2.add("*");
+                    }
+                }
+
+                int ii = 0;
+                for (int i = 0; i < splitDomainName.size(); i++) {
+                    if (splitDomainName2.get(i).equals("*")) {
+                        ii = ii + 1;
+                    } else if (splitDomainName.get(i).equals(splitDomainName2.get(i))) {
+                        ii = ii + 1;
+                    }
+                }
+
+                if (ii == splitDomainName.size()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // 获取后缀列表
