@@ -87,6 +87,8 @@ public class Utils {
         return false;
     }
 
+
+
     /**
      * 判断是否查找的到指定的域名
      *
@@ -169,48 +171,48 @@ public class Utils {
     // 获取后缀列表
     public static List<String> getSuffix() {
         List<String> suffix = new ArrayList<>();
-        suffix.add(".js");
-        suffix.add(".css");
-        suffix.add(".jpg");
-        suffix.add(".png");
-        suffix.add(".gif");
-        suffix.add(".ico");
-        suffix.add(".svg");
-        suffix.add(".woff");
-        suffix.add(".ttf");
-        suffix.add(".eot");
-        suffix.add(".woff2");
-        suffix.add(".otf");
-        suffix.add(".mp4");
-        suffix.add(".mp3");
-        suffix.add(".avi");
-        suffix.add(".flv");
-        suffix.add(".swf");
-        suffix.add(".webp");
-        suffix.add(".zip");
-        suffix.add(".rar");
-        suffix.add(".7z");
-        suffix.add(".gz");
-        suffix.add(".tar");
-        suffix.add(".exe");
-        suffix.add(".pdf");
-        suffix.add(".doc");
-        suffix.add(".docx");
-        suffix.add(".xls");
-        suffix.add(".xlsx");
-        suffix.add(".ppt");
-        suffix.add(".pptx");
-        suffix.add(".txt");
-        suffix.add(".xml");
-        suffix.add(".apk");
-        suffix.add(".ipa");
-        suffix.add(".dmg");
-        suffix.add(".iso");
-        suffix.add(".img");
-        suffix.add(".torrent");
-        suffix.add(".jar");
-        suffix.add(".war");
-        suffix.add(".py");
+        suffix.add("js");
+        suffix.add("css");
+        suffix.add("jpg");
+        suffix.add("png");
+        suffix.add("gif");
+        suffix.add("ico");
+        suffix.add("svg");
+        suffix.add("woff");
+        suffix.add("ttf");
+        suffix.add("eot");
+        suffix.add("woff2");
+        suffix.add("otf");
+        suffix.add("mp4");
+        suffix.add("mp3");
+        suffix.add("avi");
+        suffix.add("flv");
+        suffix.add("swf");
+        suffix.add("webp");
+        suffix.add("zip");
+        suffix.add("rar");
+        suffix.add("7z");
+        suffix.add("gz");
+        suffix.add("tar");
+        suffix.add("exe");
+        suffix.add("pdf");
+        suffix.add("doc");
+        suffix.add("docx");
+        suffix.add("xls");
+        suffix.add("xlsx");
+        suffix.add("ppt");
+        suffix.add("pptx");
+        suffix.add("txt");
+        suffix.add("xml");
+        suffix.add("apk");
+        suffix.add("ipa");
+        suffix.add("dmg");
+        suffix.add("iso");
+        suffix.add("img");
+        suffix.add("torrent");
+        suffix.add("jar");
+        suffix.add("war");
+        suffix.add("py");
         return suffix;
     }
 

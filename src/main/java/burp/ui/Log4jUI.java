@@ -708,6 +708,10 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                     // 判断参数是否在url中
                     if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY) {
                         for (String logPayload : log4jPayload) {
+                            // 如果是在get请求中，需要对payload进行url编码
+                            if (para.getType() == PARAM_URL) {
+                                logPayload = Utils.UrlEncode(logPayload);
+                            }
                             IParameter iParameter = Utils.helpers.buildParameter(paraName, logPayload, para.getType());
                             byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
                             IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
