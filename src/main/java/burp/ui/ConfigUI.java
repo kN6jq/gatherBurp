@@ -161,6 +161,8 @@ public class ConfigUI implements UIHandler {
                 String dns = dnslogTextField.getText();
                 ConfigBean config = new ConfigBean(module, "dnslog", dns);
                 saveConfig(config);
+                FastjsonUI.dnslog = dns;
+                Log4jUI.dns = dns;
                 // 弹窗提示
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
@@ -173,6 +175,8 @@ public class ConfigUI implements UIHandler {
                 String ip = ipTextField.getText();
                 ConfigBean config = new ConfigBean(module, "ip", ip);
                 saveConfig(config);
+                FastjsonUI.ip = ip;
+                Log4jUI.ip = ip;
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
         });

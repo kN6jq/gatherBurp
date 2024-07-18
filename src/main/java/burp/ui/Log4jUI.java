@@ -64,8 +64,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private static List<String> payloadList = new ArrayList<>(); // payload列表
     private static List<String> domainList = new ArrayList<>(); // 白名单域名
     private static List<String> headerList = new ArrayList<>(); // header列表
-    private static String dns;
-    private static String ip;
+    public static String dns;
+    public static String ip;
 
 
     @Override

