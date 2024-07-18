@@ -27,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
-import static burp.utils.Utils.getSuffix;
 
 /**
  * @Author Xm17
@@ -195,11 +194,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             checkedDoubleQuote.getResponse().length != checkedTripleQuote.getResponse().length &&
                             checkedSingleQuote.getResponse().length != checkedTripleQuote.getResponse().length) {
                         if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)) {
-                            addToVulStr(logid, "参数" + paraName + "存在盲注");
+                            addToVulStr(logid, "参数" + paraName + "可能存在盲注");
                             IScanIssue issues = null;
                             try {
                                 issues = new CustomScanIssue(checkedDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedDoubleQuote},
-                                        "SqlInject Blind", "SqlInject 发现盲注",
+                                        "SqlInject Blind", "SqlInject 发现可能存在盲注",
                                         "High", "Certain");
                                 Utils.callbacks.addScanIssue(issues);
                             } catch (MalformedURLException e) {
@@ -316,11 +315,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         double formattedScore4 = Double.parseDouble(String.format("%.2f", score4));
 
                         if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)) {
-                            addToVulStr(logid, "参数" + paraName + "存在盲注");
+                            addToVulStr(logid, "参数" + paraName + "可能存在盲注");
                             IScanIssue issues = null;
                             try {
                                 issues = new CustomScanIssue(checkedJsonDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedJsonDoubleQuote},
-                                        "SqlInject Blind", "SqlInject 发现盲注",
+                                        "SqlInject Blind", "SqlInject 发现可能存在盲注",
                                         "High", "Certain");
                                 Utils.callbacks.addScanIssue(issues);
                             } catch (MalformedURLException e) {

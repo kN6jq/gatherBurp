@@ -4,7 +4,7 @@
 
   <groupId>org.xm17</groupId>
   <artifactId>gatherBurp</artifactId>
-  <version>1.1.0-SNAPSHOT</version>
+  <version>1.1.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>gatherBurp</name>
@@ -39,14 +39,12 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.43.2.2</version>
     </dependency>
-    <!-- https://mvnrepository.com/artifact/org.json/json -->
     <!-- https://mvnrepository.com/artifact/com.alibaba/fastjson -->
     <dependency>
       <groupId>com.alibaba</groupId>
       <artifactId>fastjson</artifactId>
       <version>1.2.83</version>
     </dependency>
-
     <dependency>
       <groupId>net.portswigger.burp.extender</groupId>
       <artifactId>burp-extender-api</artifactId>
@@ -60,7 +58,7 @@
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-core</artifactId>
-      <version>5.8.16</version>
+      <version>5.8.28</version>
     </dependency>
   </dependencies>
 

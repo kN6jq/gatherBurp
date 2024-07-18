@@ -5,11 +5,10 @@ import burp.IExtensionHelpers;
 import burp.IHttpRequestResponse;
 import cn.hutool.core.io.FileUtil;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -25,7 +24,7 @@ public class Utils {
     public static PrintWriter stdout;
     public static PrintWriter stderr;
     public static String name = "GatherBurp";
-    public static String version = "1.1.0";
+    public static String version = "1.1.1";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
     public static boolean isSelect = false;
@@ -214,12 +213,6 @@ public class Utils {
         suffix.add("war");
         suffix.add("py");
         return suffix;
-    }
-
-
-    // 返回当前时间戳
-    public static String getTimeNow() {
-        return String.valueOf(System.currentTimeMillis() / 1000);
     }
 
     // 替换字符串中的特殊字符

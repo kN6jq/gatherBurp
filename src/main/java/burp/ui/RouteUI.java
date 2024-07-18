@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.RouteBean;
-import burp.dao.RouteDao;
 import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
 import burp.utils.Utils;
@@ -14,13 +13,12 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static burp.dao.RouteDao.*;
-import static burp.utils.Utils.getSuffix;
 
 /**
  * @Author Xm17
@@ -89,7 +87,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
 
 
         // 获取payload
-        List<RouteBean> routeList = getRouteLists();
+        routeList = getRouteLists();
 
         setupUI();
         setupData();
@@ -208,6 +206,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     RouteBean routeBean1 = routeLists.get(i);
                     routelog.add(new RouteEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
                 }
+                routeList = getRouteLists();
                 ruleTable.updateUI();
             }
         });

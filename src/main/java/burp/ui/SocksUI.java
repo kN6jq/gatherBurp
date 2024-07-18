@@ -88,7 +88,7 @@ public class SocksUI implements UIHandler {
 
 
         try{
-            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
+            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
@@ -144,7 +144,7 @@ public class SocksUI implements UIHandler {
     public void isEnableSettings(IBurpExtenderCallbacks callbacks,boolean enable) {
 
         try{
-            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
+            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
