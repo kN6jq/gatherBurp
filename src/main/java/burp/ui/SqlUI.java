@@ -95,6 +95,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
         }
+        // url 中匹配为静态资源
+        if (Utils.isUrlBlackListSuffix(url)){
+            return;
+        }
+
         // 判断参数类型，不符合的直接跳过检测
         boolean ruleHit = true; // 默认设置为true，表示命中规则
         for (IParameter para : paraLists) {
@@ -123,10 +128,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             isWhiteDomain = false;
         }
 
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
-        }
+
         // host 不是白名单域名，直接返回
         if (isWhiteDomain) {
             // 如果未匹配到 直接返回

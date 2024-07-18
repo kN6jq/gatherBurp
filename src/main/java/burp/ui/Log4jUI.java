@@ -61,7 +61,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private static boolean isDnsOrIp; // 是否是dns或者ip
     private static boolean isCheckWhiteList; // 是否检测白名单
     private static Set<String> log4jPayload = new LinkedHashSet<>(); // 存储log4j payload
-    private static List<Log4jBean> payloadList = new ArrayList<>(); // payload列表
+    private static List<String> payloadList = new ArrayList<>(); // payload列表
     private static List<String> domainList = new ArrayList<>(); // 白名单域名
     private static List<String> headerList = new ArrayList<>(); // header列表
     private static String dns;
@@ -279,34 +279,20 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         // 初始化白名单输入框
         List<Log4jBean> domain = getLog4jListsByType("domain");
         for (Log4jBean log4jBean : domain) {
-            // 如果是最后一个，就不加换行符
-            if (domain.indexOf(log4jBean) == domain.size() - 1) {
-                whiteListTextArea.setText(whiteListTextArea.getText() + log4jBean.getValue());
-                break;
-            }
             whiteListTextArea.setText(whiteListTextArea.getText() + log4jBean.getValue() + "\n");
+            domainList.add(log4jBean.getValue());
         }
         // 初始化header输入框
         List<Log4jBean> header = getLog4jListsByType("header");
         for (Log4jBean log4jBean : header) {
-            // 如果是最后一个，就不加换行符
-            if (header.indexOf(log4jBean) == header.size() - 1) {
-                headerTextArea.setText(headerTextArea.getText() + log4jBean.getValue());
-                break;
-            }
             headerTextArea.setText(headerTextArea.getText() + log4jBean.getValue() + "\n");
             headerList.add(log4jBean.getValue());
         }
         // 初始化payload输入框
         List<Log4jBean> payload = getLog4jListsByType("payload");
         for (Log4jBean log4jBean : payload) {
-            // 如果是最后一个，就不加换行符
-            if (payload.indexOf(log4jBean) == payload.size() - 1) {
-                payloadTextArea.setText(payloadTextArea.getText() + log4jBean.getValue());
-                break;
-            }
             payloadTextArea.setText(payloadTextArea.getText() + log4jBean.getValue() + "\n");
-            payloadList.add(log4jBean);
+            payloadList.add(log4jBean.getValue());
         }
 
         // 检测白名单选择框
@@ -361,15 +347,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 String headerTextAreaText = headerTextArea.getText();
                 deleteLog4jByType("header");
-                // 如果包含换行符，就分割成多个header
-                if (headerTextAreaText.contains("\n")) {
-                    String[] split = headerTextAreaText.split("\n");
-                    for (String s : split) {
-                        Log4jBean log4jBean = new Log4jBean("header", s);
-                        saveLog4j(log4jBean);
-                    }
-                } else {
-                    Log4jBean log4jBean = new Log4jBean("header", headerTextAreaText);
+                String[] split = headerTextAreaText.split("\n");
+                for (String s : split) {
+                    Log4jBean log4jBean = new Log4jBean("header", s);
                     saveLog4j(log4jBean);
                 }
                 List<Log4jBean> header = getLog4jListsByType("header");
@@ -386,20 +366,14 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 String payloadTextAreaText = payloadTextArea.getText();
                 deleteLog4jByType("payload");
-                // 如果包含换行符，就分割成多个payload
-                if (payloadTextAreaText.contains("\n")) {
-                    String[] split = payloadTextAreaText.split("\n");
-                    for (String s : split) {
-                        Log4jBean log4jBean = new Log4jBean("payload", s);
-                        saveLog4j(log4jBean);
-                    }
-                } else {
-                    Log4jBean log4jBean = new Log4jBean("payload", payloadTextAreaText);
+                String[] split = payloadTextAreaText.split("\n");
+                for (String s : split) {
+                    Log4jBean log4jBean = new Log4jBean("payload", s);
                     saveLog4j(log4jBean);
                 }
                 List<Log4jBean> payload = getLog4jListsByType("payload");
                 for (Log4jBean log4jBean : payload) {
-                    payloadList.add(log4jBean);
+                    payloadList.add(log4jBean.getValue());
                 }
 
 
@@ -628,15 +602,29 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
         }
+        // url 中匹配为静态资源
+        if (Utils.isUrlBlackListSuffix(url)){
+            return;
+        }
         // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
         if (!isCheckParam && !isCheckHeader) {
             return;
         }
 
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
+        // 判断参数类型，不符合的直接跳过检测
+        boolean ruleHit = true; // 默认设置为true，表示命中规则
+        for (IParameter para : paraLists) {
+            if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
+                    || isCheckHeader) {
+                ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了header 检测，则不命中规则
+                break;
+            }
         }
+        if (ruleHit) {
+            return; // 如果命中规则，则直接返回
+        }
+
+
         String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
         // 如果不是手动发送则需要进行url去重
         if (!isSend) {
@@ -658,43 +646,23 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 return;
             }
         }
-
-
+        // 加入payload前先清空列表
+        log4jPayload.clear();
         // 将数据库中的payload加入到列表
-        for (Log4jBean log4j : payloadList) {
+        for (String log4j : payloadList) {
             if (isOriginalValue) {
-                log4jPayload.add(log4j.getValue());
+                log4jPayload.add(log4j);
             } else {
-                if (log4j.getValue().contains("dnslog-url")) {
+                if (log4j.contains("dnslog-url")) {
                     if (isDnsOrIp) {
-                        try {
-                            if (dns.isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "已勾选dnslog,请先设置dnslog地址", "提示", JOptionPane.ERROR_MESSAGE);
-                                return;
-                            }
-                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
-                            log4jPayload.add(log4j.getValue().replace("dnslog-url", logPrefix + dns));
-                        } catch (Exception e) {
-                            JOptionPane.showMessageDialog(null, "数据库初始化失败,请联系作者", "提示", JOptionPane.ERROR_MESSAGE);
-                            return;
-                        }
-
+                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
+                        log4jPayload.add(log4j.replace("dnslog-url", logPrefix + dns));
                     } else {
-                        try {
-                            if (ip.isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "已勾选ip,请先设置ip地址", "提示", JOptionPane.ERROR_MESSAGE);
-                                return;
-                            }
-                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
-                            log4jPayload.add(log4j.getValue().replace("dnslog-url", ip + "/" + logPrefix));
-                        } catch (Exception e) {
-                            JOptionPane.showMessageDialog(null, "数据库初始化失败,请联系作者", "提示", JOptionPane.ERROR_MESSAGE);
-                            return;
-                        }
-
+                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
+                        log4jPayload.add(log4j.replace("dnslog-url", ip + "/" + logPrefix));
                     }
                 } else {
-                    log4jPayload.add(log4j.getValue());
+                    log4jPayload.add(log4j);
                 }
             }
         }
@@ -803,9 +771,10 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 }
                 for (String header : headerList) {
                     String newHeader = header + ": " + logPayload;
-                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
-                        newReqheaders.add(newHeader);
-                    }
+//                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
+//                        newReqheaders.add(newHeader);
+//                    }
+                    newReqheaders.add(newHeader);
                 }
 
                 reqheaders2.addAll(newReqheaders);
