@@ -49,7 +49,8 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private JButton deleteButton; // 删除按钮
     private JButton enableButton; // 开启按钮
     private boolean passiveScan; // 是否被动扫描
-    private static final List<String> urlHashList = new ArrayList<>(); // urlHash列表
+    private static  List<String> urlHashList = new ArrayList<>(); // urlHash列表
+    private static  List<RouteBean> routeList = new ArrayList<>(); // routeList列表
     static Set<String> uniqueUrl = new HashSet<>(); // 存放已经扫描出来的url
 
 
@@ -85,6 +86,11 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
 
     @Override
     public void init() {
+
+
+        // 获取payload
+        List<RouteBean> routeList = getRouteLists();
+
         setupUI();
         setupData();
     }
@@ -347,8 +353,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 return;
             }
         }
-        // 获取payload
-        List<RouteBean> routeList = getRouteLists();
+
 
         for (RouteBean routeBean : routeList) {
             // 如果没有开启，直接跳过
@@ -390,7 +395,8 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                             throw new RuntimeException(e);
                         }
                     }
-                } else if (Objects.equals(method, "POST")) {
+                }
+                if (Objects.equals(method, "POST")) {
                     // 删除post数据中的body部分
                     String request_data = request.split("\r\n\r\n")[0]+"\r\n\r\n";
                     String new_request = request_data.replaceFirst(path, reqList);
