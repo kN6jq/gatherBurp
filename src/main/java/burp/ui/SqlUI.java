@@ -1228,7 +1228,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             List<SqlBean> domain = getSqlListsByType("domain");
             // 将domain转为List<String>
-            domainList = new ArrayList<>();
             for (SqlBean sqlBean : domain) {
                 domainList.add(sqlBean.getValue());
             }

@@ -32,7 +32,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private JPanel panel; // 主面板
     private static JTable log4jtable; // log4j表格
     private JCheckBox passiveScanCheckBox; // 被动扫描选择框
-    private JCheckBox originalValueCheckBox; // 删除原始值选择框
+    private JCheckBox originalValueCheckBox; // 原始payload值选择框
     private JCheckBox checkHeaderCheckBox; // 检测header选择框
     private JCheckBox isDnsOrIpCheckBox; // 是否是dns或者ip选择框
     private JCheckBox checkWhiteListCheckBox; // 白名单域名检测选择框
@@ -60,6 +60,12 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private static boolean isCheckParam; // 是否检测参数
     private static boolean isDnsOrIp; // 是否是dns或者ip
     private static boolean isCheckWhiteList; // 是否检测白名单
+    private static Set<String> log4jPayload = new LinkedHashSet<>(); // 存储log4j payload
+    private static List<Log4jBean> payloadList = new ArrayList<>(); // payload列表
+    private static List<String> domainList = new ArrayList<>(); // 白名单域名
+    private static List<String> headerList = new ArrayList<>(); // header列表
+    private static String dns;
+    private static String ip;
 
 
     @Override
@@ -94,6 +100,17 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
     @Override
     public void init() {
+
+        // 存储白名单域名
+        List<Log4jBean> domain = getLog4jListsByType("domain");
+        // 将domain转为List<String>
+        for (Log4jBean log4jBean : domain) {
+            domainList.add(log4jBean.getValue());
+        }
+
+        dns = getConfig("config", "dnslog").getValue();
+        ip = getConfig("config", "ip").getValue();
+
         setupUI();
         setupData();
     }
@@ -109,9 +126,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             isPassiveScan = false;
             passiveScanCheckBox.setSelected(false);
         }
-        // 从数据库中获取是否删除原始值
-        Log4jBean log4jDeleteOrginConfig = getLog4jListByType("log4jOrginValue");
-        if (log4jDeleteOrginConfig.getValue().equals("true")) {
+        // 从数据库中获取是否为原始值
+        Log4jBean log4jOrginValueConfig = getLog4jListByType("log4jOrginValue");
+        if (log4jOrginValueConfig.getValue().equals("true")) {
             isOriginalValue = true;
             originalValueCheckBox.setSelected(true);
         }else {
@@ -178,20 +195,20 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 }
             }
         });
-        // 删除原始值选择框
+        // 原始payload值选择框
         originalValueCheckBox.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (originalValueCheckBox.isSelected()) {
                     isOriginalValue = true;
                     Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jDeleteOrgin");
+                    log4jBean.setType("log4jOrginValue");
                     log4jBean.setValue("true");
                     updateLog4j(log4jBean);
                 } else {
                     isOriginalValue = false;
                     Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jDeleteOrgin");
+                    log4jBean.setType("log4jOrginValue");
                     log4jBean.setValue("false");
                     updateLog4j(log4jBean);
                 }
@@ -239,6 +256,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         isDnsOrIpCheckBox.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                dns = getConfig("config", "dnslog").getValue();
+                ip = getConfig("config", "ip").getValue();
                 if (isDnsOrIpCheckBox.isSelected()) {
                     isDnsOrIp = true;
                     isDnsOrIpCheckBox.setText("dns");
@@ -258,34 +277,36 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         });
 
         // 初始化白名单输入框
-        List<Log4jBean> domainList = getLog4jListsByType("domain");
-        for (Log4jBean log4jBean : domainList) {
+        List<Log4jBean> domain = getLog4jListsByType("domain");
+        for (Log4jBean log4jBean : domain) {
             // 如果是最后一个，就不加换行符
-            if (domainList.indexOf(log4jBean) == domainList.size() - 1) {
+            if (domain.indexOf(log4jBean) == domain.size() - 1) {
                 whiteListTextArea.setText(whiteListTextArea.getText() + log4jBean.getValue());
                 break;
             }
             whiteListTextArea.setText(whiteListTextArea.getText() + log4jBean.getValue() + "\n");
         }
         // 初始化header输入框
-        List<Log4jBean> headerList = getLog4jListsByType("header");
-        for (Log4jBean log4jBean : headerList) {
+        List<Log4jBean> header = getLog4jListsByType("header");
+        for (Log4jBean log4jBean : header) {
             // 如果是最后一个，就不加换行符
-            if (headerList.indexOf(log4jBean) == headerList.size() - 1) {
+            if (header.indexOf(log4jBean) == header.size() - 1) {
                 headerTextArea.setText(headerTextArea.getText() + log4jBean.getValue());
                 break;
             }
             headerTextArea.setText(headerTextArea.getText() + log4jBean.getValue() + "\n");
+            headerList.add(log4jBean.getValue());
         }
         // 初始化payload输入框
-        List<Log4jBean> payloadList = getLog4jListsByType("payload");
-        for (Log4jBean log4jBean : payloadList) {
+        List<Log4jBean> payload = getLog4jListsByType("payload");
+        for (Log4jBean log4jBean : payload) {
             // 如果是最后一个，就不加换行符
-            if (payloadList.indexOf(log4jBean) == payloadList.size() - 1) {
+            if (payload.indexOf(log4jBean) == payload.size() - 1) {
                 payloadTextArea.setText(payloadTextArea.getText() + log4jBean.getValue());
                 break;
             }
             payloadTextArea.setText(payloadTextArea.getText() + log4jBean.getValue() + "\n");
+            payloadList.add(log4jBean);
         }
 
         // 检测白名单选择框
@@ -324,6 +345,12 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                     Log4jBean log4jBean = new Log4jBean("domain", whiteListTextAreaText);
                     saveLog4j(log4jBean);
                 }
+                // 存储白名单域名
+                List<Log4jBean> domain = getLog4jListsByType("domain");
+                // 将domain转为List<String>
+                for (Log4jBean log4jBean : domain) {
+                    domainList.add(log4jBean.getValue());
+                }
                 whiteListTextArea.updateUI();
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
@@ -344,6 +371,10 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 } else {
                     Log4jBean log4jBean = new Log4jBean("header", headerTextAreaText);
                     saveLog4j(log4jBean);
+                }
+                List<Log4jBean> header = getLog4jListsByType("header");
+                for (Log4jBean log4jBean : header) {
+                    headerList.add(log4jBean.getValue());
                 }
                 headerTextArea.updateUI();
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
@@ -366,6 +397,12 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                     Log4jBean log4jBean = new Log4jBean("payload", payloadTextAreaText);
                     saveLog4j(log4jBean);
                 }
+                List<Log4jBean> payload = getLog4jListsByType("payload");
+                for (Log4jBean log4jBean : payload) {
+                    payloadList.add(log4jBean);
+                }
+
+
                 payloadTextArea.updateUI();
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
@@ -616,30 +653,13 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         }
 
         if (isCheckWhiteList) {
-            List<Log4jBean> domain = getLog4jListsByType("domain");
-            // 如果白名单为空，直接返回
-            if (domain.isEmpty()) {
-                JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            // 将domain转为List<String>
-            List<String> domainList = new ArrayList<>();
-            for (Log4jBean log4jBean : domain) {
-                domainList.add(log4jBean.getValue());
-            }
             // 如果未匹配到 直接返回
             if (!Utils.isMatchDomainName(host,domainList)){
                 return;
             }
         }
 
-        // 先将payload存储
-        Set<String> log4jPayload = new LinkedHashSet<>();
-        List<Log4jBean> payloadList = getLog4jListsByType("payload");
-        if (payloadList.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "请先添加payload", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+
         // 将数据库中的payload加入到列表
         for (Log4jBean log4j : payloadList) {
             if (isOriginalValue) {
@@ -648,7 +668,6 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 if (log4j.getValue().contains("dnslog-url")) {
                     if (isDnsOrIp) {
                         try {
-                            String dns = getConfig("config", "dnslog").getValue();
                             if (dns.isEmpty()) {
                                 JOptionPane.showMessageDialog(null, "已勾选dnslog,请先设置dnslog地址", "提示", JOptionPane.ERROR_MESSAGE);
                                 return;
@@ -662,7 +681,6 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
                     } else {
                         try {
-                            String ip = getConfig("config", "ip").getValue();
                             if (ip.isEmpty()) {
                                 JOptionPane.showMessageDialog(null, "已勾选ip,请先设置ip地址", "提示", JOptionPane.ERROR_MESSAGE);
                                 return;
@@ -717,7 +735,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
                     }
                     // 判断参数是否在json中
-                    else if (para.getType() == PARAM_JSON) {
+                    if (para.getType() == PARAM_JSON) {
                         for (String logPayload : log4jPayload) {
                             String request_data = Utils.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
                             Map<String, Object> request_json = JSON.parseObject(request_data);
@@ -763,26 +781,25 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             int bodyOffset = analyzeRequest.getBodyOffset();
             int len = byte_Request.length;
             byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-            List<Log4jBean> headerList = getLog4jListsByType("header");
             for (String logPayload : log4jPayload) {
                 List<String> reqheaders2 = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
                 List<String> newReqheaders = new ArrayList<>();
                 Iterator<String> iterator = reqheaders2.iterator();
                 while (iterator.hasNext()) {
                     String reqheader = iterator.next();
-                    for (Log4jBean log4j : headerList) {
-                        if (reqheader.contains(log4j.getValue())) {
+                    for (String header : headerList) {
+                        if (reqheader.contains(header)) {
                             iterator.remove();
-                            String newHeader = log4j.getValue() + ": " + logPayload;
+                            String newHeader = header + ": " + logPayload;
                             if (!newReqheaders.contains(newHeader)) {
                                 newReqheaders.add(newHeader);
                             }
                         }
                     }
                 }
-                for (Log4jBean log4j : headerList) {
-                    String newHeader = log4j.getValue() + ": " + logPayload;
-                    if (!reqheaders2.contains(log4j.getValue()) && !newReqheaders.contains(newHeader)) {
+                for (String header : headerList) {
+                    String newHeader = header + ": " + logPayload;
+                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
                         newReqheaders.add(newHeader);
                     }
                 }

@@ -355,7 +355,6 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             if (routeBean.getEnable() != 1){
                 continue;
             }
-            // todo 这里重新做
             // 定义正则表达式，匹配 ? 及其后面的内容
             String regex = "\\?[^\\s]*";
             Pattern pattern = Pattern.compile(regex);
