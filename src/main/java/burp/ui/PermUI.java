@@ -559,7 +559,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         }
         String isSuccess = "×";
         if (originallength.equals(lowlength) && lowlength.equals(nolength)) {
-            isSuccess = "可能存在";
+            isSuccess = "未授权";
+        } else if (originallength.equals(lowlength)) {
+            isSuccess = "存在越权";
         } else {
             isSuccess = "不存在";
         }
