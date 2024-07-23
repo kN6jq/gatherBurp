@@ -8,11 +8,13 @@ import burp.utils.Utils;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static burp.dao.ConfigDao.getToolConfig;
 import static burp.utils.Utils.writeReqFile;
@@ -117,14 +119,43 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
             byte[] request = messageInfo.getRequest();
             String requestStr = Utils.helpers.bytesToString(request);
             if (requestStr.contains("<datab64>")) {
+                // 解码 base64 数据
                 String data = requestStr.substring(requestStr.indexOf("<datab64>") + 9, requestStr.indexOf("</datab64>"));
                 byte[] decodedData = Base64.getDecoder().decode(data);
-                byte[] newBytes = new byte[request.length - data.length() + decodedData.length];
+
+                // 构建新的请求体
+                byte[] newBytes = new byte[requestStr.indexOf("<datab64>") + decodedData.length + (request.length - requestStr.indexOf("</datab64>") - 10)];
                 System.arraycopy(request, 0, newBytes, 0, requestStr.indexOf("<datab64>"));
                 System.arraycopy(decodedData, 0, newBytes, requestStr.indexOf("<datab64>"), decodedData.length);
                 System.arraycopy(request, requestStr.indexOf("</datab64>") + 10, newBytes, requestStr.indexOf("<datab64>") + decodedData.length, request.length - requestStr.indexOf("</datab64>") - 10);
-                messageInfo.setRequest(newBytes);
+
+                // 更新 Content-Length
+                IRequestInfo analyzedRequest = Utils.helpers.analyzeRequest(newBytes);
+                List<String> headers = new ArrayList<>(analyzedRequest.getHeaders());
+                int bodyOffset = analyzedRequest.getBodyOffset();
+                int contentLength = newBytes.length - bodyOffset;
+
+                // 更新或添加 Content-Length 头
+                boolean contentLengthFound = false;
+                for (int i = 0; i < headers.size(); i++) {
+                    if (headers.get(i).startsWith("Content-Length:")) {
+                        headers.set(i, "Content-Length: " + contentLength);
+                        contentLengthFound = true;
+                        break;
+                    }
+                }
+                if (!contentLengthFound) {
+                    headers.add("Content-Length: " + contentLength);
+                }
+
+                // 重建请求
+                byte[] body = new byte[newBytes.length - bodyOffset];
+                System.arraycopy(newBytes, bodyOffset, body, 0, body.length);
+                byte[] updatedRequest = Utils.helpers.buildHttpMessage(headers, body);
+
+                messageInfo.setRequest(updatedRequest);
             }
         }
     }
+
 }
