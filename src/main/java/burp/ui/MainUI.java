@@ -6,20 +6,79 @@ import burp.utils.Utils;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 
 public class MainUI extends JPanel implements ITab {
     private static JTabbedPane mainPanel;
     IBurpExtenderCallbacks callbacks;
+    public static Map<String, Boolean> moduleStatus;
+
+    static {
+        moduleStatus = new HashMap<>();
+        List<String> uiList = initStatic();
+        for (String uiClassName : uiList) {
+            // Default value is true (enabled) for all modules
+            moduleStatus.put(uiClassName, false);
+        }
+    }
 
     public MainUI(IBurpExtenderCallbacks callbacks) {
         this.callbacks = callbacks;
         try {
             mainPanel = new JTabbedPane();
-            for (int i = 0; i < init().size(); i++) {
+            JPanel modulePanel = new JPanel();
+            modulePanel.setLayout(new BoxLayout(modulePanel, BoxLayout.Y_AXIS));
+
+            List<JCheckBox> checkBoxes = new ArrayList<>();
+            for (String uiClassName : init()) {
+                JCheckBox checkBox = new JCheckBox(uiClassName, moduleStatus.get(uiClassName));
+                checkBoxes.add(checkBox);
+                modulePanel.add(checkBox);
+            }
+
+            JButton loadButton = new JButton("Load Selected Modules");
+            loadButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    loadModules(checkBoxes);
+                }
+            });
+
+            modulePanel.add(loadButton);
+            mainPanel.addTab("Modules", modulePanel);
+        } catch (Exception e) {
+            Utils.stderr.println(e.getMessage());
+        }
+    }
+
+    private static List<String> initStatic() {
+        List<String> uiList = new ArrayList<>();
+        uiList.add("burp.ui.AuthUI");
+        uiList.add("burp.ui.SqlUI");
+        uiList.add("burp.ui.PermUI");
+        uiList.add("burp.ui.FastjsonUI");
+        uiList.add("burp.ui.Log4jUI");
+        uiList.add("burp.ui.RouteUI");
+        uiList.add("burp.ui.SocksUI");
+        uiList.add("burp.ui.SimilarUI");
+        uiList.add("burp.ui.ConfigUI");
+        return uiList;
+    }
+
+    private void loadModules(List<JCheckBox> checkBoxes) {
+        mainPanel.removeAll();
+        for (JCheckBox checkBox : checkBoxes) {
+            String className = checkBox.getText();
+            moduleStatus.put(className, checkBox.isSelected());
+            if (checkBox.isSelected()) {
                 try {
-                    Class<?> clazz = Class.forName(init().get(i));
+                    Class<?> clazz = Class.forName(className);
                     UIHandler ui = (UIHandler) clazz.newInstance();
                     ui.init();
                     mainPanel.addTab(ui.getTabName(), ui.getPanel(callbacks));
@@ -27,25 +86,11 @@ public class MainUI extends JPanel implements ITab {
                     Utils.stderr.println(e.getMessage());
                 }
             }
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
         }
     }
 
     public List<String> init() {
-        List<String> UiList = new ArrayList<String>();
-
-        UiList.add("burp.ui.AuthUI");
-        UiList.add("burp.ui.SqlUI");
-        UiList.add("burp.ui.PermUI");
-        UiList.add("burp.ui.FastjsonUI");
-        UiList.add("burp.ui.Log4jUI");
-        UiList.add("burp.ui.RouteUI");
-        UiList.add("burp.ui.SocksUI");
-        UiList.add("burp.ui.SimilarUI");
-        UiList.add("burp.ui.ConfigUI");
-
-        return UiList;
+        return initStatic();
     }
 
     @Override
@@ -57,4 +102,10 @@ public class MainUI extends JPanel implements ITab {
     public Component getUiComponent() {
         return mainPanel;
     }
+
+    // Static method to get module status
+    public static boolean isModuleEnabled(String moduleName) {
+        return moduleStatus.getOrDefault(moduleName, false);
+    }
 }
+
