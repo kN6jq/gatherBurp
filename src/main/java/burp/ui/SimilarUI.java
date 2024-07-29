@@ -43,7 +43,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     private static final Set<String> ALLOWED_CONTENT_TYPES = new HashSet<>(Arrays.asList(
             "application/javascript", "text/", "application/json", "application/xml"
     ));
-    private static final String URL_PATTERN = "((http|https)://)(www.)?[a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*)";
+    private static final String URL_PATTERN = "[\"'`]([a-zA-Z0-9/=_{}\\?&!:\\.-]+/[a-zA-Z0-9/=_{}\\?&!:\\.-]+(\\.jspx|\\.jsp|\\.html|\\.php|\\.do|\\.aspx|\\.action|\\.json)*)[\"'`]";
     private static JTable GrepSubDomainTable;
     private static JTable GrepSubUrlTable;
     private static JTable SimilarSubDomainTable;
@@ -247,6 +247,21 @@ public class SimilarUI implements UIHandler, IHttpListener {
         return false;
     }
 
+    private static boolean checkUrlInDomainList(String url) {
+        String[] urlParts = url.split("/");
+        String hostPart = urlParts[2];
+
+        String[] hostParts = hostPart.split("\\.");
+        String domain = hostParts[hostParts.length - 2] + "." + hostParts[hostParts.length - 1];  // 获取二级域名部分
+
+        for (String domainInList : rootDomain) {
+            if (domain.equalsIgnoreCase(domainInList)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 匹配响应包中的域名
      *
@@ -288,17 +303,34 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private static Set<String> grepUrls(String httpResponse) {
         Set<String> urls = new HashSet<>();
-        Pattern pDomainNameOnly = Pattern.compile(URL_PATTERN);
+        Pattern pDomainNameOnly = Pattern.compile(URL_PATTERN,Pattern.DOTALL);
         Matcher matcher = pDomainNameOnly.matcher(httpResponse);
         while (matcher.find()) {
-            String url = matcher.group();
-
-            // 如果url的主机名在rootDomain中,则添加
-            if (isSubdomain(url)) {
-                urls.add(url);
+            String group = matcher.group(1);
+            if (group.length()<=4 ||checkApiEndSwith(group)){
+                continue;
+            }
+            if (checkUrlInDomainList(group)){
+                urls.add(matcher.group(1));
             }
         }
         return urls;
+    }
+
+    /**
+     *判断是否以非接口后缀结尾
+     * @param group
+     * @return
+     */
+    private static boolean checkApiEndSwith(String group) {
+        //定义非法路径后缀
+        String[] c= {".jpg",".png",".js",".css",".jpeg",".gif"};
+        for(String w:c) {
+            if(group.endsWith(w)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -428,23 +460,10 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private static void addSubdomainUrl(String url) {
         SimilarUrlDao.addUrlByProjectName(projectName, url, DateTime.now().toString());
-        try {
-            URL u = new URL(url);
-            String path = "".equals(u.getPath()) ? "/" : u.getPath();
-            if (u.getPort() == -1) {
-                url = u.getProtocol() + "://" + u.getHost() + path;
-            } else {
-                String port = String.valueOf(u.getPort());
-                url = u.getProtocol() + "://" + u.getHost() + ":" + port + path;
-            }
-            synchronized (grepSubDomainUrllog) {
-                int id = grepSubDomainUrllog.size();
-                grepSubDomainUrllog.add(new GrepSubdomainUrlEntry(id, url, DateTime.now().toString()));
-                GrepSubUrlTable.updateUI();
-            }
-
-        } catch (Exception e) {
-
+        synchronized (grepSubDomainUrllog) {
+            int id = grepSubDomainUrllog.size();
+            grepSubDomainUrllog.add(new GrepSubdomainUrlEntry(id, url, DateTime.now().toString()));
+            GrepSubUrlTable.updateUI();
         }
     }
 
