@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.Log4jBean;
-import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
@@ -16,11 +15,10 @@ import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.URL;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 import static burp.IParameter.*;
-import static burp.IParameter.PARAM_JSON;
 import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.Log4jDao.*;
 
@@ -588,8 +586,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     }
 
     // 检测核心方法
-    public static void Check(IHttpRequestResponse[] responses,boolean isSend) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
+    public static void Check(IHttpRequestResponse[] messageInfo, boolean isSend) {
+        IHttpRequestResponse baseRequestResponse = messageInfo[0];
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
         List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
         String method = analyzeRequest.getMethod();

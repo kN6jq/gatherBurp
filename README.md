@@ -20,6 +20,7 @@
 9. 一键生成nuclei模板
 10. 生成指定kb大小的随机字符串
 11. 代理池功能
+12. 子域名收集(复刻https://github.com/Acmesec/Sylas)
 
 # 使用说明
 
@@ -130,6 +131,14 @@ code!=200 && (body="hello" || title="druid")
 
 自己爬取免费的代理池,然后保存以及next切换
 ![img.png](images/img_9.png)
+
+
+## 子域名收集
+
+创建项目,配置主域名即可
+
+![img.png](images/img_10.png)
+
 
 
 # 后期计划

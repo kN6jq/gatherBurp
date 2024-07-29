@@ -1,14 +1,11 @@
 package burp.ui;
 
 import burp.*;
-import burp.bean.ConfigBean;
 import burp.bean.FastjsonBean;
-import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.CustomScanIssue;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
 
-import javax.rmi.CORBA.Util;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -24,7 +21,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static burp.dao.ConfigDao.getConfig;
-import static burp.dao.FastjsonDao.*;
+import static burp.dao.FastjsonDao.getFastjsonListsByType;
 
 /**
  * @Author Xm17
@@ -299,7 +296,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         }
     }
 
-    static class FastjsonModel extends AbstractTableModel {
+    private static class FastjsonModel extends AbstractTableModel {
 
         @Override
         public int getRowCount() {

@@ -124,6 +124,11 @@ public class DbUtils {
             sqls.add("INSERT INTO \"sqli\" VALUES (20, 'sqlErrorKey', 'SQL syntax');");
             sqls.add("INSERT INTO \"sqli\" VALUES (21, 'domain', 'www.baidu.com');");
             sqls.add("INSERT INTO \"sqli\" VALUES (22, 'domain', 'www.qq.com');");
+            sqls.add("CREATE TABLE \"similarProject\" ( \"id\" integer NOT NULL, \"projectName\" TEXT, CONSTRAINT \"similarProject_id_pk\" PRIMARY KEY (\"id\"), CONSTRAINT \"similarProject_projectName_uindex\" UNIQUE (\"projectName\") );");
+            sqls.add("CREATE TABLE \"similarRootDomain\" ( \"id\" integer NOT NULL, \"rootDomainName\" TEXT, \"projectName\" TEXT, CONSTRAINT \"similarRootDomain_id_pk\" PRIMARY KEY (\"id\"), CONSTRAINT \"similarRootDomain_rootDomainName_uindex\" UNIQUE (\"rootDomainName\") );");
+            sqls.add("CREATE TABLE \"similarSubDomain\" ( \"id\" integer NOT NULL, \"subDomainName\" TEXT, \"rootDomainName\" TEXT, \"ipAddress\" TEXT, \"createTime\" TEXT, CONSTRAINT \"similarSubDomain_id_pk\" PRIMARY KEY (\"id\"), CONSTRAINT \"similarSubDomain_subDomainName_uindex\" UNIQUE (\"subDomainName\") );");
+            sqls.add("CREATE TABLE \"similarUrl\" ( \"id\" integer NOT NULL, \"url\" TEXT, \"projectName\" TEXT, \"createTime\" TEXT, CONSTRAINT \"similarUrl_id_pk\" PRIMARY KEY (\"id\"), CONSTRAINT \"similarUrl_url_uindex\" UNIQUE (\"url\") );");
+            sqls.add("CREATE TABLE \"similarSimilarSubDomain\" ( \"id\" integer NOT NULL, \"subDomainName\" TEXT, \"projectName\" TEXT, \"ipAddress\" TEXT, \"createTime\" TEXT, CONSTRAINT \"similarSimilarSubDomain_id_pk\" PRIMARY KEY (\"id\"), CONSTRAINT \"similarSimilarSubDomain_SubDomainName_uindex\" UNIQUE (\"subDomainName\") );");
             // 创建表
             for (String sql : sqls) {
                 Statement statement = connection.createStatement();

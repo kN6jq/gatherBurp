@@ -38,6 +38,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
             }
         });
         Utils.stdout.println("Loaded " + Utils.name + " v" + Utils.version + " by " + Utils.author);
+        Utils.stdout.println("If a database error is reported, please manually delete the ./gather/ directory of the username directory and try\n");
+        Utils.stdout.println("GITHUB: https://github.com/kN6jq/gatherBurp");
 
     }
 
