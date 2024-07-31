@@ -24,7 +24,7 @@ public class Utils {
     public static PrintWriter stdout;
     public static PrintWriter stderr;
     public static String name = "GatherBurp";
-    public static String version = "1.1.1";
+    public static String version = "1.1.2";
     public static String author = "Xm17";
     public static String workdir = System.getProperty("user.home") + "/.gather/";
     public static boolean isSelect = false;

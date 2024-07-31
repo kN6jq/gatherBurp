@@ -18,6 +18,7 @@ public class MainUI extends JPanel implements ITab {
     private static JTabbedPane mainPanel;
     IBurpExtenderCallbacks callbacks;
     public static Map<String, Boolean> moduleStatus;
+    private List<UIHandler> loadedModules = new ArrayList<>();
 
     static {
         moduleStatus = new HashMap<>();
@@ -45,11 +46,12 @@ public class MainUI extends JPanel implements ITab {
                 modulePanel.add(checkBox);
             }
 
-            JButton loadButton = new JButton("Load Selected Modules");
+            JButton loadButton = new JButton("ReLoad Selected Modules");
             loadButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     loadModules(checkBoxes);
+                    mainPanel.addTab("Modules", modulePanel); // Re-add modulePanel
                 }
             });
 
@@ -75,7 +77,13 @@ public class MainUI extends JPanel implements ITab {
     }
 
     private void loadModules(List<JCheckBox> checkBoxes) {
-        mainPanel.removeAll();
+        // 首先卸载所有当前加载的模块
+        for (UIHandler ui : new ArrayList<>(loadedModules)) {
+            mainPanel.remove(ui.getPanel(callbacks));
+            loadedModules.remove(ui);
+        }
+
+        // 重新加载模块
         for (JCheckBox checkBox : checkBoxes) {
             String className = checkBox.getText();
             moduleStatus.put(className, checkBox.isSelected());
@@ -84,7 +92,10 @@ public class MainUI extends JPanel implements ITab {
                     Class<?> clazz = Class.forName(className);
                     UIHandler ui = (UIHandler) clazz.newInstance();
                     ui.init();
-                    mainPanel.addTab(ui.getTabName(), ui.getPanel(callbacks));
+                    JPanel panel = ui.getPanel(callbacks);
+                    String tabName = ui.getTabName();
+                    mainPanel.addTab(tabName, panel);
+                    loadedModules.add(ui);
                 } catch (Exception e) {
                     Utils.stderr.println(e.getMessage());
                 }
@@ -111,4 +122,3 @@ public class MainUI extends JPanel implements ITab {
         return moduleStatus.getOrDefault(moduleName, false);
     }
 }
-
