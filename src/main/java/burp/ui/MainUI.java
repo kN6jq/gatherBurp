@@ -18,7 +18,6 @@ public class MainUI extends JPanel implements ITab {
     private static JTabbedPane mainPanel;
     IBurpExtenderCallbacks callbacks;
     public static Map<String, Boolean> moduleStatus;
-    private List<UIHandler> loadedModules = new ArrayList<>();
 
     static {
         moduleStatus = new HashMap<>();
@@ -77,17 +76,10 @@ public class MainUI extends JPanel implements ITab {
     }
 
     private void loadModules(List<JCheckBox> checkBoxes) {
-        // 首先卸载所有当前加载的模块
-        for (UIHandler ui : new ArrayList<>(loadedModules)) {
-            mainPanel.remove(ui.getPanel(callbacks));
-            loadedModules.remove(ui);
-        }
-
         // 重新加载模块
         for (JCheckBox checkBox : checkBoxes) {
             String className = checkBox.getText();
-            moduleStatus.put(className, checkBox.isSelected());
-            if (checkBox.isSelected()) {
+            if (checkBox.isSelected() && !moduleStatus.get(className)) {
                 try {
                     Class<?> clazz = Class.forName(className);
                     UIHandler ui = (UIHandler) clazz.newInstance();
@@ -95,13 +87,14 @@ public class MainUI extends JPanel implements ITab {
                     JPanel panel = ui.getPanel(callbacks);
                     String tabName = ui.getTabName();
                     mainPanel.addTab(tabName, panel);
-                    loadedModules.add(ui);
+                    moduleStatus.put(className, true);
                 } catch (Exception e) {
                     Utils.stderr.println(e.getMessage());
                 }
             }
         }
     }
+
 
     public List<String> init() {
         return initStatic();
