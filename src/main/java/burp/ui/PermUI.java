@@ -571,7 +571,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 isSuccess = "不存在";
             }
 
-            add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
+            add(method, url, originallength, lowlength, nolength, isSuccess, originalRequestResponse, lowRequestResponse, noRequestResponse);
+//            add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
         }finally {
             lock.unlock();
         }
