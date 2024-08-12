@@ -17,6 +17,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.dao.PermDao.*;
 import static burp.utils.Utils.getSuffix;
@@ -53,6 +55,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     private static final List<String> urlHashList = new ArrayList<>(); // url hash list
     private static boolean ispassiveScan; // 是否被动扫描
     private static boolean isWhiteDomainList; // 是否白名单
+    private static final Lock lock = new ReentrantLock();
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
@@ -409,164 +412,169 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
     // 核心检测方法
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String method = analyzeRequest.getMethod();
-        String host = baseRequestResponse.getHttpService().getHost();
-        URL rdurlURL = analyzeRequest.getUrl();
-        String url = analyzeRequest.getUrl().toString();
-        List<IParameter> paraLists = analyzeRequest.getParameters();
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = responses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String method = analyzeRequest.getMethod();
+            String host = baseRequestResponse.getHttpService().getHost();
+            URL rdurlURL = analyzeRequest.getUrl();
+            String url = analyzeRequest.getUrl().toString();
+            List<IParameter> paraLists = analyzeRequest.getParameters();
 
-        // 如果method不是get或者post方式直接返回
-        if (!method.equals("GET") && !method.equals("POST")) {
-            return;
-        }
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        // 如果是右键发送的则不进行去重
-        if (!isSend) {
-            for (IParameter paraList : paraLists) {
-                String paraName = paraList.getName();
-                parameterList.add(paraName);
-            }
-            // 检测url hash 去重
-            if (!checkUrlHash(method + rdurl + parameterList)) {
+            // 如果method不是get或者post方式直接返回
+            if (!method.equals("GET") && !method.equals("POST")) {
                 return;
             }
-        } else {
-            isWhiteDomainList = false;
-        }
+            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
+            // 如果是右键发送的则不进行去重
+            if (!isSend) {
+                for (IParameter paraList : paraLists) {
+                    String paraName = paraList.getName();
+                    parameterList.add(paraName);
+                }
+                // 检测url hash 去重
+                if (!checkUrlHash(method + rdurl + parameterList)) {
+                    return;
+                }
+            } else {
+                isWhiteDomainList = false;
+            }
 
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
-        }
-        // 开启白名单域名检测
-        if (isWhiteDomainList) {
-            List<PermBean> domain = getPermListsByType("domain");
-            if (domain.isEmpty()) {
-                JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
+            // url 中匹配为静态资源
+            if (Utils.isUrlBlackListSuffix(url)){
                 return;
             }
-            // 将domain转为List<String>
-            List<String> domainList = new ArrayList<>();
-            for (PermBean permBean : domain) {
-                domainList.add(permBean.getValue());
+            // 开启白名单域名检测
+            if (isWhiteDomainList) {
+                List<PermBean> domain = getPermListsByType("domain");
+                if (domain.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                // 将domain转为List<String>
+                List<String> domainList = new ArrayList<>();
+                for (PermBean permBean : domain) {
+                    domainList.add(permBean.getValue());
+                }
+                // 如果未匹配到 直接返回
+                if (!Utils.isMatchDomainName(host,domainList)){
+                    return;
+                }
             }
-            // 如果未匹配到 直接返回
-            if (!Utils.isMatchDomainName(host,domainList)){
+
+            // 原始请求
+            List<String> originalheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            byte[] byte_Request = baseRequestResponse.getRequest();
+            int bodyOffset = analyzeRequest.getBodyOffset();
+            int len = byte_Request.length;
+            byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
+            byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
+            IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
+            byte[] responseBody = originalRequestResponse.getResponse();
+            String originallength = "";
+            if (responseBody != null) {
+                IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
+                List<String> headers = originalReqResponse.getHeaders();
+                for (String header : headers) {
+                    if (header.contains("Content-Length")) {
+                        originallength = header.split(":")[1].trim();
+                        break;
+                    }
+                }
+            }
+            if (originallength.isEmpty()) {
+                assert responseBody != null;
+                originallength = String.valueOf(responseBody.length);
+            }
+            // 如果原始请求的响应体为空，则不进行后续操作
+            if (responseBody == null) {
                 return;
             }
-        }
-
-        // 原始请求
-        List<String> originalheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        byte[] byte_Request = baseRequestResponse.getRequest();
-        int bodyOffset = analyzeRequest.getBodyOffset();
-        int len = byte_Request.length;
-        byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-        byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
-        IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-        byte[] responseBody = originalRequestResponse.getResponse();
-        String originallength = "";
-        if (responseBody != null) {
-            IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-            List<String> headers = originalReqResponse.getHeaders();
-            for (String header : headers) {
+            // 获取低权限数据去构造请求
+            List<String> lowheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            List<PermBean> permBeanLowAuth = getPermListsByType("permLowAuth");
+            for (PermBean permBean : permBeanLowAuth) {
+                String lowAuthText = permBean.getValue();
+                String head = lowAuthText.split(":")[0];
+                boolean headerFound = false;
+                for (int i = 0; i < lowheaders.size(); i++) {
+                    String lowheader = lowheaders.get(i);
+                    if (lowheader.contains(head)) {
+                        lowheaders.set(i, lowAuthText);
+                        headerFound = true;
+                        break;
+                    }
+                }
+                if (!headerFound) {
+                    lowheaders.add(lowAuthText);
+                }
+            }
+            byte[] lowMessage = Utils.helpers.buildHttpMessage(lowheaders, body);
+            IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), lowMessage);
+            byte[] lowresponseBody = lowRequestResponse.getResponse();
+            String lowlength = "";
+            IResponseInfo lowReqResponse = Utils.helpers.analyzeResponse(lowresponseBody);
+            List<String> lowReqResheaders = lowReqResponse.getHeaders();
+            for (String header : lowReqResheaders) {
                 if (header.contains("Content-Length")) {
-                    originallength = header.split(":")[1].trim();
+                    lowlength = header.split(":")[1].trim();
                     break;
                 }
             }
-        }
-        if (originallength.isEmpty()) {
-            assert responseBody != null;
-            originallength = String.valueOf(responseBody.length);
-        }
-        // 如果原始请求的响应体为空，则不进行后续操作
-        if (responseBody == null) {
-            return;
-        }
-        // 获取低权限数据去构造请求
-        List<String> lowheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<PermBean> permBeanLowAuth = getPermListsByType("permLowAuth");
-        for (PermBean permBean : permBeanLowAuth) {
-            String lowAuthText = permBean.getValue();
-            String head = lowAuthText.split(":")[0];
-            boolean headerFound = false;
-            for (int i = 0; i < lowheaders.size(); i++) {
-                String lowheader = lowheaders.get(i);
-                if (lowheader.contains(head)) {
-                    lowheaders.set(i, lowAuthText);
-                    headerFound = true;
+            if (lowlength.isEmpty()) {
+                lowlength = String.valueOf(lowresponseBody.length);
+            }
+            // 无权限请求
+            List<String> noheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            List<PermBean> permBeanNoAuth = getPermListsByType("permNoAuth");
+            List<String> updatedHeaders = new ArrayList<>();
+
+            for (String header : noheaders) {
+                boolean shouldKeep = true;
+                for (PermBean permBean : permBeanNoAuth) {
+                    String noAuthText = permBean.getValue();
+                    if (header.contains(noAuthText)) {
+                        shouldKeep = false;
+                        break;
+                    }
+                }
+                if (shouldKeep) {
+                    updatedHeaders.add(header);
+                }
+            }
+            // 更新原始的noheaders列表
+            noheaders.clear();
+            noheaders.addAll(updatedHeaders);
+
+            byte[] noMessage = Utils.helpers.buildHttpMessage(noheaders, body);
+            IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), noMessage);
+            byte[] noresponseBody = noRequestResponse.getResponse();
+            String nolength = "";
+            IResponseInfo noReqResponse = Utils.helpers.analyzeResponse(noresponseBody);
+            List<String> noReqResheaders = noReqResponse.getHeaders();
+            for (String header : noReqResheaders) {
+                if (header.contains("Content-Length")) {
+                    nolength = header.split(":")[1].trim();
                     break;
                 }
             }
-            if (!headerFound) {
-                lowheaders.add(lowAuthText);
+            if (nolength.isEmpty()) {
+                nolength = String.valueOf(noresponseBody.length);
             }
-        }
-        byte[] lowMessage = Utils.helpers.buildHttpMessage(lowheaders, body);
-        IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), lowMessage);
-        byte[] lowresponseBody = lowRequestResponse.getResponse();
-        String lowlength = "";
-        IResponseInfo lowReqResponse = Utils.helpers.analyzeResponse(lowresponseBody);
-        List<String> lowReqResheaders = lowReqResponse.getHeaders();
-        for (String header : lowReqResheaders) {
-            if (header.contains("Content-Length")) {
-                lowlength = header.split(":")[1].trim();
-                break;
+            String isSuccess = "×";
+            if (originallength.equals(lowlength) && lowlength.equals(nolength)) {
+                isSuccess = "未授权";
+            } else if (originallength.equals(lowlength)) {
+                isSuccess = "存在越权";
+            } else {
+                isSuccess = "不存在";
             }
-        }
-        if (lowlength.isEmpty()) {
-            lowlength = String.valueOf(lowresponseBody.length);
-        }
-        // 无权限请求
-        List<String> noheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        List<PermBean> permBeanNoAuth = getPermListsByType("permNoAuth");
-        List<String> updatedHeaders = new ArrayList<>();
 
-        for (String header : noheaders) {
-            boolean shouldKeep = true;
-            for (PermBean permBean : permBeanNoAuth) {
-                String noAuthText = permBean.getValue();
-                if (header.contains(noAuthText)) {
-                    shouldKeep = false;
-                    break;
-                }
-            }
-            if (shouldKeep) {
-                updatedHeaders.add(header);
-            }
+            add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
+        }finally {
+            lock.unlock();
         }
-        // 更新原始的noheaders列表
-        noheaders.clear();
-        noheaders.addAll(updatedHeaders);
-
-        byte[] noMessage = Utils.helpers.buildHttpMessage(noheaders, body);
-        IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), noMessage);
-        byte[] noresponseBody = noRequestResponse.getResponse();
-        String nolength = "";
-        IResponseInfo noReqResponse = Utils.helpers.analyzeResponse(noresponseBody);
-        List<String> noReqResheaders = noReqResponse.getHeaders();
-        for (String header : noReqResheaders) {
-            if (header.contains("Content-Length")) {
-                nolength = header.split(":")[1].trim();
-                break;
-            }
-        }
-        if (nolength.isEmpty()) {
-            nolength = String.valueOf(noresponseBody.length);
-        }
-        String isSuccess = "×";
-        if (originallength.equals(lowlength) && lowlength.equals(nolength)) {
-            isSuccess = "未授权";
-        } else if (originallength.equals(lowlength)) {
-            isSuccess = "存在越权";
-        } else {
-            isSuccess = "不存在";
-        }
-
-        add(method, url, originallength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse);
 
     }
 

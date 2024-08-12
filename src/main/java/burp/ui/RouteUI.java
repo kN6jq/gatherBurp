@@ -15,6 +15,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,6 +52,8 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private static  List<String> urlHashList = new ArrayList<>(); // urlHash列表
     private static  List<RouteBean> routeList = new ArrayList<>(); // routeList列表
     static Set<String> uniqueUrl = new HashSet<>(); // 存放已经扫描出来的url
+    private static final Lock lock = new ReentrantLock();
+
 
 
     @Override
@@ -323,100 +327,105 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
 
     // 核心方法
     public static void Check(IHttpRequestResponse[] responses,boolean isSend) {
-        IHttpRequestResponse iHttpRequestResponse = responses[0];
-        // 考虑iHttpRequestResponse.getResponse()为null
-        if (iHttpRequestResponse.getResponse() == null) {
-            return;
-        }
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(iHttpRequestResponse);
-        URL rdurlURL = analyzeRequest.getUrl();
-        String url = analyzeRequest.getUrl().toString();
-        String method = analyzeRequest.getMethod();
-        String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
-        String requestx = "";
-        String path = analyzeRequest.getUrl().getPath();
-
-        // 如果method不是get或者post方式直接返回
-        if (!method.equals("GET") && !method.equals("POST")) {
-            return;
-        }
-
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
-        }
-        // 对url进行hash去重
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        if (!isSend){
-            if (!checkUrlHash(method + rdurl)) {
+        lock.lock();
+        try{
+            IHttpRequestResponse iHttpRequestResponse = responses[0];
+            // 考虑iHttpRequestResponse.getResponse()为null
+            if (iHttpRequestResponse.getResponse() == null) {
                 return;
             }
-        }
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(iHttpRequestResponse);
+            URL rdurlURL = analyzeRequest.getUrl();
+            String url = analyzeRequest.getUrl().toString();
+            String method = analyzeRequest.getMethod();
+            String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
+            String requestx = "";
+            String path = analyzeRequest.getUrl().getPath();
 
-
-        for (RouteBean routeBean : routeList) {
-            // 如果没有开启，直接跳过
-            if (routeBean.getEnable() != 1){
-                continue;
+            // 如果method不是get或者post方式直接返回
+            if (!method.equals("GET") && !method.equals("POST")) {
+                return;
             }
-            // 定义正则表达式，匹配 ? 及其后面的内容
-            String regex = "\\?[^\\s]*";
-            Pattern pattern = Pattern.compile(regex);
-            Matcher matcher = pattern.matcher(request);
 
-            // 删除请求数据包中的参数部分
-            if (matcher.find()) {
-                requestx = request.replace(matcher.group(), "");
+            // url 中匹配为静态资源
+            if (Utils.isUrlBlackListSuffix(url)){
+                return;
             }
-            List<String> reqLists = append(path, routeBean.getPath());
-            for (String reqList : reqLists) {
-                String rdurlList = rdurlURL.getHost()+reqList;
-                // 如果uniqueUrl中没有则添加进来
-                if (uniqueUrl.contains(rdurlList)){
+            // 对url进行hash去重
+            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
+            if (!isSend){
+                if (!checkUrlHash(method + rdurl)) {
+                    return;
+                }
+            }
+
+
+            for (RouteBean routeBean : routeList) {
+                // 如果没有开启，直接跳过
+                if (routeBean.getEnable() != 1){
                     continue;
                 }
-                uniqueUrl.add(rdurlList);
-                if (Objects.equals(method, "GET")) {
-                    String new_request = requestx.replaceFirst(path, reqList);
-                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                    // todo 如果这个为空呢
-                    ExpressionUtils expressionUtils = new ExpressionUtils(response);
-                    boolean process = expressionUtils.process(routeBean.getExpress());
-                    if (process) {
-                        addIssus(routeBean.getName(),expressionUtils.getUrl(),  String.valueOf(expressionUtils.getCode()), response);
-                        IScanIssue issues = null;
-                        try {
-                            issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
-                                    "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
-                                    "High", "Certain");
-                            Utils.callbacks.addScanIssue(issues);
-                        } catch (MalformedURLException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-                if (Objects.equals(method, "POST")) {
-                    // 删除post数据中的body部分
-                    String request_data = request.split("\r\n\r\n")[0]+"\r\n\r\n";
-                    String new_request = request_data.replaceFirst(path, reqList);
-                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                    ExpressionUtils expressionUtils = new ExpressionUtils(response);
-                    boolean process = expressionUtils.process(routeBean.getExpress());
-                    if (process) {
-                        addIssus(routeBean.getName(),expressionUtils.getUrl(), String.valueOf(expressionUtils.getCode()), response);
-                        IScanIssue issues = null;
-                        try {
-                            issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
-                                    "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
-                                    "High", "Certain");
-                            Utils.callbacks.addScanIssue(issues);
-                        } catch (MalformedURLException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-            }
+                // 定义正则表达式，匹配 ? 及其后面的内容
+                String regex = "\\?[^\\s]*";
+                Pattern pattern = Pattern.compile(regex);
+                Matcher matcher = pattern.matcher(request);
 
+                // 删除请求数据包中的参数部分
+                if (matcher.find()) {
+                    requestx = request.replace(matcher.group(), "");
+                }
+                List<String> reqLists = append(path, routeBean.getPath());
+                for (String reqList : reqLists) {
+                    String rdurlList = rdurlURL.getHost()+reqList;
+                    // 如果uniqueUrl中没有则添加进来
+                    if (uniqueUrl.contains(rdurlList)){
+                        continue;
+                    }
+                    uniqueUrl.add(rdurlList);
+                    if (Objects.equals(method, "GET")) {
+                        String new_request = requestx.replaceFirst(path, reqList);
+                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                        // todo 如果这个为空呢
+                        ExpressionUtils expressionUtils = new ExpressionUtils(response);
+                        boolean process = expressionUtils.process(routeBean.getExpress());
+                        if (process) {
+                            addIssus(routeBean.getName(),expressionUtils.getUrl(),  String.valueOf(expressionUtils.getCode()), response);
+                            IScanIssue issues = null;
+                            try {
+                                issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
+                                        "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
+                                        "High", "Certain");
+                                Utils.callbacks.addScanIssue(issues);
+                            } catch (MalformedURLException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                    if (Objects.equals(method, "POST")) {
+                        // 删除post数据中的body部分
+                        String request_data = request.split("\r\n\r\n")[0]+"\r\n\r\n";
+                        String new_request = request_data.replaceFirst(path, reqList);
+                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                        ExpressionUtils expressionUtils = new ExpressionUtils(response);
+                        boolean process = expressionUtils.process(routeBean.getExpress());
+                        if (process) {
+                            addIssus(routeBean.getName(),expressionUtils.getUrl(), String.valueOf(expressionUtils.getCode()), response);
+                            IScanIssue issues = null;
+                            try {
+                                issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
+                                        "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
+                                        "High", "Certain");
+                                Utils.callbacks.addScanIssue(issues);
+                            } catch (MalformedURLException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                }
+
+            }
+        }finally {
+            lock.unlock();
         }
     }
 

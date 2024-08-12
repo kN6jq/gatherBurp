@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.utils.Utils.getSuffix;
 
@@ -36,6 +38,8 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     private static final List<AuthEntry> authlog = new ArrayList<>(); //authlog 列表
     private static final List<String> parameterList = new ArrayList<>(); // 参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // url hash列表
+    private static final Lock lock = new ReentrantLock();
+
     @Override
     public IHttpService getHttpService() {
         return currentlyDisplayedItem.getHttpService();
@@ -125,79 +129,84 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     }
     // auth核心检测方法
     public static void Check(IHttpRequestResponse[] requestResponses){
-        IHttpRequestResponse baseRequestResponse = requestResponses[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        String method = analyzeRequest.getMethod();
-        String path = analyzeRequest.getUrl().getPath();
-        String request = Utils.helpers.bytesToString(baseRequestResponse.getRequest());
-        URL rdurlURL = analyzeRequest.getUrl();
-        String url = analyzeRequest.getUrl().toString();
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = requestResponses[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String method = analyzeRequest.getMethod();
+            String path = analyzeRequest.getUrl().getPath();
+            String request = Utils.helpers.bytesToString(baseRequestResponse.getRequest());
+            URL rdurlURL = analyzeRequest.getUrl();
+            String url = analyzeRequest.getUrl().toString();
 
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
-        }
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        // 对url进行hash去重
-        List<IParameter> paraLists = analyzeRequest.getParameters();
-        for (IParameter paraList : paraLists) {
-            String paraName = paraList.getName();
-            parameterList.add(paraName);
-        }
-        if (!checkUrlHash(method + rdurl + parameterList)) {
-            return;
-        }
+            // url 中匹配为静态资源
+            if (Utils.isUrlBlackListSuffix(url)){
+                return;
+            }
+            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
+            // 对url进行hash去重
+            List<IParameter> paraLists = analyzeRequest.getParameters();
+            for (IParameter paraList : paraLists) {
+                String paraName = paraList.getName();
+                parameterList.add(paraName);
+            }
+            if (!checkUrlHash(method + rdurl + parameterList)) {
+                return;
+            }
 
-        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        String urlWithoutQuery = "";
-        try {
-            URL url1 = new URL(url);
-            String protocol = url1.getProtocol(); // 获取协议部分，这里是 http
-            String host = url1.getHost(); // 获取主机名部分，这里是 192.168.11.3
-            int port = url1.getPort(); // 获取端口号部分，这里是 7001
-            urlWithoutQuery = protocol + "://" + host + ":" + port;
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-        List<AuthBean> authRequests = new ArrayList<>();
-        authRequests.addAll(prefix(method, path));
-        authRequests.addAll(suffix(method, path));
+            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            String urlWithoutQuery = "";
+            try {
+                URL url1 = new URL(url);
+                String protocol = url1.getProtocol(); // 获取协议部分，这里是 http
+                String host = url1.getHost(); // 获取主机名部分，这里是 192.168.11.3
+                int port = url1.getPort(); // 获取端口号部分，这里是 7001
+                urlWithoutQuery = protocol + "://" + host + ":" + port;
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+            List<AuthBean> authRequests = new ArrayList<>();
+            authRequests.addAll(prefix(method, path));
+            authRequests.addAll(suffix(method, path));
 
-        if (Objects.equals(method, "GET") || Objects.equals(method, "POST")) {
-            for (AuthBean value : authRequests) {
-                if (Objects.equals(value.getMethod(), "GET")) {
-                    String new_request = request.replaceFirst(path, value.getPath());
-                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                    String requrl = urlWithoutQuery + value.getPath();
-                    String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                    String length = String.valueOf(response.getResponse().length);
-                    add(method, requrl, statusCode, length, response);
-                } else if (Objects.equals(value.getMethod(), "POST")) {
-                    String new_request = request.replaceFirst(path, value.getPath());
-                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                    String requrl = urlWithoutQuery + value.getPath();
-                    String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                    String length = String.valueOf(response.getResponse().length);
-                    add(method, requrl, statusCode, length, response);
+            if (Objects.equals(method, "GET") || Objects.equals(method, "POST")) {
+                for (AuthBean value : authRequests) {
+                    if (Objects.equals(value.getMethod(), "GET")) {
+                        String new_request = request.replaceFirst(path, value.getPath());
+                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                        String requrl = urlWithoutQuery + value.getPath();
+                        String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                        String length = String.valueOf(response.getResponse().length);
+                        add(method, requrl, statusCode, length, response);
+                    } else if (Objects.equals(value.getMethod(), "POST")) {
+                        String new_request = request.replaceFirst(path, value.getPath());
+                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                        String requrl = urlWithoutQuery + value.getPath();
+                        String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                        String length = String.valueOf(response.getResponse().length);
+                        add(method, requrl, statusCode, length, response);
+                    }
                 }
-            }
-            // 增加header payload 测试
-            List<AuthBean> testHeaders = headers(method, url);
-            byte[] byte_Request = baseRequestResponse.getRequest();
-            int bodyOffset = analyzeRequest.getBodyOffset();
-            int len = byte_Request.length;
-            byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-            changeHeaders(headers, body, method, url, baseRequestResponse);
-            for (AuthBean header : testHeaders) {
-                headers.add(header.getHeaders());
-            }
-            byte[] message = Utils.helpers.buildHttpMessage(headers, body);
-            IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
-            // 发送请求
-            String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-            String length = String.valueOf(response.getResponse().length);
+                // 增加header payload 测试
+                List<AuthBean> testHeaders = headers(method, url);
+                byte[] byte_Request = baseRequestResponse.getRequest();
+                int bodyOffset = analyzeRequest.getBodyOffset();
+                int len = byte_Request.length;
+                byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
+                changeHeaders(headers, body, method, url, baseRequestResponse);
+                for (AuthBean header : testHeaders) {
+                    headers.add(header.getHeaders());
+                }
+                byte[] message = Utils.helpers.buildHttpMessage(headers, body);
+                IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
+                // 发送请求
+                String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                String length = String.valueOf(response.getResponse().length);
 
-            add(method, url, statusCode, length, response);
+                add(method, url, statusCode, length, response);
+            }
+        }finally {
+            lock.unlock();
         }
     }
     // 添加数据到表格

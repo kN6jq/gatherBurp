@@ -35,7 +35,7 @@ public class MainUI extends JPanel implements ITab {
             JPanel modulePanel = new JPanel();
             modulePanel.setLayout(new BoxLayout(modulePanel, BoxLayout.Y_AXIS));
 
-            JLabel tipsLabel = new JLabel("需要使用到dnslog的模块必须开启burp.ui.ConfigUI");
+            JLabel tipsLabel = new JLabel("需要使用到dnslog的模块必须开启burp.ui.ConfigUI\n注意: 此处的模块卸载为伪卸载,请务必保证关闭被动扫描关闭");
             modulePanel.add(tipsLabel);
 
             List<JCheckBox> checkBoxes = new ArrayList<>();

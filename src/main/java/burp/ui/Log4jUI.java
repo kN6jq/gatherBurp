@@ -17,6 +17,8 @@ import java.awt.event.ActionEvent;
 import java.net.URL;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.IParameter.*;
 import static burp.dao.ConfigDao.getConfig;
@@ -64,6 +66,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private static List<String> headerList = new ArrayList<>(); // header列表
     public static String dns;
     public static String ip;
+    private static final Lock lock = new ReentrantLock();
+
 
 
     @Override
@@ -587,218 +591,223 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
     // 检测核心方法
     public static void Check(IHttpRequestResponse[] messageInfo, boolean isSend) {
-        IHttpRequestResponse baseRequestResponse = messageInfo[0];
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-        List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-        String method = analyzeRequest.getMethod();
-        String host = baseRequestResponse.getHttpService().getHost();
-        URL rdurlURL = analyzeRequest.getUrl();
-        String url = analyzeRequest.getUrl().toString();
-        List<IParameter> paraLists = analyzeRequest.getParameters();
+        lock.lock();
+        try{
+            IHttpRequestResponse baseRequestResponse = messageInfo[0];
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            String method = analyzeRequest.getMethod();
+            String host = baseRequestResponse.getHttpService().getHost();
+            URL rdurlURL = analyzeRequest.getUrl();
+            String url = analyzeRequest.getUrl().toString();
+            List<IParameter> paraLists = analyzeRequest.getParameters();
 
-        // 如果method不是get或者post方式直接返回
-        if (!method.equals("GET") && !method.equals("POST")) {
-            return;
-        }
-        // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
-            return;
-        }
-        // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
-        if (!isCheckParam && !isCheckHeader) {
-            return;
-        }
-
-        // 判断参数类型，不符合的直接跳过检测
-        boolean ruleHit = true; // 默认设置为true，表示命中规则
-        for (IParameter para : paraLists) {
-            if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
-                    || isCheckHeader) {
-                ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了header 检测，则不命中规则
-                break;
-            }
-        }
-        if (ruleHit) {
-            return; // 如果命中规则，则直接返回
-        }
-
-
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        // 如果不是手动发送则需要进行url去重
-        if (!isSend) {
-            // 对url进行hash去重
-            for (IParameter paraList : paraLists) {
-                String paraName = paraList.getName();
-                parameterList.add(paraName);
-            }
-            if (!checkUrlHash(method + rdurl + parameterList)) {
+            // 如果method不是get或者post方式直接返回
+            if (!method.equals("GET") && !method.equals("POST")) {
                 return;
             }
-        }else {
-            isCheckWhiteList = false;
-        }
-
-        if (isCheckWhiteList) {
-            // 如果未匹配到 直接返回
-            if (!Utils.isMatchDomainName(host,domainList)){
+            // url 中匹配为静态资源
+            if (Utils.isUrlBlackListSuffix(url)){
                 return;
             }
-        }
-        // 加入payload前先清空列表
-        log4jPayload.clear();
-        // 将数据库中的payload加入到列表
-        for (String log4j : payloadList) {
-            if (isOriginalValue) {
-                log4jPayload.add(log4j);
-            } else {
-                if (log4j.contains("dnslog-url")) {
-                    if (isDnsOrIp) {
-                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
-                        log4jPayload.add(log4j.replace("dnslog-url", logPrefix + dns));
-                    } else {
-                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
-                        log4jPayload.add(log4j.replace("dnslog-url", ip + "/" + logPrefix));
-                    }
-                } else {
-                    log4jPayload.add(log4j);
-                }
+            // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
+            if (!isCheckParam && !isCheckHeader) {
+                return;
             }
-        }
 
-        // 检测参数
-        if (isCheckParam) {
+            // 判断参数类型，不符合的直接跳过检测
+            boolean ruleHit = true; // 默认设置为true，表示命中规则
             for (IParameter para : paraLists) {
-                if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON) {
-                    String paraName = para.getName();
-                    String paraValue = para.getValue();
-                    // 判断参数是否在url中
-                    if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY) {
-                        for (String logPayload : log4jPayload) {
-                            // 如果是在get请求中，需要对payload进行url编码
-                            if (para.getType() == PARAM_URL) {
-                                logPayload = Utils.UrlEncode(logPayload);
-                            }
-                            IParameter iParameter = Utils.helpers.buildParameter(paraName, logPayload, para.getType());
-                            byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
-                            IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                            IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-                            byte[] log4jresponseBody = newRequestResponse.getResponse();
-                            String ParamLength = "";
-                            String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
-                            if (log4jresponseBody != null) {
-                                // 判断有无Content-Length字段
-                                IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
-                                List<String> log4jHeaders = ReqResponse.getHeaders();
-                                for (String header : log4jHeaders) {
-                                    if (header.contains("Content-Length")) {
-                                        ParamLength = header.split(":")[1].trim();
-                                        break;
-                                    }
-                                }
-                            }
-                            if (ParamLength.isEmpty()) {
-                                assert log4jresponseBody != null;
-                                ParamLength = String.valueOf(log4jresponseBody.length);
-                            }
-                            add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
-                        }
+                if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
+                        || isCheckHeader) {
+                    ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了header 检测，则不命中规则
+                    break;
+                }
+            }
+            if (ruleHit) {
+                return; // 如果命中规则，则直接返回
+            }
 
-                    }
-                    // 判断参数是否在json中
-                    if (para.getType() == PARAM_JSON) {
-                        for (String logPayload : log4jPayload) {
-                            String request_data = Utils.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
-                            Map<String, Object> request_json = JSON.parseObject(request_data);
-                            List<Object> objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(logPayload), 0);
-                            String json = "";
-                            for (Object o : objectList) {
-                                json = JSON.toJSONString(o);
-                            }
-                            byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
-                            IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                            IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-                            byte[] log4jresponseBody = newRequestResponse.getResponse();
-                            String ParamLength = "";
-                            String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
-                            if (log4jresponseBody != null) {
-                                // 判断有无Content-Length字段
-                                IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
-                                List<String> log4jHeaders = ReqResponse.getHeaders();
-                                for (String header : log4jHeaders) {
-                                    if (header.contains("Content-Length")) {
-                                        ParamLength = header.split(":")[1].trim();
-                                        break;
-                                    }
-                                }
-                            }
-                            if (ParamLength.isEmpty()) {
-                                assert log4jresponseBody != null;
-                                ParamLength = String.valueOf(log4jresponseBody.length);
-                            }
-                            add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
 
+            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
+            // 如果不是手动发送则需要进行url去重
+            if (!isSend) {
+                // 对url进行hash去重
+                for (IParameter paraList : paraLists) {
+                    String paraName = paraList.getName();
+                    parameterList.add(paraName);
+                }
+                if (!checkUrlHash(method + rdurl + parameterList)) {
+                    return;
+                }
+            }else {
+                isCheckWhiteList = false;
+            }
+
+            if (isCheckWhiteList) {
+                // 如果未匹配到 直接返回
+                if (!Utils.isMatchDomainName(host,domainList)){
+                    return;
+                }
+            }
+            // 加入payload前先清空列表
+            log4jPayload.clear();
+            // 将数据库中的payload加入到列表
+            for (String log4j : payloadList) {
+                if (isOriginalValue) {
+                    log4jPayload.add(log4j);
+                } else {
+                    if (log4j.contains("dnslog-url")) {
+                        if (isDnsOrIp) {
+                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
+                            log4jPayload.add(log4j.replace("dnslog-url", logPrefix + dns));
+                        } else {
+                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
+                            log4jPayload.add(log4j.replace("dnslog-url", ip + "/" + logPrefix));
                         }
-                        break;
+                    } else {
+                        log4jPayload.add(log4j);
                     }
                 }
             }
-        }
 
-
-        // 检测header
-        if (isCheckHeader) {
-            byte[] byte_Request = baseRequestResponse.getRequest();
-            int bodyOffset = analyzeRequest.getBodyOffset();
-            int len = byte_Request.length;
-            byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-            for (String logPayload : log4jPayload) {
-                List<String> reqheaders2 = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-                List<String> newReqheaders = new ArrayList<>();
-                Iterator<String> iterator = reqheaders2.iterator();
-                while (iterator.hasNext()) {
-                    String reqheader = iterator.next();
-                    for (String header : headerList) {
-                        if (reqheader.contains(header)) {
-                            iterator.remove();
-                            String newHeader = header + ": " + logPayload;
-                            if (!newReqheaders.contains(newHeader)) {
-                                newReqheaders.add(newHeader);
+            // 检测参数
+            if (isCheckParam) {
+                for (IParameter para : paraLists) {
+                    if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON) {
+                        String paraName = para.getName();
+                        String paraValue = para.getValue();
+                        // 判断参数是否在url中
+                        if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY) {
+                            for (String logPayload : log4jPayload) {
+                                // 如果是在get请求中，需要对payload进行url编码
+                                if (para.getType() == PARAM_URL) {
+                                    logPayload = Utils.UrlEncode(logPayload);
+                                }
+                                IParameter iParameter = Utils.helpers.buildParameter(paraName, logPayload, para.getType());
+                                byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
+                                IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
+                                IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
+                                byte[] log4jresponseBody = newRequestResponse.getResponse();
+                                String ParamLength = "";
+                                String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
+                                if (log4jresponseBody != null) {
+                                    // 判断有无Content-Length字段
+                                    IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
+                                    List<String> log4jHeaders = ReqResponse.getHeaders();
+                                    for (String header : log4jHeaders) {
+                                        if (header.contains("Content-Length")) {
+                                            ParamLength = header.split(":")[1].trim();
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (ParamLength.isEmpty()) {
+                                    assert log4jresponseBody != null;
+                                    ParamLength = String.valueOf(log4jresponseBody.length);
+                                }
+                                add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
                             }
+
                         }
-                    }
-                }
-                for (String header : headerList) {
-                    String newHeader = header + ": " + logPayload;
-//                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
-//                        newReqheaders.add(newHeader);
-//                    }
-                    newReqheaders.add(newHeader);
-                }
+                        // 判断参数是否在json中
+                        if (para.getType() == PARAM_JSON) {
+                            for (String logPayload : log4jPayload) {
+                                String request_data = Utils.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
+                                Map<String, Object> request_json = JSON.parseObject(request_data);
+                                List<Object> objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(logPayload), 0);
+                                String json = "";
+                                for (Object o : objectList) {
+                                    json = JSON.toJSONString(o);
+                                }
+                                byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
+                                IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
+                                IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
+                                byte[] log4jresponseBody = newRequestResponse.getResponse();
+                                String ParamLength = "";
+                                String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
+                                if (log4jresponseBody != null) {
+                                    // 判断有无Content-Length字段
+                                    IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
+                                    List<String> log4jHeaders = ReqResponse.getHeaders();
+                                    for (String header : log4jHeaders) {
+                                        if (header.contains("Content-Length")) {
+                                            ParamLength = header.split(":")[1].trim();
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (ParamLength.isEmpty()) {
+                                    assert log4jresponseBody != null;
+                                    ParamLength = String.valueOf(log4jresponseBody.length);
+                                }
+                                add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
 
-                reqheaders2.addAll(newReqheaders);
-                byte[] postMessage = Utils.helpers.buildHttpMessage(reqheaders2, body);
-                IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-                byte[] responseBody = originalRequestResponse.getResponse();
-
-                String originallength = "";
-                String statusCode = "";
-                if (responseBody != null) {
-                    IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-                    List<String> headers = originalReqResponse.getHeaders();
-                    statusCode = String.valueOf(originalReqResponse.getStatusCode());
-                    for (String header : headers) {
-                        if (header.contains("Content-Length")) {
-                            originallength = header.split(":")[1].trim();
+                            }
                             break;
                         }
                     }
                 }
-                if (originallength.isEmpty()) {
-                    assert responseBody != null;
-                    originallength = String.valueOf(responseBody.length);
-                }
-                add(method, url, statusCode, originallength, originalRequestResponse);
             }
+
+
+            // 检测header
+            if (isCheckHeader) {
+                byte[] byte_Request = baseRequestResponse.getRequest();
+                int bodyOffset = analyzeRequest.getBodyOffset();
+                int len = byte_Request.length;
+                byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
+                for (String logPayload : log4jPayload) {
+                    List<String> reqheaders2 = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+                    List<String> newReqheaders = new ArrayList<>();
+                    Iterator<String> iterator = reqheaders2.iterator();
+                    while (iterator.hasNext()) {
+                        String reqheader = iterator.next();
+                        for (String header : headerList) {
+                            if (reqheader.contains(header)) {
+                                iterator.remove();
+                                String newHeader = header + ": " + logPayload;
+                                if (!newReqheaders.contains(newHeader)) {
+                                    newReqheaders.add(newHeader);
+                                }
+                            }
+                        }
+                    }
+                    for (String header : headerList) {
+                        String newHeader = header + ": " + logPayload;
+//                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
+//                        newReqheaders.add(newHeader);
+//                    }
+                        newReqheaders.add(newHeader);
+                    }
+
+                    reqheaders2.addAll(newReqheaders);
+                    byte[] postMessage = Utils.helpers.buildHttpMessage(reqheaders2, body);
+                    IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
+                    byte[] responseBody = originalRequestResponse.getResponse();
+
+                    String originallength = "";
+                    String statusCode = "";
+                    if (responseBody != null) {
+                        IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
+                        List<String> headers = originalReqResponse.getHeaders();
+                        statusCode = String.valueOf(originalReqResponse.getStatusCode());
+                        for (String header : headers) {
+                            if (header.contains("Content-Length")) {
+                                originallength = header.split(":")[1].trim();
+                                break;
+                            }
+                        }
+                    }
+                    if (originallength.isEmpty()) {
+                        assert responseBody != null;
+                        originallength = String.valueOf(responseBody.length);
+                    }
+                    add(method, url, statusCode, originallength, originalRequestResponse);
+                }
+            }
+        }finally {
+            lock.unlock();
         }
     }
 
