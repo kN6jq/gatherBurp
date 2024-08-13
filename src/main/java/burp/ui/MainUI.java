@@ -19,11 +19,11 @@ public class MainUI extends JPanel implements ITab {
     IBurpExtenderCallbacks callbacks;
     public static Map<String, Boolean> moduleStatus;
 
+    // 初始化默认所有模块都为关闭状态
     static {
         moduleStatus = new HashMap<>();
-        List<String> uiList = initStatic();
+        List<String> uiList = init();
         for (String uiClassName : uiList) {
-            // Default value is true (enabled) for all modules
             moduleStatus.put(uiClassName, false);
         }
     }
@@ -40,7 +40,7 @@ public class MainUI extends JPanel implements ITab {
 
             List<JCheckBox> checkBoxes = new ArrayList<>();
             for (String uiClassName : init()) {
-                JCheckBox checkBox = new JCheckBox(uiClassName, moduleStatus.get(uiClassName));
+                JCheckBox checkBox = new JCheckBox(uiClassName, false);
                 checkBoxes.add(checkBox);
                 modulePanel.add(checkBox);
             }
@@ -50,7 +50,6 @@ public class MainUI extends JPanel implements ITab {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     loadModules(checkBoxes);
-                    mainPanel.addTab("Modules", modulePanel); // Re-add modulePanel
                 }
             });
 
@@ -59,20 +58,6 @@ public class MainUI extends JPanel implements ITab {
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
         }
-    }
-
-    private static List<String> initStatic() {
-        List<String> uiList = new ArrayList<>();
-        uiList.add("burp.ui.AuthUI");
-        uiList.add("burp.ui.SqlUI");
-        uiList.add("burp.ui.PermUI");
-        uiList.add("burp.ui.FastjsonUI");
-        uiList.add("burp.ui.Log4jUI");
-        uiList.add("burp.ui.RouteUI");
-        uiList.add("burp.ui.SocksUI");
-        uiList.add("burp.ui.SimilarUI");
-        uiList.add("burp.ui.ConfigUI");
-        return uiList;
     }
 
     private void loadModules(List<JCheckBox> checkBoxes) {
@@ -91,13 +76,26 @@ public class MainUI extends JPanel implements ITab {
                 } catch (Exception e) {
                     Utils.stderr.println(e.getMessage());
                 }
+            }else if (!checkBox.isSelected() && moduleStatus.get(className)) {
+                mainPanel.remove(mainPanel.getTabCount() - 1);
+                moduleStatus.put(className, false);
             }
         }
     }
 
 
-    public List<String> init() {
-        return initStatic();
+    public static List<String> init() {
+        List<String> uiList = new ArrayList<>();
+        uiList.add("burp.ui.AuthUI");
+        uiList.add("burp.ui.SqlUI");
+        uiList.add("burp.ui.PermUI");
+        uiList.add("burp.ui.FastjsonUI");
+        uiList.add("burp.ui.Log4jUI");
+        uiList.add("burp.ui.RouteUI");
+        uiList.add("burp.ui.SocksUI");
+        uiList.add("burp.ui.SimilarUI");
+        uiList.add("burp.ui.ConfigUI");
+        return uiList;
     }
 
     @Override
@@ -110,8 +108,4 @@ public class MainUI extends JPanel implements ITab {
         return mainPanel;
     }
 
-    // Static method to get module status
-    public static boolean isModuleEnabled(String moduleName) {
-        return moduleStatus.getOrDefault(moduleName, false);
-    }
 }
