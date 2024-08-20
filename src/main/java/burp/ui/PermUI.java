@@ -499,8 +499,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 String head = lowAuthText.split(":")[0];
                 boolean headerFound = false;
                 for (int i = 0; i < lowheaders.size(); i++) {
-                    String lowheader = lowheaders.get(i);
-                    if (lowheader.contains(head)) {
+                    String lowheader = lowheaders.get(i).split(":")[0];
+                    if (lowheader.equals(head)) {
                         lowheaders.set(i, lowAuthText);
                         headerFound = true;
                         break;
@@ -534,7 +534,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 boolean shouldKeep = true;
                 for (PermBean permBean : permBeanNoAuth) {
                     String noAuthText = permBean.getValue();
-                    if (header.contains(noAuthText)) {
+                    String head = header.split(":")[0];
+                    if (head.equals(noAuthText)) {
                         shouldKeep = false;
                         break;
                     }

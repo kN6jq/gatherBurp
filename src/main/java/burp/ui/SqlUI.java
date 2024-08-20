@@ -1421,7 +1421,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 return label;
             }
         };
-
+        // 表格渲染
         urltable.getColumnModel().getColumn(4).setCellRenderer(renderer);
 
 
@@ -1431,6 +1431,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         payloadtable = new PayloadTable(payloadModel);
         payloadtablescrollpane.setViewportView(payloadtable);
 
+        // 表格渲染
+        payloadtable.getColumnModel().getColumn(0).setCellRenderer(renderer);
 
         // 左边的下部分左右对称分割
         JSplitPane zxSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
