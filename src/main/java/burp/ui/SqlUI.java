@@ -315,7 +315,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         double formattedScore4 = Double.parseDouble(String.format("%.2f", score4));
 
                         if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)) {
-                            addToVulStr(logid, "参数" + paraName + "可能存在盲注");
+                            addToVulStr(logid, "可能存在盲注");
                             IScanIssue issues = null;
                             try {
                                 issues = new CustomScanIssue(checkedJsonDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedJsonDoubleQuote},
@@ -371,7 +371,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 for (String errorKey : listErrorKey) {
                                     if (sqlResponseBody.contains(errorKey)) {
                                         errkey = "存在报错";
-                                        addToVulStr(logid, "参数" + paraName + "存在报错");
+                                        addToVulStr(logid, "可能存在报错");
                                         IScanIssue issues = null;
                                         try {
                                             issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
@@ -390,7 +390,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
                             }
                             if (Integer.parseInt(responseTime) > 6000) {
-                                addToVulStr(logid, "参数" + paraName + "存在延时");
+                                addToVulStr(logid, "可能存在延时");
                                 IScanIssue issues = null;
                                 try {
                                     issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
