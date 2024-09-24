@@ -428,7 +428,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         IParameter iParameter = Utils.helpers.buildParameter(paraName, payload, para.getType());
                         byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
                         IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                        // xm17: 考虑服务器被waf了  然后返回时间很长的情况
+                        // xm17: todo 考虑服务器被waf了  然后返回时间很长的情况
                         long endTime = System.currentTimeMillis();
                         IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
                         int statusCode = analyzeResponse.getStatusCode();
