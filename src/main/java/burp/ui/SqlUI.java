@@ -24,9 +24,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
+import static java.awt.SystemColor.text;
 
 /**
  * @Author Xm17
@@ -77,7 +79,101 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static List<String> domainList = new ArrayList<>(); // 存放域名白名单
     private static List<SqlBean> headerList = new ArrayList<>(); // 存放header白名单
     private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
-
+    private static final String[] rules = {
+            "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
+            "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
+            "MySQL\\s+server\\s+version\\s+for\\s+the\\s+right\\s+syntax\\s+to\\s+use",
+            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+PostgreSQL\\s+result",
+            "Unclosed\\s+quotation\\s+mark\\s+before\\s+the\\s+character\\s+string",
+            "Unclosed\\s+quotation\\s+mark\\s+after\\s+the\\s+character\\s+string",
+            "Column\\s+count\\s+doesn't\\s+match\\s+value\\s+count\\s+at\\s+row",
+            "Syntax\\s+error\\s+in\\s+string\\s+in\\s+query\\s+expression",
+            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+ODBC\\s+Drivers",
+            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+SQL\\s+Server",
+            "\\[Microsoft\\]\\[ODBC\\s+Microsoft\\s+Access\\s+Driver\\]",
+            "You\\s+have\\s+an\\s+error\\s+in\\s+your\\s+SQL\\s+syntax",
+            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+MySQL",
+            "Data\\s+type\\s+mismatch\\s+in\\s+criteria\\s+expression",
+            "internal\\s+error\\s+\\[IBM\\]\\[CLI\\s+Driver\\]\\[DB2",
+            "Unexpected\\s+end\\s+of\\s+command\\s+in\\s+statement",
+            "\\[Microsoft\\]\\[ODBC\\s+SQL\\s+Server\\s+Driver\\]",
+            "\\[Macromedia\\]\\[SQLServer\\s+JDBC\\s+Driver\\]",
+            "has\\s+occurred\\s+in\\s+the\\s+vicinity\\s+of:",
+            "A\\s+Parser\\s+Error\\s+\\(syntax\\s+error\\)",
+            "Procedure\\s+'[^']+'\\s+requires\\s+parameter",
+            "Microsoft\\s+SQL\\s+Native\\s+Client\\s+error",
+            "Syntax\\s+error\\s+in\\s+query\\s+expression",
+            "System\\.Data\\.SqlClient\\.SqlException",
+            "Dynamic\\s+Page\\s+Generation\\s+Error:",
+            "System\\.Exception: SQL Execution Error",
+            "Microsoft\\s+JET\\s+Database\\s+Engine",
+            "System\\.Data\\.OleDb\\.OleDbException",
+            "Sintaxis\\s+incorrecta\\s+cerca\\s+de",
+            "Table\\s+'[^']+'\\s+doesn't\\s+exist",
+            "java\\.sql\\.SQLSyntaxErrorException",
+            "Column\\s+count\\s+doesn't\\s+match",
+            "your\\s+MySQL\\s+server\\s+version",
+            "\\[SQLServer\\s+JDBC\\s+Driver\\]",
+            "ADODB\\.Field\\s+\\(0x800A0BCD\\)",
+            "com.microsoft\\.sqlserver\\.jdbc",
+            "ODBC\\s+SQL\\s+Server\\s+Driver",
+            "(PLS|ORA)-[0-9][0-9][0-9][0-9]",
+            "PostgreSQL\\s+query\\s+failed:",
+            "on\\s+MySQL\\s+result\\s+index",
+            "valid\\s+PostgreSQL\\s+result",
+            "macromedia\\.jdbc\\.sqlserver",
+            "Access\\s+Database\\s+Engine",
+            "SQLServer\\s+JDBC\\s+Driver",
+            "Incorrect\\s+syntax\\s+near",
+            "java\\.sql\\.SQLException",
+            "java\\.sql\\.SQLException",
+            "MySQLSyntaxErrorException",
+            "<b>Warning</b>:\\s+ibase_",
+            "valid\\s+MySQL\\s+result",
+            "org\\.postgresql\\.jdbc",
+            "com\\.jnetdirect\\.jsql",
+            "Dynamic\\s+SQL\\s+Error",
+            "\\[DM_QUERY_E_SYNTAX\\]",
+            "mysql_fetch_array\\(\\)",
+            "pg_query\\(\\)\\s+\\[:",
+            "pg_exec\\(\\)\\s+\\[:",
+            "com\\.informix\\.jdbc",
+            "DB2\\s+SQL\\s+error:",
+            "DB2\\s+SQL\\s+error",
+            "Microsoft\\s+Access",
+            "\\[CLI\\s+Driver\\]",
+            "\\[SQL\\s+Server\\]",
+            "com\\.mysql\\.jdbc",
+            "Sybase\\s+message:",
+            "\\[MySQL\\]\\[ODBC",
+            "ADODB\\.Recordset",
+            "Unknown\\s+column",
+            "mssql_query\\(\\)",
+            "Sybase\\s+message",
+            "Database\\s+error",
+            "PG::SyntaxError:",
+            "where\\s+clause",
+            "Syntax\\s+error",
+            "Oracle\\s+error",
+            "SQLite\\s+error",
+            "SybSQLException",
+            "\\[SqlException",
+            "odbc_exec\\(\\)",
+            "MySqlException",
+            "INSERT\\s+INTO",
+            "SQL\\s+syntax",
+            "Error\\s+SQL:",
+            "SQL\\s+error",
+            "PSQLException",
+            "SQLSTATE=\\d+",
+            "SELECT .{1,30}FROM ",
+            "UPDATE .{1,30}SET ",
+            "附近有语法错误",
+            "MySqlClient",
+            "ORA-\\d{5}",
+            "引号不完整",
+            "数据库出错"
+    };
 
     // sql检测核心方法
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
@@ -95,7 +191,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             return;
         }
         // url 中匹配为静态资源
-        if (Utils.isUrlBlackListSuffix(url)){
+        if (Utils.isUrlBlackListSuffix(url)) {
             return;
         }
 
@@ -131,7 +227,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // host 不是白名单域名，直接返回
         if (isWhiteDomain) {
             // 如果未匹配到 直接返回
-            if (!Utils.isMatchDomainName(host,domainList)){
+            if (!Utils.isMatchDomainName(host, domainList)) {
                 return;
             }
         }
@@ -256,20 +352,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             }
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBodys4);
-                            for (String errorKey : listErrorKey) {
-                                if (sqlResponseBody.contains(errorKey)) {
-                                    errkeys = "存在报错";
-                                    addToVulStr(logid, "参数" + paraName + "存在报错");
-                                    IScanIssue issues = null;
-                                    try {
-                                        issues = new CustomScanIssue(newRequestResponses4.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses4},
-                                                "SqlInject Error", "SqlInject 发现报错",
-                                                "High", "Certain");
-                                        Utils.callbacks.addScanIssue(issues);
-                                    } catch (MalformedURLException e) {
-                                        throw new RuntimeException("CheckRaw" + e);
-                                    }
-                                    break;
+                            if (ErrSqlCheck(sqlResponseBody)){
+                                errkeys = "存在报错";
+                                addToVulStr(logid, "参数" + paraName + "存在报错");
+                                IScanIssue issues = null;
+                                try {
+                                    issues = new CustomScanIssue(newRequestResponses4.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses4},
+                                            "SqlInject Error", "SqlInject 发现报错",
+                                            "High", "Certain");
+                                    Utils.callbacks.addScanIssue(issues);
+                                } catch (MalformedURLException e) {
+                                    throw new RuntimeException("CheckRaw" + e);
                                 }
                             }
                         }
@@ -371,20 +464,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 }
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                for (String errorKey : listErrorKey) {
-                                    if (sqlResponseBody.contains(errorKey)) {
-                                        errkey = "存在报错";
-                                        addToVulStr(logid, "可能存在报错");
-                                        IScanIssue issues = null;
-                                        try {
-                                            issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                                    "SqlInject Error", "SqlInject 发现报错",
-                                                    "High", "Certain");
-                                            Utils.callbacks.addScanIssue(issues);
-                                        } catch (MalformedURLException e) {
-                                            throw new RuntimeException("CheckJson" + e);
-                                        }
-                                        break;
+                                if (ErrSqlCheck(sqlResponseBody)){
+                                    errkey = "存在报错";
+                                    addToVulStr(logid, "可能存在报错");
+                                    IScanIssue issues = null;
+                                    try {
+                                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                "SqlInject Error", "SqlInject 发现报错",
+                                                "High", "Certain");
+                                        Utils.callbacks.addScanIssue(issues);
+                                    } catch (MalformedURLException e) {
+                                        throw new RuntimeException("CheckJson" + e);
                                     }
                                 }
                             }
@@ -452,20 +542,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBody);
-                            for (String errorKey : listErrorKey) {
-                                if (sqlResponseBody.contains(errorKey)) {
-                                    errkey = "存在报错";
-                                    addToVulStr(logid, "参数" + paraName + "cookie存在报错");
-                                    IScanIssue issues = null;
-                                    try {
-                                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                                "SqlInject Error", "SqlInject 发现报错",
-                                                "High", "Certain");
-                                        Utils.callbacks.addScanIssue(issues);
-                                    } catch (MalformedURLException e) {
-                                        throw new RuntimeException("CheckCookie" + e);
-                                    }
-                                    break;
+                            if (ErrSqlCheck(sqlResponseBody)){
+                                errkey = "存在报错";
+                                addToVulStr(logid, "参数" + paraName + "cookie存在报错");
+                                IScanIssue issues = null;
+                                try {
+                                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                            "SqlInject Error", "SqlInject 发现报错",
+                                            "High", "Certain");
+                                    Utils.callbacks.addScanIssue(issues);
+                                } catch (MalformedURLException e) {
+                                    throw new RuntimeException("CheckCookie" + e);
                                 }
                             }
                         }
@@ -549,20 +636,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 }
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                for (String errorKey : listErrorKey) {
-                                    if (sqlResponseBody.contains(errorKey)) {
-                                        errkey = "存在报错";
-                                        addToVulStr(logid, "header存在报错");
-                                        IScanIssue issues = null;
-                                        try {
-                                            issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                                    "SqlInject Error", "SqlInject 发现报错",
-                                                    "High", "Certain");
-                                            Utils.callbacks.addScanIssue(issues);
-                                        } catch (MalformedURLException e) {
-                                            throw new RuntimeException("CheckHeader" + e);
-                                        }
-                                        break;
+                                if (ErrSqlCheck(sqlResponseBody)){
+                                    errkey = "存在报错";
+                                    addToVulStr(logid, "header存在报错");
+                                    IScanIssue issues = null;
+                                    try {
+                                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                                                "SqlInject Error", "SqlInject 发现报错",
+                                                "High", "Certain");
+                                        Utils.callbacks.addScanIssue(issues);
+                                    } catch (MalformedURLException e) {
+                                        throw new RuntimeException("CheckHeader" + e);
                                     }
                                 }
                             }
@@ -609,6 +693,26 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         }
     }
 
+    // 正则判断响应数据包中是否包含报错关键字 @href https://github.com/saoshao/DetSql/blob/master/src/main/java/DetSql/MyHttpHandler.java
+    private static boolean ErrSqlCheck(String responseBody) {
+        if (!listErrorKey.isEmpty()){
+            for (String errKey : listErrorKey) {
+                if (responseBody.contains(errKey)) {
+                    return true;
+                }
+            }
+        }
+
+        String cleanedText = responseBody.replaceAll("\\n|\\r|\\r\\n", "");
+        for (String rule : rules) {
+            Pattern pattern = Pattern.compile(rule, Pattern.CASE_INSENSITIVE);
+            if (pattern.matcher(cleanedText).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     // url去重
     public static boolean checkUrlHash(String url) {
@@ -633,7 +737,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         }
     }
 
-
+    // 添加漏洞数据到表格
     public static void addToVulStr(int key, CharSequence value) {
         // 检查是否已经存在该键，如果不存在则创建一个新的 ArrayList 存储值
         vul.computeIfAbsent(key, k -> new StringBuilder()).append(value).append(", ");
@@ -647,6 +751,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             payloadtable.updateUI();
         }
     }
+
     // 检测一个单引号
     public static IHttpRequestResponse CheckSingleQuote(int logid, IParameter para, String paraName, String paraValue, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
         String s1Quotes = "'"; // 一个单引号
@@ -687,20 +792,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys1);
             similarity1 = sqlResponseBody;
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "参数" + paraName + "存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponses1.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses1},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckSingleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "参数" + paraName + "存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponses1.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses1},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckSingleQuote" + e);
                 }
             }
         }
@@ -753,20 +855,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys2);
             similarity2 = sqlResponseBody;
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "参数" + paraName + "存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponses2.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses2},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckDoubleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "参数" + paraName + "存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponses2.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses2},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckDoubleQuote" + e);
                 }
             }
         }
@@ -820,20 +919,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys3);
             similarity3 = sqlResponseBody;
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "参数" + paraName + "存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponses3.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses3},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckTripleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "参数" + paraName + "存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponses3.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses3},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckTripleQuote" + e);
                 }
             }
         }
@@ -884,20 +980,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "json存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckJsonSingleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "json存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckJsonSingleQuote" + e);
                 }
             }
         }
@@ -920,6 +1013,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
         return newRequestResponse;
     }
+
     // 检测json两个单引号
     public static IHttpRequestResponse CheckJsonDoubleQuote(int logid, Map<String, Object> request_json, List<String> reqheaders, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
         List<Object> objectList = new ArrayList<>();
@@ -958,20 +1052,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "json存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckJsonDoubleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "json存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckJsonDoubleQuote" + e);
                 }
             }
         }
@@ -994,6 +1085,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
         return newRequestResponse;
     }
+
     // 检测json三个单引号
     public static IHttpRequestResponse CheckJsonTripleQuote(int logid, Map<String, Object> request_json, List<String> reqheaders, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
         List<Object> objectList = new ArrayList<>();
@@ -1032,20 +1124,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            for (String errorKey : listErrorKey) {
-                if (sqlResponseBody.contains(errorKey)) {
-                    errkey = "存在报错";
-                    addToVulStr(logid, "json存在报错");
-                    IScanIssue issues = null;
-                    try {
-                        issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                                "SqlInject Error", "SqlInject 发现报错",
-                                "High", "Certain");
-                        Utils.callbacks.addScanIssue(issues);
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("CheckJsonTripleQuote" + e);
-                    }
-                    break;
+            if (ErrSqlCheck(sqlResponseBody)){
+                errkey = "存在报错";
+                addToVulStr(logid, "json存在报错");
+                IScanIssue issues = null;
+                try {
+                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
+                            "SqlInject Error", "SqlInject 发现报错",
+                            "High", "Certain");
+                    Utils.callbacks.addScanIssue(issues);
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("CheckJsonTripleQuote" + e);
                 }
             }
         }
@@ -1105,10 +1194,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
         for (SqlBean sqlBean : sqlErrorKey) {
             listErrorKey.add(sqlBean.getValue());
-        }
-        // 如果没有设置关键报错字,默认为SQL syntax
-        if (listErrorKey.isEmpty()) {
-            listErrorKey.add("SQL syntax");
         }
 
         // 获取所有payload
@@ -1267,10 +1352,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
                 for (SqlBean sqlBean : sqlErrorKey) {
                     listErrorKey.add(sqlBean.getValue());
-                }
-                // 如果没有设置关键报错字,默认为SQL syntax
-                if (listErrorKey.isEmpty()) {
-                    listErrorKey.add("SQL syntax");
                 }
                 sqlErrorKeyTextArea.updateUI();
                 JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
