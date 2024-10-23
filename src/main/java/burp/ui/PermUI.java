@@ -477,8 +477,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
                 List<String> headers = originalReqResponse.getHeaders();
                 for (String header : headers) {
-                    if (header.contains("Content-Length")) {
-                        originallength = header.split(":")[1].trim();
+                    String[] parts = header.split(":");
+                    if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                        originallength = parts[1].trim();
                         break;
                     }
                 }
@@ -517,8 +518,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             IResponseInfo lowReqResponse = Utils.helpers.analyzeResponse(lowresponseBody);
             List<String> lowReqResheaders = lowReqResponse.getHeaders();
             for (String header : lowReqResheaders) {
-                if (header.contains("Content-Length")) {
-                    lowlength = header.split(":")[1].trim();
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    lowlength = parts[1].trim();
                     break;
                 }
             }
@@ -555,8 +557,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             IResponseInfo noReqResponse = Utils.helpers.analyzeResponse(noresponseBody);
             List<String> noReqResheaders = noReqResponse.getHeaders();
             for (String header : noReqResheaders) {
-                if (header.contains("Content-Length")) {
-                    nolength = header.split(":")[1].trim();
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    nolength = parts[1].trim();
                     break;
                 }
             }

@@ -148,8 +148,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
             List<String> headers = originalReqResponse.getHeaders();
             for (String header : headers) {
-                if (header.contains("Content-Length")) {
-                    originalLength = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    originalLength = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -247,8 +248,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys4);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
                             for (String header : sqlHeaders) {
-                                if (header.contains("Content-Length")) {
-                                    sqlLengths4 = Integer.parseInt(header.split(":")[1].trim());
+                                String[] parts = header.split(":");
+                                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                    sqlLengths4 = Integer.parseInt(parts[1].trim());
                                     break;
                                 }
                             }
@@ -361,8 +363,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
                                 for (String header : sqlHeaders) {
-                                    if (header.contains("Content-Length")) {
-                                        sqlLength = Integer.parseInt(header.split(":")[1].trim());
+                                    String[] parts = header.split(":");
+                                    if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                        sqlLength = Integer.parseInt(parts[1].trim());
                                         break;
                                     }
                                 }
@@ -440,11 +443,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
                             for (String header : sqlHeaders) {
-                                if (header.contains("Content-Length")) {
-                                    sqlLength = Integer.parseInt(header.split(":")[1].trim());
+                                String[] parts = header.split(":");
+                                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                    sqlLength = Integer.parseInt(parts[1].trim());
                                     break;
                                 }
                             }
+
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBody);
                             for (String errorKey : listErrorKey) {
@@ -535,9 +540,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 // 判断有无Content-Length字段
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
-                                for (String headerx : sqlHeaders) {
-                                    if (headerx.contains("Content-Length")) {
-                                        sqlLength = Integer.parseInt(headerx.split(":")[1].trim());
+                                for (String header : sqlHeaders) {
+                                    String[] parts = header.split(":");
+                                    if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                        sqlLength = Integer.parseInt(parts[1].trim());
                                         break;
                                     }
                                 }
@@ -672,8 +678,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys1);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLengths1 = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLengths1 = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -737,8 +744,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys2);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLengths2 = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLengths2 = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -803,8 +811,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys3);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLengths3 = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLengths3 = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -867,8 +876,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLength = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLength = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -940,8 +950,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLength = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLength = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }
@@ -1013,8 +1024,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
             for (String header : sqlHeaders) {
-                if (header.contains("Content-Length")) {
-                    sqlLength = Integer.parseInt(header.split(":")[1].trim());
+                String[] parts = header.split(":");
+                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                    sqlLength = Integer.parseInt(parts[1].trim());
                     break;
                 }
             }

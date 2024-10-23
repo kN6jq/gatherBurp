@@ -696,8 +696,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
                                     for (String header : log4jHeaders) {
-                                        if (header.contains("Content-Length")) {
-                                            ParamLength = header.split(":")[1].trim();
+                                        String[] parts = header.split(":");
+                                        if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                            ParamLength = parts[1].trim();
                                             break;
                                         }
                                     }
@@ -731,8 +732,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
                                     for (String header : log4jHeaders) {
-                                        if (header.contains("Content-Length")) {
-                                            ParamLength = header.split(":")[1].trim();
+                                        String[] parts = header.split(":");
+                                        if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                            ParamLength = parts[1].trim();
                                             break;
                                         }
                                     }
@@ -793,8 +795,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                         List<String> headers = originalReqResponse.getHeaders();
                         statusCode = String.valueOf(originalReqResponse.getStatusCode());
                         for (String header : headers) {
-                            if (header.contains("Content-Length")) {
-                                originallength = header.split(":")[1].trim();
+                            String[] parts = header.split(":");
+                            if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
+                                originallength = parts[1].trim();
                                 break;
                             }
                         }
