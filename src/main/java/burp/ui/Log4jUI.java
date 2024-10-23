@@ -695,7 +695,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     // 判断有无Content-Length字段
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                                    String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
                                     if (contentLength != null){
                                         ParamLength = contentLength;
                                     }
@@ -728,7 +728,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     // 判断有无Content-Length字段
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                                    String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
                                     if (contentLength != null){
                                         ParamLength = contentLength;
                                     }
@@ -788,7 +788,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                         IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
                         List<String> log4jHeaders = originalReqResponse.getHeaders();
                         statusCode = String.valueOf(originalReqResponse.getStatusCode());
-                        String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                        String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
                         if (contentLength != null){
                             originallength = contentLength;
                         }

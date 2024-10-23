@@ -12,7 +12,6 @@ import java.io.PrintWriter;
 import java.util.*;
 
 import static burp.dao.ConfigDao.getToolConfig;
-import static burp.ui.MainUI.moduleStatus;
 import static burp.utils.Utils.writeReqFile;
 
 public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener {
@@ -48,75 +47,62 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         if (baseRequestResponse.getHttpService() == null) {
             return null;
         }
-        if (moduleStatus.get("burp.ui.ConfigUI")){
-            List<ConfigBean> toolParam = getToolConfig();
-
-            for (ConfigBean config : toolParam) {
-                String name = config.getType();
-                String value = config.getValue();
-                if (!name.isEmpty() && !value.isEmpty()) {
-                    JMenuItem jMenuItem = new JMenuItem(name);
-                    jMenuItem.addActionListener(new AbstractAction() {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            if (value.contains("{url}")){
-                                String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
+        List<ConfigBean> toolParam = getToolConfig();
+        for (ConfigBean config : toolParam) {
+            String name = config.getType();
+            String value = config.getValue();
+            if (!name.isEmpty() && !value.isEmpty()) {
+                JMenuItem jMenuItem = new JMenuItem(name);
+                jMenuItem.addActionListener(new AbstractAction() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        if (value.contains("{url}")){
+                            String url = Utils.helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
+                            try {
+                                RobotInput ri = new RobotInput();
+                                ri.inputString(value.replace("{url}", url));
+                            } catch (Exception ex) {
+                                Utils.stderr.println(ex.getMessage());
+                            }
+                        }else if (value.contains("{host}")) {
+                            String host = baseRequestResponse.getHttpService().getHost();
+                            try {
+                                RobotInput ri = new RobotInput();
+                                ri.inputString(value.replace("{host}", host));
+                            } catch (Exception ex) {
+                                Utils.stderr.println(ex.getMessage());
+                            }
+                        } else if (value.contains("{request}")) {
+                            String requestFilePath = writeReqFile(baseRequestResponse);
+                            if (requestFilePath != null) {
                                 try {
                                     RobotInput ri = new RobotInput();
-                                    ri.inputString(value.replace("{url}", url));
+                                    ri.inputString(value.replace("{request}", requestFilePath));
                                 } catch (Exception ex) {
                                     Utils.stderr.println(ex.getMessage());
                                 }
-                            }else if (value.contains("{host}")) {
-                                String host = baseRequestResponse.getHttpService().getHost();
-                                try {
-                                    RobotInput ri = new RobotInput();
-                                    ri.inputString(value.replace("{host}", host));
-                                } catch (Exception ex) {
-                                    Utils.stderr.println(ex.getMessage());
-                                }
-                            } else if (value.contains("{request}")) {
-                                String requestFilePath = writeReqFile(baseRequestResponse);
-                                if (requestFilePath != null) {
-                                    try {
-                                        RobotInput ri = new RobotInput();
-                                        ri.inputString(value.replace("{request}", requestFilePath));
-                                    } catch (Exception ex) {
-                                        Utils.stderr.println(ex.getMessage());
-                                    }
-                                } else {
-                                    Utils.stderr.println("Failed to write request file.");
-                                }
+                            } else {
+                                Utils.stderr.println("Failed to write request file.");
                             }
                         }
-                    });
-                    listMenuItems.add(jMenuItem);
-                }
+                    }
+                });
+                listMenuItems.add(jMenuItem);
             }
         }
-        if (moduleStatus.get("burp.ui.FastjsonUI")){
-            JMenu fastjson = new JMenu("FastJson");
-            fastjson.add(new FastjsonMenu().FastjsonDnslogMenu(requestResponses));
-            fastjson.add(new FastjsonMenu().FastjsonEchoMenu(requestResponses));
-            fastjson.add(new FastjsonMenu().FastjsonJNDIMenu(requestResponses));
-            fastjson.add(new FastjsonMenu().FastjsonVersionMenu(requestResponses));
-            listMenuItems.add(fastjson);
-        }
-        if (moduleStatus.get("burp.ui.SqlUI")){
-            listMenuItems.add(new SqlMenu(requestResponses));
-        }
-        if (moduleStatus.get("burp.ui.AuthUI")){
-            listMenuItems.add(new AuthMenu(requestResponses));
-        }
-        if (moduleStatus.get("burp.ui.RouteUI")){
-            listMenuItems.add(new RouteMenu(requestResponses));
-        }
-        if (moduleStatus.get("burp.ui.Log4jUI")){
-            listMenuItems.add(new Log4jMenu(requestResponses));
-        }
-        if (moduleStatus.get("burp.ui.PermUI")){
-            listMenuItems.add(new PermMenu(requestResponses));
-        }
+
+        JMenu fastjson = new JMenu("FastJson");
+        fastjson.add(new FastjsonMenu().FastjsonDnslogMenu(requestResponses));
+        fastjson.add(new FastjsonMenu().FastjsonEchoMenu(requestResponses));
+        fastjson.add(new FastjsonMenu().FastjsonJNDIMenu(requestResponses));
+        fastjson.add(new FastjsonMenu().FastjsonVersionMenu(requestResponses));
+        listMenuItems.add(fastjson);
+
+        listMenuItems.add(new SqlMenu(requestResponses));
+        listMenuItems.add(new AuthMenu(requestResponses));
+        listMenuItems.add(new RouteMenu(requestResponses));
+        listMenuItems.add(new Log4jMenu(requestResponses));
+        listMenuItems.add(new PermMenu(requestResponses));
         listMenuItems.add(new Base64DataMenu());
         listMenuItems.add(new DirtyMenu());
         listMenuItems.add(new NucleiMenu(requestResponses));

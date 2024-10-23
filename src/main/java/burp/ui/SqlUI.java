@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
 import static java.awt.SystemColor.text;
+import static java.awt.SystemColor.window;
 
 /**
  * @Author Xm17
@@ -243,7 +244,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         if (responseBody != null) {
             IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
             List<String> sqlHeaders = originalReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 originalLength = Integer.parseInt(contentLength);
             }
@@ -340,7 +341,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             // 判断有无Content-Length字段
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys4);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
-                            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
                             if (contentLength != null){
                                 sqlLengths4 = Integer.parseInt(contentLength);
                             }
@@ -449,7 +450,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 // 判断有无Content-Length字段
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
-                                String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                                String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
                                 if (contentLength != null){
                                     sqlLength = Integer.parseInt(contentLength);
                                 }
@@ -523,7 +524,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             // 判断有无Content-Length字段
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
-                            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
                             if (contentLength != null){
                                 sqlLength = Integer.parseInt(contentLength);
                             }
@@ -614,7 +615,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 // 判断有无Content-Length字段
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
-                                String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                                String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
                                 if (contentLength != null){
                                     sqlLength = Integer.parseInt(contentLength);
                                 }
@@ -764,7 +765,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys1);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLengths1 = Integer.parseInt(contentLength);
             }
@@ -824,7 +825,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys2);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLengths2 = Integer.parseInt(contentLength);
             }
@@ -885,7 +886,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys3);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLengths3 = Integer.parseInt(contentLength);
             }
@@ -944,7 +945,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLength = Integer.parseInt(contentLength);
             }
@@ -1013,7 +1014,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLength = Integer.parseInt(contentLength);
             }
@@ -1082,7 +1083,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null){
                 sqlLength = Integer.parseInt(contentLength);
             }
@@ -1239,12 +1240,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             deleteSqlByType("payload");
             // 如果包含换行符，就分割成多个payload
             if (sqleditorPane1Text.contains("\n")) {
-                String[] split = sqleditorPane1Text.split("\n");
-                for (String s : split) {
-                    SqlBean sqlBean = new SqlBean("payload", s);
+                String[] payloads = sqleditorPane1Text.split("\n");
+                for (String payload : payloads) {
+                    if (payload.isEmpty()){
+                        continue;
+                    }
+                    SqlBean sqlBean = new SqlBean("payload", payload);
                     saveSql(sqlBean);
                 }
             } else {
+                if (sqleditorPane1Text.isEmpty()){
+                    return;
+                }
                 SqlBean sqlBean = new SqlBean("payload", sqleditorPane1Text);
                 saveSql(sqlBean);
             }
@@ -1259,12 +1266,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             deleteSqlByType("header");
             // 如果包含换行符，就分割成多个header
             if (headerTextAreaText.contains("\n")) {
-                String[] split = headerTextAreaText.split("\n");
-                for (String s : split) {
-                    SqlBean sqlBean = new SqlBean("header", s);
+                String[] headers = headerTextAreaText.split("\n");
+                for (String header : headers) {
+                    if (header.isEmpty()){
+                        continue;
+                    }
+                    SqlBean sqlBean = new SqlBean("header", header);
                     saveSql(sqlBean);
                 }
             } else {
+                if (headerTextAreaText.isEmpty()){
+                    return;
+                }
                 SqlBean sqlBean = new SqlBean("header", headerTextAreaText);
                 saveSql(sqlBean);
             }
@@ -1279,12 +1292,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             deleteSqlByType("domain");
             // 如果包含换行符，就分割成多个domain
             if (whiteListTextAreaText.contains("\n")) {
-                String[] split = whiteListTextAreaText.split("\n");
-                for (String s : split) {
-                    SqlBean sqlBean = new SqlBean("domain", s);
+                String[] whitedomains = whiteListTextAreaText.split("\n");
+                for (String whitedomain : whitedomains) {
+                    if (whitedomain.isEmpty()){
+                        continue;
+                    }
+                    SqlBean sqlBean = new SqlBean("domain", whitedomain);
                     saveSql(sqlBean);
                 }
             } else {
+                if (whiteListTextAreaText.isEmpty()){
+                    return;
+                }
                 SqlBean sqlBean = new SqlBean("domain", whiteListTextAreaText);
                 saveSql(sqlBean);
             }
@@ -1303,12 +1322,18 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 String sqlErrorKeyTextAreaText = sqlErrorKeyTextArea.getText();
                 // 如果包含换行符，就分割成多个errorkey
                 if (sqlErrorKeyTextAreaText.contains("\n")) {
-                    String[] split = sqlErrorKeyTextAreaText.split("\n");
-                    for (String s : split) {
-                        SqlBean sqlBean = new SqlBean("sqlErrorKey", s);
+                    String[] errkeys = sqlErrorKeyTextAreaText.split("\n");
+                    for (String errkey : errkeys) {
+                        if (errkey.isEmpty()){
+                            continue;
+                        }
+                        SqlBean sqlBean = new SqlBean("sqlErrorKey", errkey);
                         saveSql(sqlBean);
                     }
                 } else {
+                    if (sqlErrorKeyTextAreaText.isEmpty()){
+                        return;
+                    }
                     SqlBean sqlBean = new SqlBean("sqlErrorKey", sqlErrorKeyTextAreaText);
                     saveSql(sqlBean);
                 }
