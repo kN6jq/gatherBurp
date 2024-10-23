@@ -242,13 +242,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         int originalLength = 0;
         if (responseBody != null) {
             IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-            List<String> headers = originalReqResponse.getHeaders();
-            for (String header : headers) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    originalLength = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            List<String> sqlHeaders = originalReqResponse.getHeaders();
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                originalLength = Integer.parseInt(contentLength);
             }
         }
         if (originalLength == 0) {
@@ -343,16 +340,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             // 判断有无Content-Length字段
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys4);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
-                            for (String header : sqlHeaders) {
-                                String[] parts = header.split(":");
-                                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                    sqlLengths4 = Integer.parseInt(parts[1].trim());
-                                    break;
-                                }
+                            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                            if (contentLength != null){
+                                sqlLengths4 = Integer.parseInt(contentLength);
                             }
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBodys4);
-                            if (ErrSqlCheck(sqlResponseBody)){
+                            if (errSqlCheck(sqlResponseBody)){
                                 errkeys = "存在报错";
                                 addToVulStr(logid, "参数" + paraName + "存在报错");
                                 IScanIssue issues = null;
@@ -455,16 +449,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 // 判断有无Content-Length字段
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
-                                for (String header : sqlHeaders) {
-                                    String[] parts = header.split(":");
-                                    if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                        sqlLength = Integer.parseInt(parts[1].trim());
-                                        break;
-                                    }
+                                String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                                if (contentLength != null){
+                                    sqlLength = Integer.parseInt(contentLength);
                                 }
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                if (ErrSqlCheck(sqlResponseBody)){
+                                if (errSqlCheck(sqlResponseBody)){
                                     errkey = "存在报错";
                                     addToVulStr(logid, "可能存在报错");
                                     IScanIssue issues = null;
@@ -532,17 +523,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             // 判断有无Content-Length字段
                             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                             List<String> sqlHeaders = ReqResponse.getHeaders();
-                            for (String header : sqlHeaders) {
-                                String[] parts = header.split(":");
-                                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                    sqlLength = Integer.parseInt(parts[1].trim());
-                                    break;
-                                }
+                            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                            if (contentLength != null){
+                                sqlLength = Integer.parseInt(contentLength);
                             }
-
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBody);
-                            if (ErrSqlCheck(sqlResponseBody)){
+                            if (errSqlCheck(sqlResponseBody)){
                                 errkey = "存在报错";
                                 addToVulStr(logid, "参数" + paraName + "cookie存在报错");
                                 IScanIssue issues = null;
@@ -627,16 +614,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                                 // 判断有无Content-Length字段
                                 IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
                                 List<String> sqlHeaders = ReqResponse.getHeaders();
-                                for (String header : sqlHeaders) {
-                                    String[] parts = header.split(":");
-                                    if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                        sqlLength = Integer.parseInt(parts[1].trim());
-                                        break;
-                                    }
+                                String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+                                if (contentLength != null){
+                                    sqlLength = Integer.parseInt(contentLength);
                                 }
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                if (ErrSqlCheck(sqlResponseBody)){
+                                if (errSqlCheck(sqlResponseBody)){
                                     errkey = "存在报错";
                                     addToVulStr(logid, "header存在报错");
                                     IScanIssue issues = null;
@@ -682,8 +666,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     }
 
     // 更新url数据到表格
-    public static void updateUrl(int index, String method, String url, int length, String message, IHttpRequestResponse
-            requestResponse) {
+    public static void updateUrl(int index, String method, String url, int length, String message, IHttpRequestResponse requestResponse) {
         synchronized (urldata) {
             if (index >= 0 && index < urldata.size()) {
                 urldata.set(index, new UrlEntry(index, method, url, length, message, requestResponse));
@@ -694,7 +677,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     }
 
     // 正则判断响应数据包中是否包含报错关键字 @href https://github.com/saoshao/DetSql/blob/master/src/main/java/DetSql/MyHttpHandler.java
-    private static boolean ErrSqlCheck(String responseBody) {
+    private static boolean errSqlCheck(String responseBody) {
         if (!listErrorKey.isEmpty()){
             for (String errKey : listErrorKey) {
                 if (responseBody.contains(errKey)) {
@@ -712,7 +695,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         }
         return false;
     }
-
 
     // url去重
     public static boolean checkUrlHash(String url) {
@@ -782,17 +764,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys1);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLengths1 = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLengths1 = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys1);
             similarity1 = sqlResponseBody;
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
                 IScanIssue issues = null;
@@ -845,17 +824,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys2);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLengths2 = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLengths2 = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys2);
             similarity2 = sqlResponseBody;
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
                 IScanIssue issues = null;
@@ -909,17 +885,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBodys3);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLengths3 = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLengths3 = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys3);
             similarity3 = sqlResponseBody;
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
                 IScanIssue issues = null;
@@ -971,16 +944,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLength = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLength = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "json存在报错");
                 IScanIssue issues = null;
@@ -1043,16 +1013,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLength = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLength = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "json存在报错");
                 IScanIssue issues = null;
@@ -1115,16 +1082,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 判断有无Content-Length字段
             IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
             List<String> sqlHeaders = ReqResponse.getHeaders();
-            for (String header : sqlHeaders) {
-                String[] parts = header.split(":");
-                if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                    sqlLength = Integer.parseInt(parts[1].trim());
-                    break;
-                }
+            String contentLength = HelperPlus.getHeaderLine(sqlHeaders, "Content-Length");
+            if (contentLength != null){
+                sqlLength = Integer.parseInt(contentLength);
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBody);
-            if (ErrSqlCheck(sqlResponseBody)){
+            if (errSqlCheck(sqlResponseBody)){
                 errkey = "存在报错";
                 addToVulStr(logid, "json存在报错");
                 IScanIssue issues = null;

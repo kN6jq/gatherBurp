@@ -21,6 +21,11 @@
   </repositories>
 
   <dependencies>
+    <dependency>
+      <groupId>com.github.bit4woo</groupId>
+      <artifactId>burp-api-common</artifactId>
+      <version>master-SNAPSHOT</version>
+    </dependency>
     <!-- https://mvnrepository.com/artifact/com.intellij/forms_rt -->
     <dependency>
       <groupId>com.intellij</groupId>

@@ -695,12 +695,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     // 判断有无Content-Length字段
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    for (String header : log4jHeaders) {
-                                        String[] parts = header.split(":");
-                                        if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                            ParamLength = parts[1].trim();
-                                            break;
-                                        }
+                                    String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                                    if (contentLength != null){
+                                        ParamLength = contentLength;
                                     }
                                 }
                                 if (ParamLength.isEmpty()) {
@@ -731,12 +728,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                                     // 判断有无Content-Length字段
                                     IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
                                     List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    for (String header : log4jHeaders) {
-                                        String[] parts = header.split(":");
-                                        if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                            ParamLength = parts[1].trim();
-                                            break;
-                                        }
+                                    String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                                    if (contentLength != null){
+                                        ParamLength = contentLength;
                                     }
                                 }
                                 if (ParamLength.isEmpty()) {
@@ -792,14 +786,11 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                     String statusCode = "";
                     if (responseBody != null) {
                         IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-                        List<String> headers = originalReqResponse.getHeaders();
+                        List<String> log4jHeaders = originalReqResponse.getHeaders();
                         statusCode = String.valueOf(originalReqResponse.getStatusCode());
-                        for (String header : headers) {
-                            String[] parts = header.split(":");
-                            if (parts.length == 2 && "Content-Length".equalsIgnoreCase(parts[0].trim())) {
-                                originallength = parts[1].trim();
-                                break;
-                            }
+                        String contentLength = HelperPlus.getHeaderLine(log4jHeaders, "Content-Length");
+                        if (contentLength != null){
+                            originallength = contentLength;
                         }
                     }
                     if (originallength.isEmpty()) {
