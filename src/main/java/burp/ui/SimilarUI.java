@@ -6,6 +6,7 @@ import burp.bean.SimilarSubDomainBean;
 import burp.bean.SimilarUrlBean;
 import burp.dao.*;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
+import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 import cn.hutool.core.date.DateTime;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -82,13 +83,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
             return;
         }
 
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        // 对url进行hash去重
-        for (IParameter paraList : paraLists) {
-            String paraName = paraList.getName();
-            parameterList.add(paraName);
-        }
-        if (!checkUrlHash(method + rdurl + parameterList)) {
+        if (!UrlCacheUtil.checkUrlUnique("similar", method, rdurlURL, paraLists)) {
             return;
         }
 
@@ -436,22 +431,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         return ALLOWED_CONTENT_TYPES.stream().anyMatch(contentType::contains);
     }
 
-    /**
-     * url去重
-     *
-     * @param url
-     * @return
-     */
-    private static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
+
 
     /**
      * 添加url

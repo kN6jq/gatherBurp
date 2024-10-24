@@ -4,6 +4,7 @@ import burp.*;
 import burp.bean.RouteBean;
 import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
+import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 import org.springframework.util.DigestUtils;
 
@@ -339,6 +340,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             String url = analyzeRequest.getUrl().toString();
             String method = analyzeRequest.getMethod();
             String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
+            List<IParameter> paraLists = analyzeRequest.getParameters();
             String requestx = "";
             String path = analyzeRequest.getUrl().getPath();
 
@@ -352,9 +354,8 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 return;
             }
             // 对url进行hash去重
-            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
             if (!isSend){
-                if (!checkUrlHash(method + rdurl)) {
+                if (!UrlCacheUtil.checkUrlUnique("route", method, rdurlURL, paraLists)) {
                     return;
                 }
             }
@@ -429,16 +430,6 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         }
     }
 
-    // 数据去重
-    private static boolean checkUrlHash(String data) {
-        String md5 = DigestUtils.md5DigestAsHex(data.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
 
     // 追加路径
     public static List<String> append(String basePath, String stringToAppend) {

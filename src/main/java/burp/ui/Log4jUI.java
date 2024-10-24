@@ -5,8 +5,8 @@ import burp.bean.Log4jBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
+import burp.utils.UrlCacheUtil;
 import com.alibaba.fastjson.JSON;
-import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -552,17 +552,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         }
 
     }
-    // 检测url是否重复
-    public static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
+
     // 获取请求包的tag
     private static String getReqTag(IHttpRequestResponse baseRequestResponse, IRequestInfo req, String type) {
         List<String> requestHeader = req.getHeaders();
@@ -629,15 +619,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             }
 
 
-            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
             // 如果不是手动发送则需要进行url去重
             if (!isSend) {
-                // 对url进行hash去重
-                for (IParameter paraList : paraLists) {
-                    String paraName = paraList.getName();
-                    parameterList.add(paraName);
-                }
-                if (!checkUrlHash(method + rdurl + parameterList)) {
+                if (!UrlCacheUtil.checkUrlUnique("log4j", method, rdurlURL, paraLists)) {
                     return;
                 }
             }else {

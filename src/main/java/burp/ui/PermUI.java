@@ -2,10 +2,9 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.PermBean;
-import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
-import org.springframework.util.DigestUtils;
+import burp.utils.UrlCacheUtil;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -21,7 +20,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.dao.PermDao.*;
-import static burp.utils.Utils.getSuffix;
 
 /**
  * @Author Xm17
@@ -398,17 +396,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         panel.add(mainsplitPane, BorderLayout.CENTER);
     }
 
-    // url hash list
-    public static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
+
 
     // 核心检测方法
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
@@ -426,15 +414,9 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             if (!method.equals("GET") && !method.equals("POST")) {
                 return;
             }
-            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
             // 如果是右键发送的则不进行去重
             if (!isSend) {
-                for (IParameter paraList : paraLists) {
-                    String paraName = paraList.getName();
-                    parameterList.add(paraName);
-                }
-                // 检测url hash 去重
-                if (!checkUrlHash(method + rdurl + parameterList)) {
+                if (!UrlCacheUtil.checkUrlUnique("perm", method, rdurlURL, paraLists)) {
                     return;
                 }
             } else {

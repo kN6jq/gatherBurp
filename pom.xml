@@ -32,11 +32,10 @@
       <artifactId>forms_rt</artifactId>
       <version>7.0.3</version>
     </dependency>
-    <!--    相似度-->
     <dependency>
-      <groupId>com.github.shibing624</groupId>
-      <artifactId>similarity</artifactId>
-      <version>1.1.6</version>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>3.17.0</version>
     </dependency>
     <!-- https://mvnrepository.com/artifact/org.xerial/sqlite-jdbc -->
     <dependency>

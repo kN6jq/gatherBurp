@@ -3,14 +3,7 @@ package burp.ui;
 import burp.*;
 import burp.bean.SqlBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
-import burp.utils.CustomScanIssue;
-import burp.utils.JsonProcessorUtil;
-import burp.utils.JsonUtils;
-import burp.utils.Utils;
-import com.alibaba.fastjson.JSON;
-import org.springframework.util.DigestUtils;
-import org.xm.similarity.text.EditDistanceSimilarity;
-import org.xm.similarity.text.TextSimilarity;
+import burp.utils.*;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -20,10 +13,8 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -70,10 +61,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isWhiteDomain; // 是否白名单域名
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static final List<String> parameterList = new ArrayList<>(); // 去重参数列表
-    private static final List<String> urlHashList = new ArrayList<>(); // 存放url的hash值
-    private static String similarity1 = ""; // 一个单引号相似度
-    private static String similarity2 = ""; // 两个单引号相似度
-    private static String similarity3 = ""; // 三个单引号相似度
+    private static final Set<String> urlHashList = new HashSet<>(); // 存放url的hash值
     private static List<String> listErrorKey = new ArrayList<>(); // // 存放错误key
     private static List<SqlBean> sqliPayload = new ArrayList<>(); // 存放sql关键字
     private static List<String> domainList = new ArrayList<>(); // 存放域名白名单
@@ -207,19 +195,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             return; // 如果命中规则，则直接返回
         }
 
-        String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-        // 如果不是手动发送则需要进行url去重
         if (!isSend) {
-            // 对url进行hash去重
-            for (IParameter paraList : paraLists) {
-                String paraName = paraList.getName();
-                parameterList.add(paraName);
-            }
-            if (!checkUrlHash(method + rdurl + parameterList)) {
+            if (!UrlCacheUtil.checkUrlUnique("sqli", method, rdurlURL, paraLists)) {
                 return;
             }
-        } else {
-            isWhiteDomain = false;
         }
 
 
@@ -255,8 +234,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         if (originalLength == 0) {
             return;
         }
-        // 原始请求包的返回包
-        String sqlOrginBody = new String(responseBody);
 
         int logid = addUrl(method, url, originalLength, originalRequestResponse);
         addToVulStr(logid, "检测完成");
@@ -275,24 +252,38 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     IHttpRequestResponse checkedSingleQuote = CheckSingleQuote(logid, para, paraName, paraValue, url, originalLength, baseRequestResponse);
                     IHttpRequestResponse checkedDoubleQuote = CheckDoubleQuote(logid, para, paraName, paraValue, url, originalLength, baseRequestResponse);
                     IHttpRequestResponse checkedTripleQuote = CheckTripleQuote(logid, para, paraName, paraValue, url, originalLength, baseRequestResponse);
-                    // 网页相似度计算
-                    TextSimilarity editSimilarity = new EditDistanceSimilarity();
-                    double score2 = editSimilarity.getSimilarity(sqlOrginBody, similarity1);
-                    double score3 = editSimilarity.getSimilarity(sqlOrginBody, similarity2);
-                    double score4 = editSimilarity.getSimilarity(sqlOrginBody, similarity3);
-                    double formattedScore2 = Double.parseDouble(String.format("%.2f", score2));
-                    double formattedScore3 = Double.parseDouble(String.format("%.2f", score3));
-                    double formattedScore4 = Double.parseDouble(String.format("%.2f", score4));
+
+                    // 获取原始响应和三次测试的响应内容
+                    String responseBody1 = new String(checkedSingleQuote.getResponse());
+                    String responseBody2 = new String(checkedDoubleQuote.getResponse());
+                    String responseBody3 = new String(checkedTripleQuote.getResponse());
+
+                    // 长度检查（保留原有的长度不同判断）
                     if (checkedSingleQuote.getResponse().length != checkedDoubleQuote.getResponse().length &&
                             checkedDoubleQuote.getResponse().length != checkedTripleQuote.getResponse().length &&
                             checkedSingleQuote.getResponse().length != checkedTripleQuote.getResponse().length) {
-                        if (formattedScore2 == formattedScore4 && (formattedScore2 != formattedScore3 || formattedScore3 != formattedScore4)) {
+
+                        // 使用相似度匹配器判断响应相似度
+                        boolean isBlindInjection = ResponseSimilarityMatcher.compareResponses(
+                                responseBody1,   // 单引号响应
+                                responseBody2,   // 双引号响应（异常响应）
+                                responseBody3    // 三引号响应
+                        );
+
+                        // 如果检测到盲注特征
+                        if (isBlindInjection) {
                             addToVulStr(logid, "参数" + paraName + "可能存在盲注");
-                            IScanIssue issues = null;
+
                             try {
-                                issues = new CustomScanIssue(checkedDoubleQuote.getHttpService(), new URL(url), new IHttpRequestResponse[]{checkedDoubleQuote},
-                                        "SqlInject Blind", "SqlInject 发现可能存在盲注",
-                                        "High", "Certain");
+                                IScanIssue issues = new CustomScanIssue(
+                                        checkedDoubleQuote.getHttpService(),
+                                        new URL(url),
+                                        new IHttpRequestResponse[]{checkedDoubleQuote},
+                                        "SqlInject Blind",
+                                        "SqlInject 发现可能存在盲注",
+                                        "High",
+                                        "Certain"
+                                );
                                 Utils.callbacks.addScanIssue(issues);
                             } catch (MalformedURLException e) {
                                 throw new RuntimeException("CheckBlind" + e);
@@ -457,7 +448,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         break;
                     }
                 }
-
                 // 检测cookie注入
                 if (isCheckCookie && para.getType() == PARAM_COOKIE) {
                     if (paraName.isEmpty()) {
@@ -664,18 +654,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         return false;
     }
 
-    // url去重
-    public static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
-
     // 添加url数据到表格
     public static int addUrl(String method, String url, int length, IHttpRequestResponse requestResponse) {
         synchronized (urldata) {
@@ -738,7 +716,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys1);
-            similarity1 = sqlResponseBody;
             if (errSqlCheck(sqlResponseBody)) {
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
@@ -798,7 +775,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys2);
-            similarity2 = sqlResponseBody;
             if (errSqlCheck(sqlResponseBody)) {
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
@@ -859,7 +835,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             // 判断body中是否有errorkey关键字
             String sqlResponseBody = new String(sqlresponseBodys3);
-            similarity3 = sqlResponseBody;
             if (errSqlCheck(sqlResponseBody)) {
                 errkey = "存在报错";
                 addToVulStr(logid, "参数" + paraName + "存在报错");
@@ -883,212 +858,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         return newRequestResponses3;
     }
 
-    // 检测json一个单引号
-    public static IHttpRequestResponse CheckJsonSingleQuote(int logid, Map<String, Object> request_json, List<String> reqheaders, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
-        List<Object> objectList = new ArrayList<>();
-        String s1Quotes = "'"; // 一个单引号
-        String errkey = "x"; // 错误的key
-        if (isDeleteOrgin) {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 0);
-        } else {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 1);
-        }
-
-        // objectList为构造好的json数据，需要转成byte数组进行请求
-        String json = "";
-        for (Object o : objectList) {
-            json = JSON.toJSONString(o);
-        }
-        long startTime = System.currentTimeMillis();
-        byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
-        IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-        long endTime = System.currentTimeMillis();
-        IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-        int statusCode = analyzeResponse.getStatusCode();
-        String responseTime = String.valueOf(endTime - startTime);
-        byte[] sqlresponseBody = newRequestResponse.getResponse();
-        int sqlLength = 0;
-        if (sqlresponseBody != null) {
-            // 判断有无Content-Length字段
-            IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
-            List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-            if (contentLength != null) {
-                sqlLength = Integer.parseInt(contentLength);
-            }
-            // 判断body中是否有errorkey关键字
-            String sqlResponseBody = new String(sqlresponseBody);
-            if (errSqlCheck(sqlResponseBody)) {
-                errkey = "存在报错";
-                addToVulStr(logid, "json存在报错");
-                IScanIssue issues = null;
-                try {
-                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                            "SqlInject Error", "SqlInject 发现报错",
-                            "High", "Certain");
-                    Utils.callbacks.addScanIssue(issues);
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException("CheckJsonSingleQuote" + e);
-                }
-            }
-        }
-        if (sqlLength == 0) {
-            assert sqlresponseBody != null;
-            sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
-        }
-        if (Integer.parseInt(responseTime) > 6000) {
-            addToVulStr(logid, "json存在延时");
-            IScanIssue issues = null;
-            try {
-                issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                        "SqlInject Time", "SqlInject 发现延时注入",
-                        "High", "Certain");
-                Utils.callbacks.addScanIssue(issues);
-            } catch (MalformedURLException e) {
-                throw new RuntimeException("CheckJsonSingleQuote" + e);
-            }
-        }
-        addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
-        return newRequestResponse;
-    }
-
-    // 检测json两个单引号
-    public static IHttpRequestResponse CheckJsonDoubleQuote(int logid, Map<String, Object> request_json, List<String> reqheaders, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
-        List<Object> objectList = new ArrayList<>();
-        String s1Quotes = "''"; // 一个单引号
-        String errkey = "x"; // 错误的key
-        if (isDeleteOrgin) {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 0);
-        } else {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 1);
-        }
-
-        // objectList为构造好的json数据，需要转成byte数组进行请求
-        String json = "";
-        for (Object o : objectList) {
-            json = JSON.toJSONString(o);
-        }
-        long startTime = System.currentTimeMillis();
-        byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
-        IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-        long endTime = System.currentTimeMillis();
-        IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-        int statusCode = analyzeResponse.getStatusCode();
-        String responseTime = String.valueOf(endTime - startTime);
-        byte[] sqlresponseBody = newRequestResponse.getResponse();
-        int sqlLength = 0;
-        if (sqlresponseBody != null) {
-            // 判断有无Content-Length字段
-            IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
-            List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-            if (contentLength != null) {
-                sqlLength = Integer.parseInt(contentLength);
-            }
-            // 判断body中是否有errorkey关键字
-            String sqlResponseBody = new String(sqlresponseBody);
-            if (errSqlCheck(sqlResponseBody)) {
-                errkey = "存在报错";
-                addToVulStr(logid, "json存在报错");
-                IScanIssue issues = null;
-                try {
-                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                            "SqlInject Error", "SqlInject 发现报错",
-                            "High", "Certain");
-                    Utils.callbacks.addScanIssue(issues);
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException("CheckJsonDoubleQuote" + e);
-                }
-            }
-        }
-        if (sqlLength == 0) {
-            assert sqlresponseBody != null;
-            sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
-        }
-        if (Integer.parseInt(responseTime) > 6000) {
-            addToVulStr(logid, "json存在延时");
-            IScanIssue issues = null;
-            try {
-                issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                        "SqlInject Time", "SqlInject 发现延时注入",
-                        "High", "Certain");
-                Utils.callbacks.addScanIssue(issues);
-            } catch (MalformedURLException e) {
-                throw new RuntimeException("CheckJsonDoubleQuote" + e);
-            }
-        }
-        addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
-        return newRequestResponse;
-    }
-
-    // 检测json三个单引号
-    public static IHttpRequestResponse CheckJsonTripleQuote(int logid, Map<String, Object> request_json, List<String> reqheaders, String url, int originalLength, IHttpRequestResponse baseRequestResponse) {
-        List<Object> objectList = new ArrayList<>();
-        String s1Quotes = "'''"; // 一个单引号
-        String errkey = "x"; // 错误的key
-        if (isDeleteOrgin) {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 0);
-        } else {
-            objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(s1Quotes), 1);
-        }
-
-        // objectList为构造好的json数据，需要转成byte数组进行请求
-        String json = "";
-        for (Object o : objectList) {
-            json = JSON.toJSONString(o);
-        }
-        long startTime = System.currentTimeMillis();
-        byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
-        IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-        long endTime = System.currentTimeMillis();
-        IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-        int statusCode = analyzeResponse.getStatusCode();
-        String responseTime = String.valueOf(endTime - startTime);
-        byte[] sqlresponseBody = newRequestResponse.getResponse();
-        int sqlLength = 0;
-        if (sqlresponseBody != null) {
-            // 判断有无Content-Length字段
-            IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(sqlresponseBody);
-            List<String> sqlHeaders = ReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-            if (contentLength != null) {
-                sqlLength = Integer.parseInt(contentLength);
-            }
-            // 判断body中是否有errorkey关键字
-            String sqlResponseBody = new String(sqlresponseBody);
-            if (errSqlCheck(sqlResponseBody)) {
-                errkey = "存在报错";
-                addToVulStr(logid, "json存在报错");
-                IScanIssue issues = null;
-                try {
-                    issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                            "SqlInject Error", "SqlInject 发现报错",
-                            "High", "Certain");
-                    Utils.callbacks.addScanIssue(issues);
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException("CheckJsonTripleQuote" + e);
-                }
-            }
-        }
-        if (sqlLength == 0) {
-            assert sqlresponseBody != null;
-            sqlLength = Integer.parseInt(String.valueOf(sqlresponseBody.length));
-        }
-        if (Integer.parseInt(responseTime) > 6000) {
-            addToVulStr(logid, "json存在延时");
-            IScanIssue issues = null;
-            try {
-                issues = new CustomScanIssue(newRequestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponse},
-                        "SqlInject Time", "SqlInject 发现延时注入",
-                        "High", "Certain");
-                Utils.callbacks.addScanIssue(issues);
-            } catch (MalformedURLException e) {
-                throw new RuntimeException("CheckJsonTripleQuote" + e);
-            }
-        }
-        addPayload(logid, "json", s1Quotes, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
-        return newRequestResponse;
-    }
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {

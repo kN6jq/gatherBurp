@@ -2,8 +2,8 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.AuthBean;
+import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
-import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import static burp.utils.Utils.getSuffix;
 
 /**
  * @Author Xm17
@@ -136,6 +134,8 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             String method = analyzeRequest.getMethod();
             String path = analyzeRequest.getUrl().getPath();
             String request = Utils.helpers.bytesToString(baseRequestResponse.getRequest());
+            List<IParameter> paraLists = analyzeRequest.getParameters();
+
             URL rdurlURL = analyzeRequest.getUrl();
             String url = analyzeRequest.getUrl().toString();
 
@@ -143,17 +143,10 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             if (Utils.isUrlBlackListSuffix(url)){
                 return;
             }
-            String rdurl = Utils.getUrlWithoutFilename(rdurlURL);
-            // 对url进行hash去重
-            List<IParameter> paraLists = analyzeRequest.getParameters();
-            for (IParameter paraList : paraLists) {
-                String paraName = paraList.getName();
-                parameterList.add(paraName);
-            }
-            if (!checkUrlHash(method + rdurl + parameterList)) {
+            // url去重
+            if (!UrlCacheUtil.checkUrlUnique("auth", method, rdurlURL, paraLists)) {
                 return;
             }
-
             List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
             String urlWithoutQuery = "";
             try {
@@ -217,17 +210,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             authTable.updateUI();
         }
     }
-    // 对url进行hash去重
-    public static boolean checkUrlHash(String url) {
-        parameterList.clear();
-        String md5 = DigestUtils.md5DigestAsHex(url.getBytes());
-        if (urlHashList.contains(md5)) {
-            return false;
-        } else {
-            urlHashList.add(md5);
-            return true;
-        }
-    }
+
     // 添加后缀
     public static List<AuthBean> suffix(String method, String path) {
         if (path.startsWith("//")) {
