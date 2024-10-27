@@ -34,9 +34,9 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     private IMessageEditor HRequestTextEditor; // 请求编辑器
     private IMessageEditor HResponseTextEditor; // 响应编辑器
     private static final List<AuthEntry> authlog = new ArrayList<>(); //authlog 列表
-    private static final List<String> parameterList = new ArrayList<>(); // 参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // url hash列表
     private static final Lock lock = new ReentrantLock();
+    private static final String LOCAL_IP = "127.0.0.1";
 
     @Override
     public IHttpService getHttpService() {
@@ -58,6 +58,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         setupUI();
         setupData();
     }
+
     // 初始化数据
     private void setupData() {
         btnClear.addActionListener(new AbstractAction() {
@@ -125,22 +126,24 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     public String getTabName() {
         return "BypassAuth";
     }
+
     // auth核心检测方法
-    public static void Check(IHttpRequestResponse[] requestResponses){
+    public static void Check(IHttpRequestResponse[] requestResponses) {
         lock.lock();
-        try{
+        try {
             IHttpRequestResponse baseRequestResponse = requestResponses[0];
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             String method = analyzeRequest.getMethod();
             String path = analyzeRequest.getUrl().getPath();
             String request = Utils.helpers.bytesToString(baseRequestResponse.getRequest());
             List<IParameter> paraLists = analyzeRequest.getParameters();
-
             URL rdurlURL = analyzeRequest.getUrl();
             String url = analyzeRequest.getUrl().toString();
-
+            byte[] byte_Request = baseRequestResponse.getRequest();
+            int len = byte_Request.length;
+            byte[] body = Arrays.copyOfRange(byte_Request, analyzeRequest.getBodyOffset(), len);
             // url 中匹配为静态资源
-            if (Utils.isUrlBlackListSuffix(url)){
+            if (Utils.isUrlBlackListSuffix(url)) {
                 return;
             }
             // url去重
@@ -180,28 +183,27 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                         add(method, requrl, statusCode, length, response);
                     }
                 }
-                // 增加header payload 测试
+                // 测试伪造ip
                 List<AuthBean> testHeaders = headers(method, url);
-                byte[] byte_Request = baseRequestResponse.getRequest();
-                int bodyOffset = analyzeRequest.getBodyOffset();
-                int len = byte_Request.length;
-                byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
-                changeHeaders(headers, body, method, url, baseRequestResponse);
                 for (AuthBean header : testHeaders) {
                     headers.add(header.getHeaders());
                 }
                 byte[] message = Utils.helpers.buildHttpMessage(headers, body);
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
-                // 发送请求
                 String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
                 String length = String.valueOf(response.getResponse().length);
-
                 add(method, url, statusCode, length, response);
+                for (AuthBean header : testHeaders) {
+                    headers.remove(header.getHeaders());
+                }
+                // 单独测试实战绕过案例
+                changeHeaders(headers, body, method, url, baseRequestResponse);
             }
-        }finally {
+        } finally {
             lock.unlock();
         }
     }
+
     // 添加数据到表格
     private static void add(String method, String url, String statuscode, String length, IHttpRequestResponse baseRequestResponse) {
         synchronized (authlog) {
@@ -249,7 +251,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             path = "/" + path.substring(2).replaceAll("/+", "/");
         }
         List<AuthBean> authRequests = new ArrayList<>();
-        String[] prefix = {";/", ".;/", "images/..;/", ";a/", "%23/../","..;/..;/"};
+        String[] prefix = {";/", ".;/", "images/..;/", ";a/", "%23/../", "..;/..;/"};
         for (String s : prefix) {
             // 将路径按 / 分割为多个部分
             String[] pathParts = path.split("/");
@@ -279,24 +281,14 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     // 添加头部
     public static List<AuthBean> headers(String method, String url) {
         List<AuthBean> authRequests = new ArrayList<>();
-        List<String> payloads = Arrays.asList("Access-Control-Allow-Origin: 127.0.0.1", "Base-Url: " + url, "CF-Connecting-IP: 127.0.0.1",
-                "CF-Connecting_IP: 127.0.0.1", "Client-IP: 127.0.0.1", "Cluster-Client-IP: 127.0.0.1", "Destination: 127.0.0.1",
-                "Forwarded-For-Ip: 127.0.0.1", "Forwarded-For: 127.0.0.1", "Forwarded-Host: 127.0.0.1", "Forwarded: 127.0.0.1",
-                "Http-Url: " + url, "Origin: 127.0.0.1", "Profile: 127.0.0.1", "Proxy-Host: 127.0.0.1",
-                "Proxy-Url: " + url, "Proxy: 127.0.0.1", "Real-Ip: 127.0.0.1", "Redirect: 127.0.0.1", "Referer: " + url,
-                "Request-Uri: 127.0.0.1", "True-Client-IP: 127.0.0.1",
-                "Uri: " + url, "Url: " + url, "X-Arbitrary: 127.0.0.1", "X-Client-IP: 127.0.0.1",
-                "X-Custom-IP-Authorization: 127.0.0.1", "X-Forward-For: 127.0.0.1",
-                "X-Forward: 127.0.0.1", "X-Forwarded-By: 127.0.0.1",
-                "X-Forwarded-For-Original: 127.0.0.1", "X-Forwarded-For: 127.0.0.1",
-                "X-Forwarded-Host: 127.0.0.1", "X-Forwarded-Proto: 127.0.0.1",
-                "X-Forwarded-Server: 127.0.0.1", "X-Forwarded: 127.0.0.1",
-                "X-Forwarder-For: 127.0.0.1", "X-Host: 127.0.0.1",
-                "X-HTTP-DestinationURL: " + url, "X-HTTP-Host-Override: 127.0.0.1",
-                "X-Original-Remote-Addr: 127.0.0.1", "X-Original-URL: " + url, "X-Originally-Forwarded-For: 127.0.0.1",
-                "X-Originating-IP: 127.0.0.1", "X-Proxy-Url: " + url, "X-ProxyUser-Ip: 127.0.0.1", "X-Real-IP: 127.0.0.1",
-                "X-Real-Ip: 127.0.0.1", "X-Referrer: 127.0.0.1", "X-Remote-Addr: 127.0.0.1", "X-Remote-IP: 127.0.0.1",
-                "X-Rewrite-URL: " + url, "X-True-IP: 127.0.0.1", "X-WAP-Profile: 127.0.0.1");
+        List<String> payloads = Arrays.asList(
+                "X-Forwarded-For: %s",
+                "X-Originating-IP: %s",
+                "X-Remote-IP: %s",
+                "X-Remote-Addr: %s"
+        );
+        // 对payloads进行替换
+        payloads.replaceAll(s -> String.format(s, LOCAL_IP));
 
         for (String payload : payloads) {
             if ("GET".equals(method)) {
@@ -414,7 +406,6 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             super.changeSelection(row, col, toggle, extend);
         }
     }
-
 
 
 }

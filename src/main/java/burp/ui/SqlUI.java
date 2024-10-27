@@ -62,7 +62,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isWhiteDomain; // 是否白名单域名
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static boolean isUrlEncode; // 是否进行URL编码
-    private static final List<String> parameterList = new ArrayList<>(); // 去重参数列表
     private static final Set<String> urlHashList = new HashSet<>(); // 存放url的hash值
     private static List<String> listErrorKey = new ArrayList<>(); // // 存放错误key
     private static List<SqlBean> sqliPayload = new ArrayList<>(); // 存放sql关键字
