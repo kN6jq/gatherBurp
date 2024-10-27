@@ -28,6 +28,8 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     private JPanel panel; // 主面板
     private static JTable authTable; // auth表格
     private JButton btnClear; // 清空按钮
+    private JTextField ipInputField; // ip输入框
+    private JButton saveBtn; // ip确认按钮
     private JTabbedPane authtabbedPanereq; // 请求tab
     private JTabbedPane authtabbedPaneresp; // 响应tab
     private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
@@ -36,7 +38,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     private static final List<AuthEntry> authlog = new ArrayList<>(); //authlog 列表
     private static final List<String> urlHashList = new ArrayList<>(); // url hash列表
     private static final Lock lock = new ReentrantLock();
-    private static final String LOCAL_IP = "127.0.0.1";
+    private static String LOCAL_IP = "127.0.0.1";
 
     @Override
     public IHttpService getHttpService() {
@@ -72,6 +74,16 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                 authTable.updateUI();
             }
         });
+        saveBtn.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ipInputField.getText().equals(LOCAL_IP)) {
+                    LOCAL_IP = ipInputField.getText();
+                }else {
+                    LOCAL_IP = "127.0.0.1";
+                }
+            }
+        });
     }
 
     // 初始化ui
@@ -82,6 +94,16 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnClear = new JButton("Clear");
         topPanel.add(btnClear);
+
+        JLabel ipLabel = new JLabel("IP:");
+        topPanel.add(ipLabel);
+
+        ipInputField = new JTextField("127.0.0.1");
+        topPanel.add(ipInputField);
+
+        saveBtn = new JButton("Save");
+        topPanel.add(saveBtn);
+
         panel.add(topPanel, BorderLayout.NORTH);
 
         // 上下分割面板,比例是7：3
@@ -146,17 +168,14 @@ public class AuthUI implements UIHandler, IMessageEditorController {
             if (Utils.isUrlBlackListSuffix(url)) {
                 return;
             }
-            // url去重
-            if (!UrlCacheUtil.checkUrlUnique("auth", method, rdurlURL, paraLists)) {
-                return;
-            }
+
             List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
             String urlWithoutQuery = "";
             try {
                 URL url1 = new URL(url);
-                String protocol = url1.getProtocol(); // 获取协议部分，这里是 http
-                String host = url1.getHost(); // 获取主机名部分，这里是 192.168.11.3
-                int port = url1.getPort(); // 获取端口号部分，这里是 7001
+                String protocol = url1.getProtocol();
+                String host = url1.getHost();
+                int port = url1.getPort();
                 urlWithoutQuery = protocol + "://" + host + ":" + port;
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
@@ -184,7 +203,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                     }
                 }
                 // 测试伪造ip
-                List<AuthBean> testHeaders = headers(method, url);
+                List<AuthBean> testHeaders = forgeHeaders(method, url);
                 for (AuthBean header : testHeaders) {
                     headers.add(header.getHeaders());
                 }
@@ -197,7 +216,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
                     headers.remove(header.getHeaders());
                 }
                 // 单独测试实战绕过案例
-                changeHeaders(headers, body, method, url, baseRequestResponse);
+                changeAccept(headers, body, method, url, baseRequestResponse);
             }
         } finally {
             lock.unlock();
@@ -279,7 +298,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
     }
 
     // 添加头部
-    public static List<AuthBean> headers(String method, String url) {
+    public static List<AuthBean> forgeHeaders(String method, String url) {
         List<AuthBean> authRequests = new ArrayList<>();
         List<String> payloads = Arrays.asList(
                 "X-Forwarded-For: %s",
@@ -302,7 +321,7 @@ public class AuthUI implements UIHandler, IMessageEditorController {
 
     // 添加accept
     // https://mp.weixin.qq.com/s/6YMDu6FTLa_9s6_mewrp0A
-    public static void changeHeaders(List<String> headers, byte[] body, String method, String url, IHttpRequestResponse baseRequestResponse) {
+    public static void changeAccept(List<String> headers, byte[] body, String method, String url, IHttpRequestResponse baseRequestResponse) {
         // 判断headers立马是否有Accept,如果有则删除
         headers.removeIf(header -> header.startsWith("Accept:"));
         headers.add("Accept: application/json, text/javascript, /; q=0.01");
