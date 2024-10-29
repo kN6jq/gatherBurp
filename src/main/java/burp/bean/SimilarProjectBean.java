@@ -2,14 +2,14 @@ package burp.bean;
 
 public class SimilarProjectBean {
     private int id;
-    private String projectName;
+    private String name;
+    private String createTime;
 
     public SimilarProjectBean() {
     }
 
-    public SimilarProjectBean(int id, String projectName) {
-        this.id = id;
-        this.projectName = projectName;
+    public SimilarProjectBean(String name) {
+        this.name = name;
     }
 
     public int getId() {
@@ -20,11 +20,19 @@ public class SimilarProjectBean {
         this.id = id;
     }
 
-    public String getProjectName() {
-        return projectName;
+    public String getName() {
+        return name;
     }
 
-    public void setProjectName(String projectName) {
-        this.projectName = projectName;
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(String createTime) {
+        this.createTime = createTime;
     }
 }

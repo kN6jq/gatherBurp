@@ -51,7 +51,7 @@ public class MainUI extends JPanel implements ITab {
 
     @Override
     public String getTabCaption() {
-        return Utils.name;
+        return Utils.NAME;
     }
 
     @Override

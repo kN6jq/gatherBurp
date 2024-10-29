@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.AuthBean;
-import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;

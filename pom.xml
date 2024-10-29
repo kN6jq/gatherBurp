@@ -32,11 +32,6 @@
       <artifactId>forms_rt</artifactId>
       <version>7.0.3</version>
     </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.17.0</version>
-    </dependency>
     <!-- https://mvnrepository.com/artifact/org.xerial/sqlite-jdbc -->
     <dependency>
       <groupId>org.xerial</groupId>
@@ -58,11 +53,6 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-expression</artifactId>
       <version>4.3.22.RELEASE</version>
-    </dependency>
-    <dependency>
-      <groupId>cn.hutool</groupId>
-      <artifactId>hutool-core</artifactId>
-      <version>5.8.28</version>
     </dependency>
   </dependencies>
 

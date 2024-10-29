@@ -3,7 +3,6 @@ package burp.ui;
 import burp.IBurpExtenderCallbacks;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.Utils;
-import cn.hutool.core.io.FileUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 
@@ -88,7 +87,7 @@ public class SocksUI implements UIHandler {
 
 
         try{
-            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
+            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
@@ -144,7 +143,7 @@ public class SocksUI implements UIHandler {
     public void isEnableSettings(IBurpExtenderCallbacks callbacks,boolean enable) {
 
         try{
-            String jsonStr = FileUtil.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
+            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
             JSONObject jsonObject = JSON.parseObject(jsonStr);
             boolean dns_over_socks_update = jsonObject.getBoolean("dns_over_socks");
             boolean use_user_options_update = jsonObject.getBoolean("use_user_options");
@@ -208,7 +207,7 @@ public class SocksUI implements UIHandler {
         // 将JSONObject转换为JSON字符串
         String sockinfo = jsonObject.toJSONString();
         try{
-            FileUtil.writeString(sockinfo,Utils.SocksConfigFile("socks.json"),"utf-8");
+            Utils.writeString(sockinfo,Utils.SocksConfigFile("socks.json"),"utf-8");
         }catch (Exception e){
             Utils.stderr.println(e.getMessage());
         }
@@ -216,7 +215,7 @@ public class SocksUI implements UIHandler {
 
     // 判断配置文件是否存在
     public boolean isConfigFileExist() {
-        File file = new File(Utils.workdir + "socks.json");
+        File file = new File(Utils.WORKDIR + "socks.json");
         return file.exists();
     }
 

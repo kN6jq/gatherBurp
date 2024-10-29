@@ -1680,8 +1680,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             super(model);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(1).setMaxWidth(50);
-            columnModel.getColumn(3).setMaxWidth(50);
+            columnModel.getColumn(1).setMaxWidth(100);
         }
 
         @Override

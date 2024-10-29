@@ -21,7 +21,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         Utils.helpers = iBurpExtenderCallbacks.getHelpers();
         Utils.stdout = new PrintWriter(iBurpExtenderCallbacks.getStdout(), true);
         Utils.stderr = new PrintWriter(iBurpExtenderCallbacks.getStderr(), true);
-        Utils.callbacks.setExtensionName(Utils.name);
+        Utils.callbacks.setExtensionName(Utils.NAME);
         Utils.callbacks.registerContextMenuFactory(this);
         Utils.callbacks.registerHttpListener(this);
         MainUI mainUI = new MainUI(Utils.callbacks);
@@ -32,7 +32,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                 Utils.callbacks.customizeUiComponent(mainUI);
             }
         });
-        Utils.stdout.println("Loaded " + Utils.name + " v" + Utils.version + " by " + Utils.author);
+        Utils.stdout.println("Loaded " + Utils.NAME + " v" + Utils.VERSION + " by " + Utils.AUTHOR);
         Utils.stdout.println("If a database error is reported, please manually delete the ./gather/ directory of the username directory and try\n");
         Utils.stdout.println("GITHUB: https://github.com/kN6jq/gatherBurp");
 
