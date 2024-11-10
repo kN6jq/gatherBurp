@@ -1,4 +1,6 @@
-package burp.ui.SimilarHelper;
+package burp.ui.SimilarHelper.dialog;
+
+import burp.ui.SimilarHelper.bean.Project;
 
 import javax.swing.*;
 import java.awt.*;

@@ -1,103 +1,172 @@
 package burp.ui.SimilarHelper;
 
-import java.util.*;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentMap;
 
 public class CacheManager {
-    private static final int MAX_CACHE_SIZE = 1000;
-    private static final long CACHE_DURATION = TimeUnit.MINUTES.toMillis(30); // 缓存30分钟
+    // 域名-IP映射缓存
+    private static final ConcurrentMap<String, String> domainIPCache = new ConcurrentHashMap<>();
 
-    private static class CacheEntry {
-        final String value;
-        final long timestamp;
+    // 项目域名缓存 (项目ID -> 域名集合)
+    private static final ConcurrentMap<Integer, Set<String>> projectDomainCache = new ConcurrentHashMap<>();
 
-        CacheEntry(String value) {
-            this.value = value;
-            this.timestamp = System.currentTimeMillis();
-        }
+    // 项目URL缓存 (项目ID -> URL集合)
+    private static final ConcurrentMap<Integer, Set<String>> projectUrlCache = new ConcurrentHashMap<>();
 
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > CACHE_DURATION;
-        }
-    }
+    // 缓存过期时间（毫秒）
+    private static final long CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24小时
 
-    private static final Map<String, CacheEntry> domainIpCache = new ConcurrentHashMap<>();
-    private static final Map<Integer, Set<String>> projectDomainCache = new ConcurrentHashMap<>();
-    private static final Map<Integer, Set<String>> projectUrlCache = new ConcurrentHashMap<>();
+    // 域名-IP缓存时间记录
+    private static final ConcurrentMap<String, Long> domainIPCacheTime = new ConcurrentHashMap<>();
 
-    // 域名-IP缓存
-    public static String getCachedIP(String domain) {
-        CacheEntry entry = domainIpCache.get(domain);
-        if (entry != null) {
-            if (entry.isExpired()) {
-                domainIpCache.remove(domain);
-                return null;
-            }
-            return entry.value;
-        }
-        return null;
-    }
-
+    /**
+     * 缓存域名的IP地址
+     */
     public static void cacheIP(String domain, String ip) {
-        if (domainIpCache.size() >= MAX_CACHE_SIZE) {
-            // 清理过期缓存
-            clearExpiredCache();
-            // 如果仍然超过大小限制，移除最早的条目
-            if (domainIpCache.size() >= MAX_CACHE_SIZE) {
-                Optional<String> firstKey = domainIpCache.keySet().stream().findFirst();
-                firstKey.ifPresent(domainIpCache::remove);
-            }
-        }
-        domainIpCache.put(domain, new CacheEntry(ip));
+        domainIPCache.put(domain.toLowerCase(), ip);
+        domainIPCacheTime.put(domain.toLowerCase(), System.currentTimeMillis());
     }
 
-    // 项目域名缓存
+    /**
+     * 获取缓存的IP地址
+     */
+    public static String getCachedIP(String domain) {
+        String lowerDomain = domain.toLowerCase();
+        Long cacheTime = domainIPCacheTime.get(lowerDomain);
+
+        if (cacheTime == null) {
+            return null;
+        }
+
+        // 检查缓存是否过期
+        if (System.currentTimeMillis() - cacheTime > CACHE_EXPIRY) {
+            domainIPCache.remove(lowerDomain);
+            domainIPCacheTime.remove(lowerDomain);
+            return null;
+        }
+
+        return domainIPCache.get(lowerDomain);
+    }
+
+    /**
+     * 缓存项目的域名
+     */
     public static void cacheProjectDomain(int projectId, String domain) {
         projectDomainCache.computeIfAbsent(projectId, k -> ConcurrentHashMap.newKeySet())
-                .add(domain);
+                .add(domain.toLowerCase());
     }
 
+    /**
+     * 检查域名是否已缓存
+     */
     public static boolean isProjectDomainCached(int projectId, String domain) {
         Set<String> domains = projectDomainCache.get(projectId);
-        return domains != null && domains.contains(domain);
+        return domains != null && domains.contains(domain.toLowerCase());
     }
 
-    // 项目URL缓存
+    /**
+     * 缓存项目的URL
+     */
     public static void cacheProjectUrl(int projectId, String url) {
         projectUrlCache.computeIfAbsent(projectId, k -> ConcurrentHashMap.newKeySet())
                 .add(url);
     }
 
+    /**
+     * 检查URL是否已缓存
+     */
     public static boolean isProjectUrlCached(int projectId, String url) {
         Set<String> urls = projectUrlCache.get(projectId);
         return urls != null && urls.contains(url);
     }
 
-    // 清理缓存
+    /**
+     * 清除指定项目的缓存
+     */
     public static void clearProjectCache(int projectId) {
         projectDomainCache.remove(projectId);
         projectUrlCache.remove(projectId);
     }
 
-    private static void clearExpiredCache() {
-        domainIpCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-    }
-
+    /**
+     * 清除所有缓存
+     */
     public static void clearAllCache() {
-        domainIpCache.clear();
+        domainIPCache.clear();
+        domainIPCacheTime.clear();
         projectDomainCache.clear();
         projectUrlCache.clear();
     }
 
-    // 获取缓存统计信息
+    /**
+     * 获取缓存统计信息
+     */
     public static Map<String, Integer> getCacheStats() {
         Map<String, Integer> stats = new HashMap<>();
-        stats.put("domainIpCache", domainIpCache.size());
-        stats.put("projectDomainCache", projectDomainCache.values().stream()
-                .mapToInt(Set::size).sum());
-        stats.put("projectUrlCache", projectUrlCache.values().stream()
-                .mapToInt(Set::size).sum());
+
+        // 统计域名IP缓存数量
+        stats.put("domainIpCache", domainIPCache.size());
+
+        // 统计所有项目的域名缓存总数
+        int totalDomains = projectDomainCache.values().stream()
+                .mapToInt(Set::size)
+                .sum();
+        stats.put("projectDomainCache", totalDomains);
+
+        // 统计所有项目的URL缓存总数
+        int totalUrls = projectUrlCache.values().stream()
+                .mapToInt(Set::size)
+                .sum();
+        stats.put("projectUrlCache", totalUrls);
+
         return stats;
+    }
+
+    /**
+     * 获取指定项目的缓存统计
+     */
+    public static Map<String, Integer> getProjectCacheStats(int projectId) {
+        Map<String, Integer> stats = new HashMap<>();
+
+        Set<String> domains = projectDomainCache.get(projectId);
+        stats.put("domains", domains != null ? domains.size() : 0);
+
+        Set<String> urls = projectUrlCache.get(projectId);
+        stats.put("urls", urls != null ? urls.size() : 0);
+
+        return stats;
+    }
+
+    /**
+     * 检查并清理过期的IP缓存
+     */
+    public static void cleanExpiredIPCache() {
+        long currentTime = System.currentTimeMillis();
+        Set<String> expiredDomains = new HashSet<>();
+
+        domainIPCacheTime.forEach((domain, cacheTime) -> {
+            if (currentTime - cacheTime > CACHE_EXPIRY) {
+                expiredDomains.add(domain);
+            }
+        });
+
+        expiredDomains.forEach(domain -> {
+            domainIPCache.remove(domain);
+            domainIPCacheTime.remove(domain);
+        });
+    }
+
+    /**
+     * 检查域名IP是否需要刷新缓存
+     */
+    public static boolean needsIPRefresh(String domain) {
+        String lowerDomain = domain.toLowerCase();
+        Long cacheTime = domainIPCacheTime.get(lowerDomain);
+        return cacheTime == null || System.currentTimeMillis() - cacheTime > CACHE_EXPIRY;
     }
 }

@@ -1,10 +1,13 @@
 package burp.dao;
 
-import burp.bean.*;
+import burp.bean.SimilarDomainResultBean;
 import burp.utils.DbUtils;
 import burp.utils.Utils;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,6 +99,50 @@ public class SimilarDomainResultDao {
             return results;
         } finally {
             DbUtils.close(connection, ps, rs);
+        }
+    }
+
+    public static boolean isDomainExists(int id, String domain) {
+        String sql = "SELECT id FROM domain_results WHERE id = ? AND domain = ?";
+        try {
+            Connection connection = DbUtils.getConnection();
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ps.setInt(1, id);
+            ps.setString(2, domain);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public static void updateDomainResult(SimilarDomainResultBean result) {
+        Connection connection = null;
+        PreparedStatement ps = null;
+
+        try {
+            connection = DbUtils.getConnection();
+
+            // 更新域名记录信息，包括IP和更新时间
+            String sql = "UPDATE similar_domain_results SET ip = ?, update_time = datetime('now','localtime') WHERE id = ?";
+            ps = connection.prepareStatement(sql);
+
+            ps.setString(1, result.getIp());
+            ps.setInt(2, result.getId());
+
+            int updatedRows = ps.executeUpdate();
+
+            if (updatedRows == 0) {
+                Utils.stderr.println("更新域名结果失败: 记录不存在 (ID: " + result.getId() + ")");
+            }
+
+        } catch (Exception e) {
+            Utils.stderr.println("更新域名结果失败: " + e.getMessage());
+        } finally {
+            DbUtils.close(connection, ps, null);
         }
     }
 }

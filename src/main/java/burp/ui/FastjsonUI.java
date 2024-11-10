@@ -4,6 +4,7 @@ import burp.*;
 import burp.bean.FastjsonBean;
 import burp.utils.CustomScanIssue;
 import burp.utils.JsonUtils;
+import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -29,13 +30,14 @@ import static burp.dao.FastjsonDao.getFastjsonListsByType;
  * @Author Xm17
  * @Date 2024-06-22 12:13
  */
-public class FastjsonUI implements UIHandler, IMessageEditorController {
+public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpListener{
     private JPanel panel; // 主面板
     private JTabbedPane fastjsonreq; // 请求面板
     private JTabbedPane fastjsonresp; // 响应面板
     private JButton btnClear; // 清空按钮
     private static JTable fastjsonTable; // fastjson表格
     private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
+    private JCheckBox passiveScanCheckBox; // 添加被动扫描复选框
     private IMessageEditor HRequestTextEditor; // 请求编辑器
     private IMessageEditor HResponseTextEditor; // 响应编辑器
     private static final List<FastjsonEntry> fastjsonlog = new ArrayList<>(); // fastjson日志
@@ -46,7 +48,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
     private static List<FastjsonBean> dnsPayloads = new ArrayList<>(); // jndi payloads
     private static List<FastjsonBean> echoPayloads = new ArrayList<>(); // jndi payloads
     private static final Lock lock = new ReentrantLock();
-
+    private boolean isPassiveScanEnabled = false; // 控制被动扫描状态
 
     @Override
     public IHttpService getHttpService() {
@@ -74,6 +76,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
         echoPayloads = getFastjsonListsByType("echo");
         setupUI();
         setupData();
+        // 注册HTTP监听器
+        Utils.callbacks.registerHttpListener(this);
     }
 
     // 初始化数据
@@ -87,16 +91,22 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
                 fastjsonTable.updateUI();
             }
         });
+        // 添加被动扫描复选框事件监听
+        passiveScanCheckBox.addActionListener(e -> {
+            isPassiveScanEnabled = passiveScanCheckBox.isSelected();
+        });
     }
 
     // 初始化UI
     private void setupUI() {
         panel = new JPanel();
         panel.setLayout(new BorderLayout());
-        // 添加FlowLayout布局,将清空按钮添加
+        // 顶部面板添加清空按钮和被动扫描复选框
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnClear = new JButton("Clear");
+        passiveScanCheckBox = new JCheckBox("Enable Passive Scan");
         topPanel.add(btnClear);
+        topPanel.add(passiveScanCheckBox);
         panel.add(topPanel, BorderLayout.NORTH);
 
         // 上下分割面板,比例是7：3
@@ -317,6 +327,82 @@ public class FastjsonUI implements UIHandler, IMessageEditorController {
             int id = fastjsonlog.size();
             fastjsonlog.add(new FastjsonEntry(id, extensionMethod, url, status, res,req, baseRequestResponse));
             fastjsonTable.updateUI();
+        }
+    }
+
+    @Override
+    public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
+// 只处理被动扫描启用、响应包、且来自代理或Spider的请求
+        if (!isPassiveScanEnabled || messageIsRequest ||
+                (toolFlag != IBurpExtenderCallbacks.TOOL_PROXY &&
+                        toolFlag != IBurpExtenderCallbacks.TOOL_SPIDER)) {
+            return;
+        }
+
+        IRequestInfo requestInfo = Utils.helpers.analyzeRequest(messageInfo);
+        URL infoUrl = requestInfo.getUrl();
+        String url = requestInfo.getUrl().toString();
+        String method = requestInfo.getMethod();
+        List<String> headers = requestInfo.getHeaders();
+
+        // 检查是否为静态资源
+        if (Utils.isUrlBlackListSuffix(url)) {
+            return;
+        }
+
+        // 检查是否重复
+        if (!UrlCacheUtil.checkUrlUnique("fastjson", method, infoUrl, new ArrayList<>())) {
+            return;
+        }
+
+        // 检查是否为POST请求且Content-Type为JSON
+        if (!"POST".equalsIgnoreCase(method)) {
+            return;
+        }
+
+        boolean isJson = false;
+        for (String header : headers) {
+            if (header.toLowerCase().contains("content-type") &&
+                    header.toLowerCase().contains("application/json")) {
+                isJson = true;
+                break;
+            }
+        }
+
+        if (!isJson) {
+            return;
+        }
+
+        // 进行Fastjson被动扫描测试
+        performPassiveScan(messageInfo);
+    }
+
+    // 执行被动扫描测试
+    private void performPassiveScan(IHttpRequestResponse baseRequestResponse) {
+        try {
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            String url = analyzeRequest.getUrl().toString();
+            String method = analyzeRequest.getMethod();
+            List<String> headers = analyzeRequest.getHeaders();
+            IHttpService httpService = baseRequestResponse.getHttpService();
+
+            // 使用dnslog payload进行测试
+            for (FastjsonBean fastjson : dnsPayloads) {
+                String fastjsonDnslog = fastjson.getValue();
+                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
+                String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
+                byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
+                byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload);
+
+                IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(httpService, postMessage);
+                IResponseInfo responseInfo = Utils.helpers.analyzeResponse(resp.getResponse());
+                String statusCode = String.valueOf(responseInfo.getStatusCode());
+
+                // 记录扫描结果
+                add(method, url, statusCode, "被动扫描DNS检测", fuzzPayload, resp);
+            }
+        } catch (Exception e) {
+            Utils.stderr.println("Passive scan error: " + e.getMessage());
         }
     }
 

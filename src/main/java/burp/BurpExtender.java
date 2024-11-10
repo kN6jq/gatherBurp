@@ -32,9 +32,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                 Utils.callbacks.customizeUiComponent(mainUI);
             }
         });
-        Utils.stdout.println("Loaded " + Utils.NAME + " v" + Utils.VERSION + " by " + Utils.AUTHOR);
-        Utils.stdout.println("If a database error is reported, please manually delete the ./gather/ directory of the username directory and try\n");
-        Utils.stdout.println("GITHUB: https://github.com/kN6jq/gatherBurp");
+        Utils.stdout.println("Loaded " + Utils.NAME + " v" + Utils.VERSION + " by " + Utils.AUTHOR+"\n");
+        Utils.stdout.println("If an error occurs, please delete the .gather directory under the user's directory and reload.\n");
+        Utils.stdout.println("GITHUB: https://github.com/kN6jq/gatherBurp\n");
 
     }
 
@@ -103,9 +103,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         listMenuItems.add(new RouteMenu(requestResponses));
         listMenuItems.add(new Log4jMenu(requestResponses));
         listMenuItems.add(new PermMenu(requestResponses));
-        listMenuItems.add(new Base64DataMenu());
-        listMenuItems.add(new DirtyMenu());
         listMenuItems.add(new NucleiMenu(requestResponses));
+        listMenuItems.add(new TextProcessMenu(iContextMenuInvocation));
         return listMenuItems;
     }
 

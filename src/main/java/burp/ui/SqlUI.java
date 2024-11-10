@@ -361,7 +361,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             }
                         }
 
-                        // 为双引号payload添加记录
+                        // 为双单引号payload添加记录
                         String doubleQuoteErrKey = "x";
                         // 检查报错
                         if (errSqlCheck(doubleQuoteBody)) {
@@ -952,16 +952,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     Utils.stderr.println("CustomScanIssue " + e);
                 }
             }
-            if (Integer.parseInt(responseTimes) > 6000) {
-                errkey = "存在延时";
-                addToVulStr(logid, "参数" + paraName + "存在延时");
-                try {
-                    IScanIssue timeIssues = new CustomScanIssue(newRequestResponses.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses}, "SqlInject Time", "SqlInject 发现延时注入", "High", "Certain");
-                    Utils.callbacks.addScanIssue(timeIssues);
-                } catch (MalformedURLException e) {
-                    throw new RuntimeException("CheckRaw" + e);
-                }
-            }
+            // 常规的检测不存在延时的
+//            if (Integer.parseInt(responseTimes) > 6000) {
+//                errkey = "存在延时";
+//                addToVulStr(logid, "参数" + paraName + "存在延时");
+//                try {
+//                    IScanIssue timeIssues = new CustomScanIssue(newRequestResponses.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses}, "SqlInject Time", "SqlInject 发现延时注入", "High", "Certain");
+//                    Utils.callbacks.addScanIssue(timeIssues);
+//                } catch (MalformedURLException e) {
+//                    throw new RuntimeException("CheckRaw" + e);
+//                }
+//            }
 
             // 记录payload结果
             addPayload(logid, paraName, payload, length, String.valueOf(length - originalLength), errkey, String.valueOf(endTime - startTime), String.valueOf(statusCode), newRequestResponses);

@@ -1,4 +1,4 @@
-package burp.ui.SimilarHelper;
+package burp.ui.SimilarHelper.bean;
 
 import burp.bean.SimilarProjectBean;
 import burp.dao.SimilarDomainConfigDao;
@@ -11,8 +11,8 @@ public class Project {
     private String name;
     private String createTime;
     private List<String> mainDomains = new ArrayList<>();
-    private List<DomainEntry> domainEntries = new ArrayList<>();
-    private List<URLEntry> urlEntries = new ArrayList<>();
+    private List<Domain> domainEntries = new ArrayList<>();
+    private List<URL> urlEntries = new ArrayList<>();
 
     public Project(SimilarProjectBean bean) {
         this.id = bean.getId();
@@ -38,21 +38,21 @@ public class Project {
         SimilarDomainConfigDao.saveDomainConfigs(id, domains);
     }
 
-    public List<DomainEntry> getDomainEntries() {
+    public List<Domain> getDomainEntries() {
         return domainEntries;
     }
 
-    public List<URLEntry> getUrlEntries() {
+    public List<URL> getUrlEntries() {
         return urlEntries;
     }
 
-    public void addDomainEntry(DomainEntry entry) {
+    public void addDomainEntry(Domain entry) {
         if (!domainEntries.contains(entry)) {
             domainEntries.add(entry);
         }
     }
 
-    public void addUrlEntry(URLEntry entry) {
+    public void addUrlEntry(URL entry) {
         if (!urlEntries.contains(entry)) {
             urlEntries.add(entry);
         }

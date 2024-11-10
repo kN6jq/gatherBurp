@@ -1,4 +1,4 @@
-package burp.ui.SimilarHelper;
+package burp.ui.SimilarHelper.bean;
 
 import burp.bean.SimilarDomainResultBean;
 
@@ -6,14 +6,14 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
-public class DomainEntry {
+public class Domain {
     private static int counter = 0;
     private int id;
     private final String domain;
     private final String ip;
     private final String timestamp;
 
-    public DomainEntry(String domain, String ip) {
+    public Domain(String domain, String ip) {
         this.id = ++counter;  // 使用临时ID
         this.domain = domain;
         this.ip = ip;
@@ -21,7 +21,7 @@ public class DomainEntry {
                 .format(new Date());
     }
 
-    public DomainEntry(SimilarDomainResultBean bean) {
+    public Domain(SimilarDomainResultBean bean) {
         this.id = bean.getId();
         this.domain = bean.getDomain();
         this.ip = bean.getIp();
@@ -59,7 +59,7 @@ public class DomainEntry {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DomainEntry that = (DomainEntry) o;
+        Domain that = (Domain) o;
         return domain.equals(that.domain);
     }
 

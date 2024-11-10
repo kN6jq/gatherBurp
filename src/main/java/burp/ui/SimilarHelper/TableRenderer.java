@@ -4,7 +4,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 
-public class OptimizedTableRenderer extends DefaultTableCellRenderer {
+public class TableRenderer extends DefaultTableCellRenderer {
     private static final Color ALTERNATE_COLOR = new Color(240, 240, 240);
     private static final int MAX_TEXT_LENGTH = 100;
 

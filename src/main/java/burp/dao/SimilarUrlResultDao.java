@@ -1,7 +1,7 @@
 package burp.dao;
 
 
-import burp.bean.*;
+import burp.bean.SimilarUrlResultBean;
 import burp.utils.DbUtils;
 import burp.utils.Utils;
 
@@ -68,16 +68,20 @@ public class SimilarUrlResultDao {
 
     // 获取项目的URL结果
     public static List<SimilarUrlResultBean> getUrlResults(int projectId) {
-        List<SimilarUrlResultBean> results = new ArrayList<>();
-        String sql = "SELECT * FROM url_results WHERE project_id = ? ORDER BY create_time DESC";
         Connection connection = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
+        List<SimilarUrlResultBean> results = new ArrayList<>();
+
         try {
             connection = DbUtils.getConnection();
+
+            // 按创建时间降序排列，获取最新的记录
+            String sql = "SELECT id, project_id, url, create_time FROM url_results WHERE project_id = ? ORDER BY create_time DESC";
             ps = connection.prepareStatement(sql);
             ps.setInt(1, projectId);
             rs = ps.executeQuery();
+
             while (rs.next()) {
                 SimilarUrlResultBean result = new SimilarUrlResultBean();
                 result.setId(rs.getInt("id"));
@@ -86,11 +90,42 @@ public class SimilarUrlResultDao {
                 result.setCreateTime(rs.getString("create_time"));
                 results.add(result);
             }
+
+            return results;
         } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
+            Utils.stderr.println("获取URL结果失败: " + e.getMessage());
+            return null;
         } finally {
             DbUtils.close(connection, ps, rs);
         }
-        return results;
+    }
+
+    // 检查URL是否存在
+    public static boolean isUrlExists(int projectId, String url) {
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            connection = DbUtils.getConnection();
+
+            // 查询是否存在相同URL记录
+            String sql = "SELECT COUNT(*) as count FROM url_results WHERE project_id = ? AND url = ?";
+            ps = connection.prepareStatement(sql);
+            ps.setInt(1, projectId);
+            ps.setString(2, url);
+            rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("count") > 0;
+            }
+
+            return false;
+        } catch (Exception e) {
+            Utils.stderr.println("检查URL是否存在失败: " + e.getMessage());
+            return false;
+        } finally {
+            DbUtils.close(connection, ps, rs);
+        }
     }
 }
