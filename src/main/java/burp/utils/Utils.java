@@ -391,4 +391,53 @@ public final class Utils {
         Arrays.fill(newArray, array.length, targetLength, "*");
         return newArray;
     }
+
+    /**
+     * 生成带目标信息的dnslog地址
+     * @param targetUrl 目标URL
+     * @param dnslog dnslog基础地址
+     * @return 完整的dnslog地址
+     */
+    public static String generateDnsPayload(URL targetUrl, String dnslog) {
+        if (targetUrl == null || dnslog == null || dnslog.isEmpty()) {
+            return dnslog;
+        }
+
+        // 获取目标域名和URI
+        String targetDomain = targetUrl.getHost();
+        String targetUri = targetUrl.getPath();
+        if(targetUri.startsWith("/")) {
+            targetUri = targetUri.substring(1);
+        }
+
+        // 拼接dnslog地址:目标域名.URI路径.dnslog地址
+        String dnslogPayload = targetDomain + "." + targetUri + "." + "fastjson" + "." + dnslog;
+
+        // 处理特殊字符
+        dnslogPayload = sanitizeDnsPayload(dnslogPayload);
+
+        return dnslogPayload;
+    }
+
+    /**
+     * 处理DNS payload中的特殊字符
+     * @param payload 原始payload
+     * @return 处理后的payload
+     */
+    private static String sanitizeDnsPayload(String payload) {
+        if (payload == null || payload.isEmpty()) {
+            return payload;
+        }
+
+        // 将非字母数字的字符替换为点号
+        String sanitized = payload.replaceAll("[^a-zA-Z0-9.]", ".");
+
+        // 处理可能出现的多个连续点号
+        sanitized = sanitized.replaceAll("\\.+", ".");
+
+        // 如果末尾有点号，去除
+        sanitized = sanitized.replaceAll("\\.$", "");
+
+        return sanitized;
+    }
 }

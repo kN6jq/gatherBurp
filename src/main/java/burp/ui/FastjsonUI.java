@@ -35,6 +35,10 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     private JTabbedPane fastjsonreq; // 请求面板
     private JTabbedPane fastjsonresp; // 响应面板
     private JButton btnClear; // 清空按钮
+    private JButton btnRefresh; // 添加刷新按钮
+    private static volatile boolean autoRefresh = true; // 控制是否自动刷新
+    private static final Object refreshLock = new Object();
+    private JCheckBox autoRefreshCheckBox; // 自动刷新开关
     private static JTable fastjsonTable; // fastjson表格
     private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
     private JCheckBox passiveScanCheckBox; // 添加被动扫描复选框
@@ -82,18 +86,44 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
 
     // 初始化数据
     private void setupData() {
+        // 清空按钮事件
         btnClear.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 fastjsonlog.clear();
                 HRequestTextEditor.setMessage(new byte[0], true);
                 HResponseTextEditor.setMessage(new byte[0], false);
-                fastjsonTable.updateUI();
+                refreshTable();
+            }
+        });
+
+        // 刷新按钮事件
+        btnRefresh.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                refreshTable();
+            }
+        });
+
+        // 自动刷新开关事件
+        autoRefreshCheckBox.addActionListener(e -> {
+            setAutoRefresh(autoRefreshCheckBox.isSelected());
+            if(autoRefreshCheckBox.isSelected()) {
+                refreshTable(); // 当开启自动刷新时，立即进行一次刷新
             }
         });
         // 添加被动扫描复选框事件监听
         passiveScanCheckBox.addActionListener(e -> {
             isPassiveScanEnabled = passiveScanCheckBox.isSelected();
+        });
+    }
+
+    // 刷新表格方法
+    private static void refreshTable() {
+        SwingUtilities.invokeLater(() -> {
+            if(fastjsonTable != null) {
+                ((AbstractTableModel)fastjsonTable.getModel()).fireTableDataChanged();
+            }
         });
     }
 
@@ -105,7 +135,12 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnClear = new JButton("Clear");
         passiveScanCheckBox = new JCheckBox("Enable Passive Scan");
+        btnRefresh = new JButton("Refresh"); // 添加刷新按钮
+        autoRefreshCheckBox = new JCheckBox("Auto Refresh"); // 添加自动刷新开关
+        autoRefreshCheckBox.setSelected(true); // 默认开启自动刷新
         topPanel.add(btnClear);
+        topPanel.add(btnRefresh);
+        topPanel.add(autoRefreshCheckBox);
         topPanel.add(passiveScanCheckBox);
         panel.add(topPanel, BorderLayout.NORTH);
 
@@ -173,13 +208,15 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             IHttpRequestResponse baseRequestResponse = responses[0];
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             String extensionMethod = analyzeRequest.getMethod();
+            URL dnsurl = analyzeRequest.getUrl();
             String url = analyzeRequest.getUrl().toString();
             List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
             String res = "dnslog检测,请查看dnslog服务器";
             IHttpService iHttpService = baseRequestResponse.getHttpService();
             for (FastjsonBean fastjson : dnsPayloads) {
                 String fastjsonDnslog = fastjson.getValue();
-                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
+                String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslog);
+                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslogPayload);
                 String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                 byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
@@ -326,13 +363,21 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         synchronized (fastjsonlog) {
             int id = fastjsonlog.size();
             fastjsonlog.add(new FastjsonEntry(id, extensionMethod, url, status, res,req, baseRequestResponse));
-            fastjsonTable.updateUI();
+            // 只保留refreshTable即可，删除updateUI
+            if(autoRefresh) {
+                refreshTable();
+            }
+        }
+    }
+    public static void setAutoRefresh(boolean value) {
+        synchronized (refreshLock) {
+            autoRefresh = value;
         }
     }
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
-// 只处理被动扫描启用、响应包、且来自代理或Spider的请求
+        // 只处理被动扫描启用、响应包、且来自代理或Spider的请求
         if (!isPassiveScanEnabled || messageIsRequest ||
                 (toolFlag != IBurpExtenderCallbacks.TOOL_PROXY &&
                         toolFlag != IBurpExtenderCallbacks.TOOL_SPIDER)) {
@@ -385,11 +430,12 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             String method = analyzeRequest.getMethod();
             List<String> headers = analyzeRequest.getHeaders();
             IHttpService httpService = baseRequestResponse.getHttpService();
-
+            URL dnsurl = analyzeRequest.getUrl();
             // 使用dnslog payload进行测试
             for (FastjsonBean fastjson : dnsPayloads) {
                 String fastjsonDnslog = fastjson.getValue();
-                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslog);
+                String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslog);
+                String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslogPayload);
                 String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                 byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload);
@@ -410,7 +456,9 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
 
         @Override
         public int getRowCount() {
-            return fastjsonlog.size();
+            synchronized (fastjsonlog) {
+                return fastjsonlog.size();
+            }
         }
 
         @Override
@@ -420,22 +468,20 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
-            FastjsonEntry logEntry = fastjsonlog.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return logEntry.id;
-                case 1:
-                    return logEntry.extensionMethod;
-                case 2:
-                    return logEntry.url;
-                case 3:
-                    return logEntry.status;
-                case 4:
-                    return logEntry.res;
-                case 5:
-                    return logEntry.req;
-                default:
-                    return "";
+            synchronized (fastjsonlog) {
+                if (rowIndex >= 0 && rowIndex < fastjsonlog.size()) {
+                    FastjsonEntry logEntry = fastjsonlog.get(rowIndex);
+                    switch (columnIndex) {
+                        case 0: return logEntry.id;
+                        case 1: return logEntry.extensionMethod;
+                        case 2: return logEntry.url;
+                        case 3: return logEntry.status;
+                        case 4: return logEntry.res;
+                        case 5: return logEntry.req;
+                        default: return "";
+                    }
+                }
+                return "";
             }
         }
 

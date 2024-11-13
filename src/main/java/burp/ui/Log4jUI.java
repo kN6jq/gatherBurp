@@ -119,81 +119,15 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
     // 初始化数据
     private void setupData() {
-        //从数据库中获取是否是被动扫描
-        Log4jBean log4jPassiveScanConfig = getLog4jListByType("log4jPassiveScan");
-        if (log4jPassiveScanConfig.getValue().equals("true")){
-            isPassiveScan = true;
-            passiveScanCheckBox.setSelected(true);
-        }else{
-            isPassiveScan = false;
-            passiveScanCheckBox.setSelected(false);
-        }
-        // 从数据库中获取是否为原始值
-        Log4jBean log4jOrginValueConfig = getLog4jListByType("log4jOrginValue");
-        if (log4jOrginValueConfig.getValue().equals("true")) {
-            isOriginalValue = true;
-            originalValueCheckBox.setSelected(true);
-        }else {
-            isOriginalValue = false;
-            originalValueCheckBox.setSelected(false);
-        }
-        // 从数据库中获取是否检测header
-        Log4jBean log4jCheckHeaderConfig = getLog4jListByType("log4jCheckHeader");
-        if (log4jCheckHeaderConfig.getValue().equals("true")) {
-            isCheckHeader = true;
-            checkHeaderCheckBox.setSelected(true);
-        }else {
-            isCheckHeader = false;
-            checkHeaderCheckBox.setSelected(false);
-        }
 
-        // 从数据库中获取是否检测参数
-        Log4jBean log4jCheckParamConfig = getLog4jListByType("log4jCheckParam");
-        if (log4jCheckParamConfig.getValue().equals("true")) {
-            isCheckParam = true;
-            checkParmamCheckBox.setSelected(true);
-        }else {
-            isCheckParam = false;
-            checkParmamCheckBox.setSelected(false);
-        }
-
-        // 从数据库中获取是否是dns或者ip
-        Log4jBean log4jIsDnsOrIpConfig = getLog4jListByType("log4jIsDnsOrIp");
-        if (log4jIsDnsOrIpConfig.getValue().equals("true")) {
-            isDnsOrIp = true;
-            isDnsOrIpCheckBox.setSelected(true);
-            isDnsOrIpCheckBox.setText("dns");
-        } else {
-            isDnsOrIp = false;
-            isDnsOrIpCheckBox.setSelected(false);
-            isDnsOrIpCheckBox.setText("ip");
-        }
-
-        // 从数据库中获取是否检测白名单
-        Log4jBean log4jCheckWhiteListConfig = getLog4jListByType("log4jCheckWhiteList");
-        if (log4jCheckWhiteListConfig.getValue().equals("true")) {
-            isCheckWhiteList = true;
-            checkWhiteListCheckBox.setSelected(true);
-        } else {
-            isCheckWhiteList = false;
-            checkWhiteListCheckBox.setSelected(false);
-        }
         // 被动扫描选择框
         passiveScanCheckBox.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (passiveScanCheckBox.isSelected()) {
                     isPassiveScan = true;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jPassiveScan");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isPassiveScan = false;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jPassiveScan");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -203,16 +137,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 if (originalValueCheckBox.isSelected()) {
                     isOriginalValue = true;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jOrginValue");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isOriginalValue = false;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jOrginValue");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -222,16 +148,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 if (checkHeaderCheckBox.isSelected()) {
                     isCheckHeader = true;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckHeader");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isCheckHeader = false;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckHeader");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -241,16 +159,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 if (checkParmamCheckBox.isSelected()) {
                     isCheckParam = true;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckParam");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isCheckParam = false;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckParam");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -263,17 +173,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 if (isDnsOrIpCheckBox.isSelected()) {
                     isDnsOrIp = true;
                     isDnsOrIpCheckBox.setText("dns");
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jIsDnsOrIp");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isDnsOrIp = false;
                     isDnsOrIpCheckBox.setText("ip");
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jIsDnsOrIp");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -303,16 +205,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
             public void actionPerformed(ActionEvent e) {
                 if (checkWhiteListCheckBox.isSelected()) {
                     isCheckWhiteList = true;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckWhiteList");
-                    log4jBean.setValue("true");
-                    updateLog4j(log4jBean);
                 } else {
                     isCheckWhiteList = false;
-                    Log4jBean log4jBean = new Log4jBean();
-                    log4jBean.setType("log4jCheckWhiteList");
-                    log4jBean.setValue("false");
-                    updateLog4j(log4jBean);
                 }
             }
         });
@@ -555,28 +449,25 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
     // 获取请求包的tag
     private static String getReqTag(IHttpRequestResponse baseRequestResponse, IRequestInfo req, String type) {
-        List<String> requestHeader = req.getHeaders();
-        // 循环获取参数，判断类型，进行加密处理后，再构造新的参数，合并到新的请求包中。
-        //第一行请求包含请求方法、请求uri、http版本
-        String firstrequestHeader = requestHeader.get(0);
-        String[] firstheaders = firstrequestHeader.split(" ");
-        String uri = firstheaders[1].split("\\?")[0].replace("/", ".");
-        if (firstheaders[1].split("\\?")[0].replace("/", ".").length() > 25) {
+        // 获取并处理URI
+        String uri = req.getHeaders().get(0).split(" ")[1].split("\\?")[0].replace("/", ".");
+
+        // 如果URI超过25个字符，截取并处理结尾的点号
+        if (uri.length() > 25) {
             uri = uri.substring(0, 25);
             if (uri.endsWith(".")) {
                 uri = uri.substring(0, uri.length() - 1);
             }
         }
+
+        // 处理URI末尾的点号
         if (uri.endsWith(".")) {
             uri = uri.substring(0, uri.length() - 1);
         }
-        IHttpService httpService = baseRequestResponse.getHttpService();
-        String host = httpService.getHost();
-        if (type.equals("dns")) {
-            return firstheaders[0].trim() + "." + host + uri + ".";
-        } else {
-            return firstheaders[0].trim() + "." + host + uri;
-        }
+
+        // 构建最终标签
+        String tag = req.getMethod() + "." + baseRequestResponse.getHttpService().getHost() + uri;
+        return "dns".equalsIgnoreCase(type) ? tag + "." : tag;
     }
 
     // 检测核心方法

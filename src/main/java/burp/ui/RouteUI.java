@@ -6,7 +6,6 @@ import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
-import org.springframework.util.DigestUtils;
 
 import javax.swing.*;
 import javax.swing.table.*;

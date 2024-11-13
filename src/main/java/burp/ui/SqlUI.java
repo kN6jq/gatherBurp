@@ -1028,56 +1028,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     }
 
     private void setupData() {
-        SqlBean sqlPassiveScanConfig = getSqlListByType("sqlPassiveScan");
-        if (sqlPassiveScanConfig.getValue().equals("true")) {
-            isPassiveScan = true;
-            passiveScanCheckBox.setSelected(true);
-        } else {
-            isPassiveScan = false;
-            passiveScanCheckBox.setSelected(false);
-        }
-        SqlBean sqlDeleteOrginConfig = getSqlListByType("sqlDeleteOrgin");
-        if (sqlDeleteOrginConfig.getValue().equals("true")) {
-            isDeleteOrgin = true;
-            deleteOriginalValueCheckBox.setSelected(true);
-        } else {
-            isDeleteOrgin = false;
-            deleteOriginalValueCheckBox.setSelected(false);
-        }
-        SqlBean sqlCheckCookieConfig = getSqlListByType("sqlCheckCookie");
-        if (sqlCheckCookieConfig.getValue().equals("true")) {
-            isCheckCookie = true;
-            checkCookieCheckBox.setSelected(true);
-        } else {
-            isCheckCookie = false;
-            checkCookieCheckBox.setSelected(false);
-        }
-        SqlBean sqlCheckHeaderConfig = getSqlListByType("sqlCheckHeader");
-        if (sqlCheckHeaderConfig.getValue().equals("true")) {
-            isCheckHeader = true;
-            checkHeaderCheckBox.setSelected(true);
-        } else {
-            isCheckHeader = false;
-            checkHeaderCheckBox.setSelected(false);
-        }
-        // 白名单域名
-        SqlBean sqlWhiteDomainConfig = getSqlListByType("sqlWhiteDomain");
-        if (sqlWhiteDomainConfig.getValue().equals("true")) {
-            isWhiteDomain = true;
-            checkWhiteListCheckBox.setSelected(true);
-        } else {
-            isWhiteDomain = false;
-            checkWhiteListCheckBox.setSelected(false);
-        }
-        // urlEncode
-        SqlBean sqlUrlEncodeConfig = getSqlListByType("sqlUrlEncode");
-        if (sqlUrlEncodeConfig.getValue().equals("true")) {
-            isUrlEncode = true;
-            urlEncodeCheckBox.setSelected(true);
-        } else {
-            isUrlEncode = false;
-            urlEncodeCheckBox.setSelected(false);
-        }
+
         refreshTableButton.addActionListener(e -> {
             urltable.updateUI();
             payloadtable.updateUI();
@@ -1210,12 +1161,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             public void actionPerformed(ActionEvent e) {
                 if (passiveScanCheckBox.isSelected()) {
                     isPassiveScan = true;
-                    SqlBean sqlBean = new SqlBean("sqlPassiveScan", "true");
-                    updateSql(sqlBean);
                 } else {
                     isPassiveScan = false;
-                    SqlBean sqlBean = new SqlBean("sqlPassiveScan", "false");
-                    updateSql(sqlBean);
                 }
             }
         });
@@ -1225,12 +1172,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             public void actionPerformed(ActionEvent e) {
                 if (deleteOriginalValueCheckBox.isSelected()) {
                     isDeleteOrgin = true;
-                    SqlBean sqlBean = new SqlBean("sqlDeleteOrgin", "true");
-                    updateSql(sqlBean);
                 } else {
                     isDeleteOrgin = false;
-                    SqlBean sqlBean = new SqlBean("sqlDeleteOrgin", "false");
-                    updateSql(sqlBean);
                 }
             }
         });
@@ -1240,12 +1183,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             public void actionPerformed(ActionEvent e) {
                 if (checkCookieCheckBox.isSelected()) {
                     isCheckCookie = true;
-                    SqlBean sqlBean = new SqlBean("sqlCheckCookie", "true");
-                    updateSql(sqlBean);
                 } else {
                     isCheckCookie = false;
-                    SqlBean sqlBean = new SqlBean("sqlCheckCookie", "false");
-                    updateSql(sqlBean);
                 }
             }
         });
@@ -1255,12 +1194,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             public void actionPerformed(ActionEvent e) {
                 if (checkHeaderCheckBox.isSelected()) {
                     isCheckHeader = true;
-                    SqlBean sqlBean = new SqlBean("sqlCheckHeader", "true");
-                    updateSql(sqlBean);
                 } else {
                     isCheckHeader = false;
-                    SqlBean sqlBean = new SqlBean("sqlCheckHeader", "false");
-                    updateSql(sqlBean);
                 }
             }
         });
@@ -1270,28 +1205,19 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             public void actionPerformed(ActionEvent e) {
                 if (checkWhiteListCheckBox.isSelected()) {
                     isWhiteDomain = true;
-                    SqlBean sqlBean = new SqlBean("sqlWhiteDomain", "true");
-                    updateSql(sqlBean);
                 } else {
                     isWhiteDomain = false;
-                    SqlBean sqlBean = new SqlBean("sqlWhiteDomain", "false");
-                    updateSql(sqlBean);
                 }
             }
         });
         // isUrlEncode
-        // 白名单域名检测选择框事件
         urlEncodeCheckBox.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (urlEncodeCheckBox.isSelected()) {
                     isUrlEncode = true;
-                    SqlBean sqlBean = new SqlBean("sqlUrlEncode", "true");
-                    updateSql(sqlBean);
                 } else {
                     isUrlEncode = false;
-                    SqlBean sqlBean = new SqlBean("sqlUrlEncode", "false");
-                    updateSql(sqlBean);
                 }
             }
         });

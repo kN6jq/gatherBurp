@@ -104,24 +104,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
     // 初始化数据
     private void setupData() {
-        // 被动扫描选择框
-        PermBean permBeanPassiveScanConfig = getPermListByType("permPassiveScan");
-        if (permBeanPassiveScanConfig.getValue().equals("true")) {
-            passiveScanCheckBox.setSelected(true);
-            ispassiveScan = true;
-        } else {
-            passiveScanCheckBox.setSelected(false);
-            ispassiveScan = false;
-        }
-        // 白名单域名选择框
-        PermBean permBeanWhiteDomainConfig = getPermListByType("permWithDomain");
-        if (permBeanWhiteDomainConfig.getValue().equals("true")) {
-            whiteDomainListCheckBox.setSelected(true);
-            isWhiteDomainList = true;
-        } else {
-            whiteDomainListCheckBox.setSelected(false);
-            isWhiteDomainList = false;
-        }
+
         // 白名单域名输入框
         List<PermBean> whiteDomain = getPermListsByType("domain");
         for (PermBean permBean : whiteDomain) {
@@ -160,12 +143,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             public void actionPerformed(ActionEvent e) {
                 if (passiveScanCheckBox.isSelected()) {
                     ispassiveScan = true;
-                    PermBean permBeanPassiveScanConfig = new PermBean("permPassiveScan", "true");
-                    updatePerm(permBeanPassiveScanConfig);
                 } else {
                     ispassiveScan = false;
-                    PermBean permBeanPassiveScanConfig = new PermBean("permPassiveScan", "false");
-                    updatePerm(permBeanPassiveScanConfig);
                 }
             }
         });
@@ -175,12 +154,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             public void actionPerformed(ActionEvent e) {
                 if (whiteDomainListCheckBox.isSelected()) {
                     isWhiteDomainList = true;
-                    PermBean permBeanWhiteDomainConfig = new PermBean("permWithDomain", "true");
-                    updatePerm(permBeanWhiteDomainConfig);
                 } else {
                     isWhiteDomainList = false;
-                    PermBean permBeanWhiteDomainConfig = new PermBean("permWithDomain", "false");
-                    updatePerm(permBeanWhiteDomainConfig);
                 }
             }
         });
