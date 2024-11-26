@@ -6,6 +6,11 @@
 
 一款强大的 Web 安全测试套件，集成多种安全测试功能，支持自动化扫描和手动测试。
 
+## 使用视频
+
+相关功能使用视频已更新到哔哩哔哩
+https://www.bilibili.com/video/BV1UtScY7EyT/?spm_id_from=333.999.0.0
+
 ## ✨ 核心功能
 
 ### 🔍 漏洞扫描
@@ -90,7 +95,7 @@ code!=200 && (body="hello" || title="druid")
 
 加入微信讨论群：
 
-![微信群](images/img_wxgroup.png)
+请移步issus查看群聊
 
 ## 📋 待办事项
 
