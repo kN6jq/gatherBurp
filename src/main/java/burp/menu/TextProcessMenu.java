@@ -1,7 +1,6 @@
 package burp.menu;
 
 import burp.IContextMenuInvocation;
-import burp.IHttpRequestResponse;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -58,6 +57,7 @@ public class TextProcessMenu extends JMenu {
         JMenuItem base64Tag = new JMenuItem("Insert Base64 Tag");
         base64Tag.addActionListener(e -> checkBase64Data());
 
+
         add(unicodeDecode);
         add(urlDecode);
         add(splitKeyword);
@@ -71,30 +71,82 @@ public class TextProcessMenu extends JMenu {
      */
     private void processSelectedText(TextProcessor processor) {
         try {
-            // 获取选中的文本
-            byte[] selectedText = invocation.getSelectedMessages()[0].getRequest();
-            int[] bounds = invocation.getSelectionBounds();
+            // 检查消息选择
+            if (invocation.getSelectedMessages() == null || invocation.getSelectedMessages().length == 0) {
+                JOptionPane.showMessageDialog(null, "No message selected!");
+                return;
+            }
 
+            // 获取选择范围
+            int[] bounds = invocation.getSelectionBounds();
             if (bounds == null || bounds[0] == bounds[1]) {
                 JOptionPane.showMessageDialog(null, "Please select text first!");
                 return;
             }
 
+            // 获取当前选中的文本所在的字节数据
+            byte[] contextBytes;
+            int context = invocation.getInvocationContext();
+            if (context == IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST ||
+                    context == IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST) {
+                contextBytes = invocation.getSelectedMessages()[0].getRequest();
+            } else {
+                contextBytes = invocation.getSelectedMessages()[0].getResponse();
+            }
+
+            if (contextBytes == null) {
+                JOptionPane.showMessageDialog(null, "No content available!");
+                return;
+            }
+
             // 提取选中的文本部分
-            String fullText = new String(selectedText);
+            String fullText = new String(contextBytes);
             String selected = fullText.substring(bounds[0], bounds[1]);
+
+            // 处理选中的文本
             String processed = processor.process(selected);
 
-            // 构建新的请求
-            String newText = fullText.substring(0, bounds[0]) + processed + fullText.substring(bounds[1]);
-
-            // 更新请求
-            invocation.getSelectedMessages()[0].setRequest(newText.getBytes());
+            // 在弹窗中显示结果
+            showProcessedResult(processed);
 
         } catch (Exception ex) {
             Utils.stderr.println("Error processing text: " + ex.getMessage());
             JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage());
         }
+    }
+
+    private void showProcessedResult(String result) {
+        // 创建一个可复制的文本区域
+        JTextArea textArea = new JTextArea(result);
+        textArea.setEditable(false);
+        textArea.setWrapStyleWord(true);
+        textArea.setLineWrap(true);
+
+        // 创建滚动面板
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(400, 300));
+
+        // 创建复制按钮
+        JButton copyButton = new JButton("复制到剪贴板");
+        copyButton.addActionListener(e -> {
+            StringSelection stringSelection = new StringSelection(result);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            JOptionPane.showMessageDialog(null, "复制到粘贴板!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        // 创建包含文本区域和按钮的面板
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(copyButton, BorderLayout.SOUTH);
+
+        // 显示对话框
+        JOptionPane.showMessageDialog(
+                null,
+                panel,
+                "Process Result",
+                JOptionPane.INFORMATION_MESSAGE
+        );
     }
 
     /**
@@ -103,28 +155,7 @@ public class TextProcessMenu extends JMenu {
     private String urlDecode(String text) {
         try {
             // URL解码，使用UTF-8编码支持中文
-            String decoded = URLDecoder.decode(text, StandardCharsets.UTF_8.name());
-
-            // 创建一个可复制的文本区域
-            JTextArea textArea = new JTextArea(decoded);
-            textArea.setEditable(false);
-            textArea.setWrapStyleWord(true);
-            textArea.setLineWrap(true);
-
-            // 创建滚动面板
-            JScrollPane scrollPane = new JScrollPane(textArea);
-            scrollPane.setPreferredSize(new Dimension(400, 300));
-
-            // 显示对话框
-            JOptionPane.showMessageDialog(
-                    null,
-                    scrollPane,
-                    "URL Decode Result",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
-
-            // 返回原文本，不修改原内容
-            return text;
+            return URLDecoder.decode(text, StandardCharsets.UTF_8.name());
         } catch (Exception e) {
             Utils.stderr.println("Error decoding URL: " + e.getMessage());
             JOptionPane.showMessageDialog(null, "Error decoding URL: " + e.getMessage());
@@ -151,27 +182,7 @@ public class TextProcessMenu extends JMenu {
             result.append(text.charAt(i));
             i++;
         }
-
-        // 创建一个可复制的文本区域
-        JTextArea textArea = new JTextArea(result.toString());
-        textArea.setEditable(false);
-        textArea.setWrapStyleWord(true);
-        textArea.setLineWrap(true);
-
-        // 创建滚动面板
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(400, 300));
-
-        // 显示对话框
-        JOptionPane.showMessageDialog(
-                null,
-                scrollPane,
-                "Unicode Decode Result",
-                JOptionPane.INFORMATION_MESSAGE
-        );
-
-        // 返回原文本，不修改原内容
-        return text;
+        return result.toString();
     }
 
     /**
