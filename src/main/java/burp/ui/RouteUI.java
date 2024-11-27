@@ -6,20 +6,15 @@ import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
-
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import static burp.dao.RouteDao.*;
 
 /**
@@ -53,7 +48,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private static  List<RouteBean> routeList = new ArrayList<>(); // routeList列表
     static Set<String> uniqueUrl = new HashSet<>(); // 存放已经扫描出来的url
     private static final Lock lock = new ReentrantLock();
-    private static final Set<String> discoveredIssues = Collections.synchronizedSet(new HashSet<>());
+    private static final Set<String> discoveredIssues = Collections.synchronizedSet(new HashSet<>()); // 问题集合，用于去重
 
 
 
