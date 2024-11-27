@@ -53,6 +53,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private static  List<RouteBean> routeList = new ArrayList<>(); // routeList列表
     static Set<String> uniqueUrl = new HashSet<>(); // 存放已经扫描出来的url
     private static final Lock lock = new ReentrantLock();
+    private static final Set<String> discoveredIssues = Collections.synchronizedSet(new HashSet<>());
 
 
 
@@ -326,106 +327,195 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     }
 
     // 核心方法
-    public static void Check(IHttpRequestResponse[] responses,boolean isSend) {
+    public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
         lock.lock();
-        try{
-            IHttpRequestResponse iHttpRequestResponse = responses[0];
-            // 考虑iHttpRequestResponse.getResponse()为null
-            if (iHttpRequestResponse.getResponse() == null) {
-                return;
-            }
-            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(iHttpRequestResponse);
-            URL rdurlURL = analyzeRequest.getUrl();
-            String url = analyzeRequest.getUrl().toString();
-            String method = analyzeRequest.getMethod();
-            String request = Utils.helpers.bytesToString(iHttpRequestResponse.getRequest());
-            List<IParameter> paraLists = analyzeRequest.getParameters();
-            String requestx = "";
-            String path = analyzeRequest.getUrl().getPath();
+        try {
+            IHttpRequestResponse baseRequest = responses[0];
 
-            // 如果method不是get或者post方式直接返回
+            // 1. 基础请求信息提取
+            IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequest);
+            URL baseUrl = analyzeRequest.getUrl();
+            String method = analyzeRequest.getMethod();
+            String originalPath = baseUrl.getPath();
+
+            // 2. 基础验证
             if (!method.equals("GET") && !method.equals("POST")) {
                 return;
             }
-
-            // url 中匹配为静态资源
-            if (Utils.isUrlBlackListSuffix(url)){
+            // 验证后缀
+            if (Utils.isUrlBlackListSuffix(baseUrl.toString())) {
                 return;
             }
-            // 对url进行hash去重
-            if (!isSend){
-                if (!UrlCacheUtil.checkUrlUnique("route", method, rdurlURL, paraLists)) {
-                    return;
-                }
+            // 重复性检查
+            if (!isSend && !UrlCacheUtil.checkUrlUnique("route", method, baseUrl, analyzeRequest.getParameters())) {
+                return;
             }
 
+            // 3. 获取原始请求的完整内容
+            byte[] rawRequest = baseRequest.getRequest();
+            String rawRequestStr = Utils.helpers.bytesToString(rawRequest);
+            List<String> headers = analyzeRequest.getHeaders();
 
+            // 4. 遍历所有路由规则
             for (RouteBean routeBean : routeList) {
-                // 如果没有开启，直接跳过
-                if (routeBean.getEnable() != 1){
+                if (routeBean.getEnable() != 1) {
                     continue;
                 }
-                // 定义正则表达式，匹配 ? 及其后面的内容
-                String regex = "\\?[^\\s]*";
-                Pattern pattern = Pattern.compile(regex);
-                Matcher matcher = pattern.matcher(request);
 
-                // 删除请求数据包中的参数部分
-                if (matcher.find()) {
-                    requestx = request.replace(matcher.group(), "");
-                }
-                List<String> reqLists = append(path, routeBean.getPath());
-                for (String reqList : reqLists) {
-                    String rdurlList = rdurlURL.getHost()+reqList;
-                    // 如果uniqueUrl中没有则添加进来
-                    if (uniqueUrl.contains(rdurlList)){
+                // 5. 对每个路径生成测试路径
+                List<String> testPaths = generateTestPaths(originalPath, routeBean.getPath());
+                for (String testPath : testPaths) {
+                    String fullTestUrl = baseUrl.getHost() + testPath;
+
+                    // 去重检查
+                    if (uniqueUrl.contains(fullTestUrl)) {
                         continue;
                     }
-                    uniqueUrl.add(rdurlList);
-                    if (Objects.equals(method, "GET")) {
-                        String new_request = requestx.replaceFirst(path, reqList);
-                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                        // todo 如果这个为空呢
-                        ExpressionUtils expressionUtils = new ExpressionUtils(response);
-                        boolean process = expressionUtils.process(routeBean.getExpress());
-                        if (process) {
-                            addIssus(routeBean.getName(),expressionUtils.getUrl(),  String.valueOf(expressionUtils.getCode()), response);
-                            IScanIssue issues = null;
-                            try {
-                                issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
-                                        "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
-                                        "High", "Certain");
-                                Utils.callbacks.addScanIssue(issues);
-                            } catch (MalformedURLException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-                    if (Objects.equals(method, "POST")) {
-                        // 删除post数据中的body部分
-                        String request_data = request.split("\r\n\r\n")[0]+"\r\n\r\n";
-                        String new_request = request_data.replaceFirst(path, reqList);
-                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(iHttpRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                        ExpressionUtils expressionUtils = new ExpressionUtils(response);
-                        boolean process = expressionUtils.process(routeBean.getExpress());
-                        if (process) {
-                            addIssus(routeBean.getName(),expressionUtils.getUrl(), String.valueOf(expressionUtils.getCode()), response);
-                            IScanIssue issues = null;
-                            try {
-                                issues = new CustomScanIssue(iHttpRequestResponse.getHttpService(), new URL(expressionUtils.getUrl()), new IHttpRequestResponse[]{response},
-                                        "Directory leakage", "A sensitive directory leak vulnerability was discovered.",
-                                        "High", "Certain");
-                                Utils.callbacks.addScanIssue(issues);
-                            } catch (MalformedURLException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
+                    uniqueUrl.add(fullTestUrl);
+
+                    // 6. 构造新的请求
+                    byte[] newRequest = buildNewRequest(
+                            baseRequest.getHttpService(),
+                            headers,
+                            method,
+                            testPath,
+                            analyzeRequest.getBodyOffset(),
+                            rawRequest
+                    );
+
+                    // 7. 发送请求并处理响应
+                    IHttpRequestResponse response = sendRequest(baseRequest.getHttpService(), newRequest);
+                    if (response != null && response.getResponse() != null) {
+                        processResponse(response, routeBean, baseRequest);
                     }
                 }
-
             }
+        }
+        catch (Exception e) {
+            Utils.stderr.println("Error in Check: " + e.getMessage());
         }finally {
             lock.unlock();
+        }
+    }
+
+    private static List<String> generateTestPaths(String originalPath, String payload) {
+        List<String> testPaths = new ArrayList<>();
+
+        // 清理路径中的矩阵参数(matrix parameters)
+        originalPath = cleanPath(originalPath);
+
+        String[] pathSegments = originalPath.split("/");
+        StringBuilder currentPath = new StringBuilder();
+
+        // Add root level test
+        testPaths.add(payload);
+
+        // Generate test paths for each directory level
+        for (String segment : pathSegments) {
+            if (!segment.isEmpty()) {
+                if (currentPath.length() == 0) {
+                    currentPath.append("/").append(cleanSegment(segment));
+                } else {
+                    currentPath.append("/").append(cleanSegment(segment));
+                }
+                testPaths.add(currentPath + payload);
+            }
+        }
+
+        return testPaths;
+    }
+
+    /**
+     * 清理整个路径中的矩阵参数
+     */
+    private static String cleanPath(String path) {
+        // 移除路径中所有的矩阵参数
+        return path.replaceAll(";[^/]*", "");
+    }
+
+    /**
+     * 清理单个路径段中的矩阵参数
+     */
+    private static String cleanSegment(String segment) {
+        int semicolonIndex = segment.indexOf(';');
+        if (semicolonIndex != -1) {
+            return segment.substring(0, semicolonIndex);
+        }
+        return segment;
+    }
+
+    private static byte[] buildNewRequest(
+            IHttpService httpService,
+            List<String> headers,
+            String method,
+            String newPath,
+            int bodyOffset,
+            byte[] originalRequest
+    ) {
+        // 1. 更新请求头中的路径
+        List<String> newHeaders = new ArrayList<>();
+        for (int i = 0; i < headers.size(); i++) {
+            if (i == 0) {
+                // 更新第一行的请求路径
+                String firstLine = headers.get(0);
+                String[] parts = firstLine.split(" ");
+                parts[1] = newPath;
+                newHeaders.add(String.join(" ", parts));
+            } else {
+                newHeaders.add(headers.get(i));
+            }
+        }
+
+        // 2. 构建新请求
+        if (method.equals("POST")) {
+            // POST请求保留原始请求体
+            byte[] body = Arrays.copyOfRange(originalRequest, bodyOffset, originalRequest.length);
+            return Utils.helpers.buildHttpMessage(newHeaders, body);
+        } else {
+            // GET请求不需要请求体
+            return Utils.helpers.buildHttpMessage(newHeaders, null);
+        }
+    }
+
+    private static IHttpRequestResponse sendRequest(IHttpService httpService, byte[] request) {
+        try {
+            return Utils.callbacks.makeHttpRequest(httpService, request);
+        } catch (Exception e) {
+            Utils.stderr.println("Error sending request: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static void processResponse(
+            IHttpRequestResponse response,
+            RouteBean routeBean,
+            IHttpRequestResponse originalRequest
+    ) {
+        try {
+            ExpressionUtils expressionUtils = new ExpressionUtils(response);
+            if (expressionUtils.process(routeBean.getExpress())) {
+                // 添加到结果列表
+                addIssus(
+                        routeBean.getName(),
+                        expressionUtils.getUrl(),
+                        String.valueOf(expressionUtils.getCode()),
+                        response
+                );
+
+                // 创建扫描问题
+                IScanIssue issue = new CustomScanIssue(
+                        originalRequest.getHttpService(),
+                        new URL(expressionUtils.getUrl()),
+                        new IHttpRequestResponse[]{response},
+                        "Directory leakage",
+                        "A sensitive directory leak vulnerability was discovered.",
+                        "High",
+                        "Certain"
+                );
+                Utils.callbacks.addScanIssue(issue);
+            }
+        } catch (Exception e) {
+            Utils.stderr.println("Error processing response: " + e.getMessage());
         }
     }
 
@@ -455,11 +545,18 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         return result;
     }
 
+    private static String generateIssueKey(String name, String url, String status) {
+        return String.format("%s:%s:%s", name, url, status);
+    }
+
     public static void addIssus(String name, String url, String Status, IHttpRequestResponse requestResponse) {
+        String issueKey = generateIssueKey(name, url, Status);
+
         synchronized (issuslog) {
-            // todo 去重
-            issuslog.add(new RouteIssusEntry(issuslog.size(), name, url, Status, requestResponse));
-            issusTable.updateUI();
+            if (discoveredIssues.add(issueKey)) {  // Set.add()会返回false如果元素已存在
+                issuslog.add(new RouteIssusEntry(issuslog.size(), name, url, Status, requestResponse));
+                issusTable.updateUI();
+            }
         }
     }
 
