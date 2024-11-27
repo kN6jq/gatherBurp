@@ -68,6 +68,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static List<String> domainList = new ArrayList<>(); // 存放域名白名单
     private static List<SqlBean> headerList = new ArrayList<>(); // 存放header白名单
     private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
+    private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
+    private static boolean isBooleanBlind;  // 是否进行布尔盲注
     private static final String[] rules = {
             "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
             "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
@@ -312,11 +314,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         // 检查是否存在盲注
                         boolean isVulnerable = checkBlindInjection(
                                 originalResponse,
-                                doubleQuoteBody,
                                 singleQuoteBody,
+                                doubleQuoteBody,
                                 jsonResponseLength,
-                                doubleQuoteBody.length(),
-                                singleQuoteBody.length()
+                                singleQuoteBody.length(),
+                                doubleQuoteBody.length()
                         );
 
                         // 如果存在盲注，添加到漏洞字符串
@@ -670,18 +672,22 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     // 盲注响应长度及相似度对比
     private static boolean checkBlindInjection(String originalResponse, String abnormalResponse, String normalResponse, int originalLength, int abnormalLength, int normalLength) {
-        // 判断方式1: 基于响应长度变化（考虑动态内容）
-        boolean lengthBasedCheck = checkResponseLength(
-                originalResponse, abnormalResponse, normalResponse,
-                originalLength, abnormalLength, normalLength
-        );
+        if (isBooleanBlind){
+            // 判断方式1: 基于响应长度变化（考虑动态内容）
+            boolean lengthBasedCheck = checkResponseLength(
+                    originalResponse, abnormalResponse, normalResponse,
+                    originalLength, abnormalLength, normalLength
+            );
 
-        // 判断方式2: 基于相似度比对
-        boolean similarityBasedCheck = checkResponseSimilarity(
-                originalResponse, abnormalResponse, normalResponse
-        );
+            // 判断方式2: 基于相似度比对
+            boolean similarityBasedCheck = checkResponseSimilarity(
+                    originalResponse, abnormalResponse, normalResponse
+            );
 
-        return lengthBasedCheck || similarityBasedCheck;
+            return lengthBasedCheck || similarityBasedCheck;
+        }else {
+            return false;
+        }
     }
 
     // 检查响应长度模式，考虑动态内容
@@ -1028,6 +1034,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     }
 
     private void setupData() {
+        // 盲注检查
+        booleanBlindCheckBox.addActionListener(e -> isBooleanBlind = booleanBlindCheckBox.isSelected());
 
         refreshTableButton.addActionListener(e -> {
             urltable.updateUI();
@@ -1376,7 +1384,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 检测header label
         JLabel headerLabel = new JLabel("header检测列表");
 
-
+        booleanBlindCheckBox = new JCheckBox("布尔盲注");
         // 添加到右边的上部分
         JPanel rightTopPanel = new JPanel();
         rightTopPanel.setLayout(new GridBagLayout());
@@ -1386,6 +1394,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         rightTopPanel.add(checkHeaderCheckBox, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightTopPanel.add(checkWhiteListCheckBox, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightTopPanel.add(urlEncodeCheckBox, new GridBagConstraintsHelper(2, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightTopPanel.add(booleanBlindCheckBox, new GridBagConstraintsHelper(2, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightTopPanel.add(saveWhiteListButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightTopPanel.add(saveHeaderListButton, new GridBagConstraintsHelper(1, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightTopPanel.add(whiteDomainListLabel, new GridBagConstraintsHelper(0, 3, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
