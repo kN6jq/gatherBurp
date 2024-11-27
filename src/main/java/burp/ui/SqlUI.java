@@ -16,6 +16,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import static burp.IParameter.*;
@@ -70,6 +71,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
     private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
+    private static final ConcurrentHashMap<Integer, List<PayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
+    private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
     private static final String[] rules = {
             "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
             "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
@@ -876,13 +879,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     // 添加url数据到表格
     public static int addUrl(String method, String url, int length, IHttpRequestResponse requestResponse) {
-        synchronized (urldata) {
-            int id = urldata.size();
-            urldata.add(new UrlEntry(id, method, url, length, "正在检测", requestResponse));
+        int id = urlIdCounter.getAndIncrement();
+        UrlEntry entry = new UrlEntry(id, method, url, length, "正在检测", requestResponse);
+        urlPayloadMapping.put(id, Collections.synchronizedList(new ArrayList<>()));
+
+        SwingUtilities.invokeLater(() -> {
+            urldata.add(entry);
             urltable.updateUI();
-            payloadtable.updateUI();
-            return id;
-        }
+        });
+        return id;
     }
 
     // 添加漏洞数据到表格
@@ -893,11 +898,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     // 添加payload数据到表格
     public static void addPayload(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
-        synchronized (payloaddata2) {
-            payloaddata2.add(new PayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse));
-            urltable.updateUI();
+        PayloadEntry entry = new PayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse);
+        urlPayloadMapping.get(selectId).add(entry);
+
+        SwingUtilities.invokeLater(() -> {
+            payloaddata2.add(entry);
             payloadtable.updateUI();
-        }
+        });
     }
 
     // payload检测方法
@@ -1042,12 +1049,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             payloadtable.updateUI();
         });
         clearTableButton.addActionListener(e -> {
+            urlPayloadMapping.clear();
+            urlIdCounter.set(0);
             urldata.clear();
             payloaddata.clear();
             payloaddata2.clear();
+            vul.clear();
             HRequestTextEditor.setMessage(new byte[0], true);
             HResponseTextEditor.setMessage(new byte[0], false);
-            urlHashList.clear();
             urltable.updateUI();
             payloadtable.updateUI();
         });
