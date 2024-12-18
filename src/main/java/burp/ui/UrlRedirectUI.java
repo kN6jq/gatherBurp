@@ -144,10 +144,11 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
         if (payloads.isEmpty()) {
             payloads.addAll(Arrays.asList(
                     "https://" + host + "%40www.evil.com",
-                    "https://www.evil.com%5C%2E" + host,
-                    "https://www.evil.com%5C%40" + host,
+                    "https://www.evil.com%2F" + host,
+                    "https://www.evil.com%3F" + host,
                     "https://www.evil.com%23" + host,
-                    "https://" + host + ":80%40www.evil.com",
+                    "https://www.evil.com%5C" + host,
+                    "https://www.evil.com%2E" + host,
                     "//www.evil.com",
                     "http://www.evil.com",
                     "https://www.evil.com"
@@ -171,15 +172,11 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         // 设置默认参数
         String[] defaultParams = {
-                "redirect", "redirect_to", "url", "jump", "target", "to", "link",
-                "goto", "return_url", "next", "returnUrl", "return"
+                "redirect","redirect_to","url","jump","target","to","link","goto","return_url","next","returnUrl","return","redirectUrl","callback","toUrl","ReturnUrl","fromUrl","redUrl","request","redirect_url","jump_to","linkto","domain","oauth_callback"
         };
 
         // 设置默认payload
         String[] defaultPayloads = {
-                "//www.evil.com",
-                "http://www.evil.com",
-                "https://www.evil.com"
         };
 
         // 创建并添加面板（带默认值）
@@ -356,8 +353,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
         // 如果没有配置参数，使用默认参数
         if (testParams.isEmpty()) {
             testParams.addAll(Arrays.asList(
-                    "redirect", "redirect_to", "url", "jump", "target", "to", "link",
-                    "goto", "return_url", "next", "returnUrl", "return"
+                    "redirect","redirect_to","url","jump","target","to","link","goto","return_url","next","returnUrl","return","redirectUrl","callback","toUrl","ReturnUrl","fromUrl","redUrl","request","redirect_url","jump_to","linkto","domain","oauth_callback"
+
             ));
         }
 

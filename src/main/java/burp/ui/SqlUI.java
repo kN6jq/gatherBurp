@@ -225,11 +225,11 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         byte[] postMessage = Utils.helpers.buildHttpMessage(reqheaders, body);
         IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
         byte[] responseBody = originalRequestResponse.getResponse();
-
+        IResponseInfo originalReqResponse = null;
         // 如果有返回,尝试拿到Content-Length
         int originalLength = 0;
         if (responseBody != null) {
-            IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
+            originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
             List<String> sqlHeaders = originalReqResponse.getHeaders();
             String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
             if (contentLength != null) {
@@ -238,8 +238,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 originalLength = Integer.parseInt(String.valueOf(responseBody.length));
             }
         }
-        // 如果原始包没有返回数据,则return
-        if (originalLength == 0) {
+        // 如果原始包没有返回数据或者响应状态为404 直接return
+        if (originalLength == 0 || originalReqResponse.getStatusCode() == 404) {
             return;
         }
 
@@ -1341,9 +1341,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         HRequestTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
         tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("request", HRequestTextEditor.getComponent());
+        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
         tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("response", HResponseTextEditor.getComponent());
+        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
         zxSplitPane.setLeftComponent(tabbedPanereq);
         zxSplitPane.setRightComponent(tabbedPaneresp);
 

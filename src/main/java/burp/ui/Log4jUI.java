@@ -325,8 +325,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         tabbedPaneresp = new JTabbedPane();
         HRequestTextEditor = Utils.callbacks.createMessageEditor(this, false);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
-        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
-        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
+        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
+        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
         JSplitPane leftDownSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         leftDownSplitPane.setResizeWeight(0.5);
         leftDownSplitPane.setDividerLocation(0.5);

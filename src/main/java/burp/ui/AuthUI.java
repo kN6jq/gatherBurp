@@ -123,11 +123,11 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         // 添加请求响应到左右分割面板
         authtabbedPanereq = new JTabbedPane();
         HRequestTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, true);
-        authtabbedPanereq.addTab("request", HRequestTextEditor.getComponent());
+        authtabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
 
         authtabbedPaneresp = new JTabbedPane();
         HResponseTextEditor = Utils.callbacks.createMessageEditor(AuthUI.this, false);
-        authtabbedPaneresp.addTab("response", HResponseTextEditor.getComponent());
+        authtabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
         splitPaneDown.setLeftComponent(authtabbedPanereq);
         splitPaneDown.setRightComponent(authtabbedPaneresp);
 

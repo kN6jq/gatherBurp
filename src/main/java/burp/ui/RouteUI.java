@@ -293,9 +293,9 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         HRequestTextEditor = Utils.callbacks.createMessageEditor(this, true);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
         tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("request", HRequestTextEditor.getComponent());
+        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
         tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("response", HResponseTextEditor.getComponent());
+        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
         bottomSplitPane.setLeftComponent(tabbedPanereq);
         bottomSplitPane.setRightComponent(tabbedPaneresp);
 
