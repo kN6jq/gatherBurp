@@ -11,6 +11,8 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.net.URL;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     private JButton saveAuthDataButton; // 保存认证数据按钮
     private JButton refreshButton; // 刷新按钮
     private JButton clearButton; // 清空数据按钮
+    private JButton exportButton; // 导出按钮
     private JTextArea lowPermAuthTextArea; // 低权限认证请求信息输入框
     private JTextArea noPermAuthTextArea; // 无权限认证请求信息输入框
     private IMessageEditor originarequest;  // 原始请求
@@ -232,7 +235,44 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 permTable.updateUI();
             }
         });
+        
+        // 导出
+        exportButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                exportTableToClipboard();
+            }
+        });
+    }
 
+    // 导出表格数据到剪切板
+    private void exportTableToClipboard() {
+        if (permlog.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "表格中没有数据", "提示", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        StringBuilder content = new StringBuilder();
+        // 添加表头
+        content.append("id\tmethod\turl\toriginallength\tlowlength\tnolength\tisSuccess\n");
+        
+        // 添加表格数据
+        for (PermEntry entry : permlog) {
+            content.append(entry.id).append("\t")
+                   .append(entry.method).append("\t")
+                   .append(entry.url).append("\t")
+                   .append(entry.originalength).append("\t")
+                   .append(entry.lowlength).append("\t")
+                   .append(entry.nolength).append("\t")
+                   .append(entry.isSuccess).append("\n");
+        }
+        
+        // 复制到剪切板
+        StringSelection stringSelection = new StringSelection(content.toString());
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
+        
+        JOptionPane.showMessageDialog(null, "导出成功，已复制到剪切板", "提示", JOptionPane.INFORMATION_MESSAGE);
     }
 
     // 初始化ui
@@ -326,6 +366,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         refreshButton = new JButton("刷新表格");
         // 清空数据按钮
         clearButton = new JButton("清空表格");
+        // 导出按钮
+        exportButton = new JButton("导出数据");
 
         // 右边的下部分
         // 低权限认证请求信息Label
@@ -347,9 +389,13 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // passiveScanCheckBox和whiteDomainListCheckBox在第一行
         rightSplitPane.add(passiveScanCheckBox, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         rightSplitPane.add(whiteDomainListCheckBox, new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // saveWhiteListButton和saveAuthDataButton在第二行
+        // saveWhiteListButton在第二行第一列
         rightSplitPane.add(saveWhiteDomainButton, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightSplitPane.add(saveAuthDataButton, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        // saveAuthDataButton和exportButton在第二行第二列
+        JPanel authExportPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        authExportPanel.add(saveAuthDataButton);
+        authExportPanel.add(exportButton);
+        rightSplitPane.add(authExportPanel, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         // whiteListLabel在第三行
         rightSplitPane.add(whiteListLabel, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
         // whiteListTextArea在第四行
