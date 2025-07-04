@@ -281,7 +281,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         String payload = Utils.ReplaceChar(sql.getValue());
                         // 如果sqlPayload是上面的 可以直接跳过
                         if (payload.equals("'") || payload.equals("''") || payload.equals("'''") || payload.isEmpty()) {
-                            break;
+                            continue;
                         }
                         checkPayload(logid, para, paraName, paraValue, url, originalLength, baseRequestResponse, payload);
                     }
@@ -494,7 +494,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                         String payload = "";
                         String sqlPayload = Utils.ReplaceChar(sql.getValue());
                         if (sqlPayload.isEmpty()) {
-                            return;
+                            continue;
                         }
                         // 是否删除原始的参数值
                         if (isDeleteOrgin) {
@@ -576,7 +576,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             String payload = "";
                             String sqlPayload = Utils.ReplaceChar(sql.getValue());
                             if (sqlPayload.isEmpty()) {
-                                return;
+                                continue;
                             }
                             if (isDeleteOrgin) {
                                 payload = sqlPayload;
@@ -1074,6 +1074,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         saveSqlPayloadButton.addActionListener(e -> {
             String sqleditorPane1Text = sqlPayloadTextArea.getText();
             deleteSqlByType("payload");
+            // 清空内存中的sqliPayload列表
+            sqliPayload.clear();
             // 如果包含换行符，就分割成多个payload
             if (sqleditorPane1Text.contains("\n")) {
                 String[] payloads = sqleditorPane1Text.split("\n");
