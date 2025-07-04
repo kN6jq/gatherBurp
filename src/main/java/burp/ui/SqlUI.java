@@ -166,7 +166,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             "MySqlClient",
             "ORA-\\d{5}",
             "引号不完整",
-            "数据库出错"
+            "数据库出错",
+            "Parameter '\\w+' not found",
+            "org\\.apache\\.ibatis\\.binding\\.BindingException",
+            "mybatis\\.binding\\.BindingException",
+            "org\\.mybatis\\.spring\\.MyBatisSystemException",
+            "java\\.lang\\.IllegalArgumentException: invalid parameter",
+            "Could not resolve parameter",
+            "There is no getter for property named",
+            "Error evaluating expression",
+            "Error parsing parameter",
+            "Invalid bound statement"
     };
 
     // sql检测核心方法
