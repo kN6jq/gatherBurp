@@ -650,6 +650,14 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                     return null;
             }
         }
+        
+        @Override
+        public Class<?> getColumnClass(int column) {
+            if (column == 0) {
+                return Integer.class;
+            }
+            return super.getColumnClass(column);
+        }
     }
 
     // perm 实体
