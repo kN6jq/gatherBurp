@@ -467,7 +467,13 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            RedirectEntry entry = redirectLog.get(row);
+            // 如果表格已排序，需要将视图索引转换为模型索引
+            int modelRow = row;
+            if (getRowSorter() != null) {
+                modelRow = convertRowIndexToModel(row);
+            }
+            
+            RedirectEntry entry = redirectLog.get(modelRow);
             // 更新请求响应查看器
             requestViewer.setMessage(entry.requestResponse.getRequest(), true);
             responseViewer.setMessage(entry.requestResponse.getResponse(), false);
@@ -514,6 +520,14 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
         @Override
         public String getColumnName(int column) {
             return COLUMNS[column];
+        }
+        
+        @Override
+        public Class<?> getColumnClass(int column) {
+            if (column == 0) {
+                return Integer.class;
+            }
+            return super.getColumnClass(column);
         }
     }
 
