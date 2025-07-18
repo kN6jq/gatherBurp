@@ -503,8 +503,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                             payload = paraValue + sqlPayload;
                         }
                         long startTime = System.currentTimeMillis();
-                        IParameter iParameter = Utils.helpers.buildParameter(paraName, payload, para.getType());
-                        byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
+                        IParameter iParameters = Utils.helpers.buildParameter(paraName, payload, para.getType());
+                        byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameters);
                         IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
                         long endTime = System.currentTimeMillis();
                         IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
@@ -1571,6 +1571,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     return null;
             }
         }
+        
+        @Override
+        public Class<?> getColumnClass(int column) {
+            if (column == 0) {
+                return Integer.class;
+            }
+            return super.getColumnClass(column);
+        }
     }
 
     // Payload 模型
@@ -1635,6 +1643,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private class URLTable extends JTable {
         public URLTable(AbstractTableModel model) {
             super(model);
+            setAutoCreateRowSorter(true);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
             columnModel.getColumn(1).setMaxWidth(100);
@@ -1642,7 +1651,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-            UrlEntry logEntry = urldata.get(rowIndex);
+            // 如果表格已排序，需要将视图索引转换为模型索引
+            int modelRow = rowIndex;
+            if (getRowSorter() != null) {
+                modelRow = convertRowIndexToModel(rowIndex);
+            }
+            
+            UrlEntry logEntry = urldata.get(modelRow);
             int select_id = logEntry.id;
             payloaddata.clear();
             for (PayloadEntry payloadEntry : payloaddata2) {
