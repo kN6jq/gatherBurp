@@ -728,6 +728,14 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                     return null;
             }
         }
+        
+        @Override
+        public Class<?> getColumnClass(int column) {
+            if (column == 0) {
+                return Integer.class;
+            }
+            return super.getColumnClass(column);
+        }
     }
 
     public static class Log4jEntry {
@@ -752,6 +760,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     class URLTable extends JTable {
         public URLTable(TableModel tableModel) {
             super(tableModel);
+            setAutoCreateRowSorter(true);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
 
@@ -759,7 +768,13 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-            Log4jEntry logEntry = log4jlog.get(rowIndex);
+            // 如果表格已排序，需要将视图索引转换为模型索引
+            int modelRow = rowIndex;
+            if (getRowSorter() != null) {
+                modelRow = convertRowIndexToModel(rowIndex);
+            }
+            
+            Log4jEntry logEntry = log4jlog.get(modelRow);
             HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             if (logEntry.requestResponse.getResponse() == null) {
                 HResponseTextEditor.setMessage(new byte[0], false);
