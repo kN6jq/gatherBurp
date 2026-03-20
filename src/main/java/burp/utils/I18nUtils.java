@@ -243,8 +243,8 @@ public class I18nUtils {
         // 初始化中文映射
         Map<String, String> zhMap = new HashMap<>();
         // AuthUI
-        zhMap.put("auth.button.clear", "Clear");
-        zhMap.put("auth.button.save", "Save");
+        zhMap.put("auth.button.clear", "清空表格");
+        zhMap.put("auth.button.save", "保存");
         zhMap.put("auth.label.ip", "IP:");
         
         // SqlUI
@@ -291,10 +291,10 @@ public class I18nUtils {
         zhMap.put("perm.message.fill_whitelist", "请先填写白名单域名");
         
         // FastjsonUI
-        zhMap.put("fastjson.button.clear", "Clear");
-        zhMap.put("fastjson.button.refresh", "Refresh");
-        zhMap.put("fastjson.checkbox.passive", "Enable Passive Scan");
-        zhMap.put("fastjson.checkbox.auto_refresh", "Auto Refresh");
+        zhMap.put("fastjson.button.clear", "清空表格");
+        zhMap.put("fastjson.button.refresh", "刷新表格");
+        zhMap.put("fastjson.checkbox.passive_scan", "被动扫描");
+        zhMap.put("fastjson.checkbox.auto_refresh", "自动刷新表格");
         zhMap.put("fastjson.message.enter_echo", "请输入echo命令");
         
         // Log4jUI
@@ -317,13 +317,13 @@ public class I18nUtils {
         zhMap.put("log4j.border.actions", "操作");
         
         // RouteUI
-        zhMap.put("route.button.refresh", "refersh");
-        zhMap.put("route.button.clear", "clear");
-        zhMap.put("route.checkbox.passive", "passive");
+        zhMap.put("route.button.refresh", "刷新表格");
+        zhMap.put("route.button.clear", "清空表格");
+        zhMap.put("route.checkbox.passive", "被动扫描");
         zhMap.put("route.label.tips", "自定义规则添加: ");
-        zhMap.put("route.label.name", "name:");
-        zhMap.put("route.label.path", "path:");
-        zhMap.put("route.label.express", "express:");
+        zhMap.put("route.label.name", "规则名称:");
+        zhMap.put("route.label.path", "路径:");
+        zhMap.put("route.label.express", "表达式规则:");
         zhMap.put("route.button.add", "添加规则");
         zhMap.put("route.button.delete", "删除选中规则");
         zhMap.put("route.button.enable", "开启/关闭选中规则");
@@ -368,7 +368,7 @@ public class I18nUtils {
         zhMap.put("fastjson.dialog.tip", "提示");
         
         // AuthUI
-        zhMap.put("auth.button.clear", "清空");
+        zhMap.put("auth.button.clear", "清空表格");
         zhMap.put("auth.label.ip", "IP:");
         zhMap.put("auth.button.save", "保存");
         
@@ -427,11 +427,11 @@ public class I18nUtils {
         zhMap.put("config.title.info", "提示");
         
         // 通用
-        zhMap.put("common.button.save", "Save");
-        zhMap.put("common.button.next", "Next");
-        zhMap.put("common.checkbox.enable", "Enable Socks");
-        zhMap.put("common.border.proxy_pool", "Proxy Pool: (example: 1.2.3.4:7890 or 1.2.3.4:7890:user:pass)");
-        zhMap.put("common.border.log", "Log");
+        zhMap.put("common.button.save", "保存");
+        zhMap.put("common.button.next", "下一个");
+        zhMap.put("common.checkbox.enable", "启用Socks");
+        zhMap.put("common.border.proxy_pool", "代理池: (示例: 1.2.3.4:7890 or 1.2.3.4:7890:user:pass)");
+        zhMap.put("common.border.log", "日志");
         zhMap.put("common.label.language", "语言");
         zhMap.put("common.message.language_change", "语言已更改，请重启插件以应用更改。");
         zhMap.put("common.title.info", "提示");

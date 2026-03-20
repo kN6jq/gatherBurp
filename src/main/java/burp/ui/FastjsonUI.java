@@ -139,8 +139,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         panel.setLayout(new BorderLayout());
         // 顶部面板添加清空按钮和被动扫描复选框
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        btnClear = new JButton("Clear");
-        passiveScanCheckBox = new JCheckBox("Enable Passive Scan");
+        btnClear = new JButton(I18nUtils.get("fastjson.button.clear"));
+        passiveScanCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.passive_scan"));
         btnRefresh = new JButton(I18nUtils.get("fastjson.button.refresh"));
         autoRefreshCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.auto_refresh"));
         autoRefreshCheckBox.setSelected(true); // 默认开启自动刷新
