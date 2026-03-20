@@ -222,44 +222,44 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         // 添加一个JPanel 采用flowLayout布局
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         // 添加一个刷新按钮
-        refreshButton = new JButton("refersh");
+        refreshButton = new JButton("Refresh");
         topPanel.add(refreshButton);
         // 添加一个清空按钮
-        clearButton = new JButton("clear");
+        clearButton = new JButton("Clear");
         topPanel.add(clearButton);
         // 添加一个被动扫描选择框
-        passiveCheckBox = new JCheckBox("passive");
+        passiveCheckBox = new JCheckBox("Passive Scan");
         topPanel.add(passiveCheckBox);
         // 添加一个分割符号
         // 添加一个提示的的Jlabel
-        JLabel tipsLabel = new JLabel("自定义规则添加: ");
+        JLabel tipsLabel = new JLabel("Add Custom Rule: ");
         topPanel.add(tipsLabel);
         // 添加一个name的Jlabel
-        JLabel nameLabel = new JLabel("name:");
+        JLabel nameLabel = new JLabel("Name:");
         topPanel.add(nameLabel);
         // 添加一个name的输入框
         nameTextField = new JTextField(10);
         topPanel.add(nameTextField);
         // 添加一个path的Jlabel
-        JLabel pathLabel = new JLabel("path:");
+        JLabel pathLabel = new JLabel("Path:");
         topPanel.add(pathLabel);
         // 添加一个path的输入框
         pathTextField = new JTextField(10);
         topPanel.add(pathTextField);
         // 添加一个Express的Jlabel
-        JLabel expressLabel = new JLabel("express:");
+        JLabel expressLabel = new JLabel("Express:");
         topPanel.add(expressLabel);
         // 添加一个express的输入框
         expressTextField = new JTextField(10);
         topPanel.add(expressTextField);
         // 添加一个添加按钮
-        addButton = new JButton("添加规则");
+        addButton = new JButton("Add Rule");
         topPanel.add(addButton);
         // 添加一个删除按钮
-        deleteButton = new JButton("删除选中规则");
+        deleteButton = new JButton("Delete Selected");
         topPanel.add(deleteButton);
         // 添加一个开启选中规则按钮
-        enableButton = new JButton("开启/关闭选中规则");
+        enableButton = new JButton("Enable/Disable Selected");
         topPanel.add(enableButton);
 
         // 添加一个上下对称分割的面板
@@ -293,9 +293,9 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         HRequestTextEditor = Utils.callbacks.createMessageEditor(this, true);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
         tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
+        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
         tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
+        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
         bottomSplitPane.setLeftComponent(tabbedPanereq);
         bottomSplitPane.setRightComponent(tabbedPaneresp);
 

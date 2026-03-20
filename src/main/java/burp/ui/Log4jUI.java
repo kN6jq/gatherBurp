@@ -172,10 +172,10 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 ip = getConfig("config", "ip").getValue();
                 if (isDnsOrIpCheckBox.isSelected()) {
                     isDnsOrIp = true;
-                    isDnsOrIpCheckBox.setText("dns");
+                    isDnsOrIpCheckBox.setText("DNS");
                 } else {
                     isDnsOrIp = false;
-                    isDnsOrIpCheckBox.setText("ip");
+                    isDnsOrIpCheckBox.setText("IP");
                 }
             }
         });
@@ -325,8 +325,8 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         tabbedPaneresp = new JTabbedPane();
         HRequestTextEditor = Utils.callbacks.createMessageEditor(this, false);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
-        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
-        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
+        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
+        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
         JSplitPane leftDownSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         leftDownSplitPane.setResizeWeight(0.5);
         leftDownSplitPane.setDividerLocation(0.5);
@@ -342,22 +342,22 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         rightSplitPane.setDividerLocation(0.7);
 
 
-        // 右边的上部分
+        // 右边的上部分 - 重新设计布局
         // 添加被动扫描选择框
-        passiveScanCheckBox = new JCheckBox("被动扫描");
+        passiveScanCheckBox = new JCheckBox("Passive Scan");
         // 添加删除原始值选择框
-        originalValueCheckBox = new JCheckBox("原始payload");
+        originalValueCheckBox = new JCheckBox("Original Payload");
         // 添加检测cookie选择框
-        checkParmamCheckBox = new JCheckBox("检测参数");
+        checkParmamCheckBox = new JCheckBox("Check Parameters");
         // 添加检测header选择框
-        checkHeaderCheckBox = new JCheckBox("检测header");
+        checkHeaderCheckBox = new JCheckBox("Check Headers");
         // 添加白名单域名检测选择框
-        checkWhiteListCheckBox = new JCheckBox("白名单域名检测");
-        isDnsOrIpCheckBox = new JCheckBox("dns");
+        checkWhiteListCheckBox = new JCheckBox("Whitelist Domain");
+        isDnsOrIpCheckBox = new JCheckBox("DNS");
         // 白名单域名保存按钮
-        saveWhiteListButton = new JButton("保存白名单域名");
+        saveWhiteListButton = new JButton("Save Whitelist");
         // 保存header按钮
-        saveHeaderListButton = new JButton("保存header");
+        saveHeaderListButton = new JButton("Save Headers");
         // 白名单域名输入框列表
         whiteListTextArea = new JTextArea(5,10);
         whiteListTextArea.setLineWrap(false); // 自动换行
@@ -370,51 +370,99 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         headerTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
         // 刷新表格按钮
-        refreshTableButton = new JButton("刷新表格");
+        refreshTableButton = new JButton("Refresh");
         // 清空表格按钮
-        clearTableButton = new JButton("清空表格");
+        clearTableButton = new JButton("Clear");
         // 白名单域名label
-        JLabel whiteDomainListLabel = new JLabel("白名单域名");
+        JLabel whiteDomainListLabel = new JLabel("Whitelist Domains");
         // 检测header label
-        JLabel headerLabel = new JLabel("header检测列表");
+        JLabel headerLabel = new JLabel("Header Detection List");
 
-
-        // 添加到右边的上部分
+        // 添加到右边的上部分 - 重新设计布局
         JPanel rightTopPanel = new JPanel();
-        rightTopPanel.setLayout(new GridBagLayout());
-        rightTopPanel.add(passiveScanCheckBox, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(originalValueCheckBox, new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkHeaderCheckBox, new GridBagConstraintsHelper(2, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkParmamCheckBox, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkWhiteListCheckBox, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(isDnsOrIpCheckBox, new GridBagConstraintsHelper(2, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(saveWhiteListButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(saveHeaderListButton, new GridBagConstraintsHelper(1, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(whiteDomainListLabel, new GridBagConstraintsHelper(0, 3, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(whiteListTextAreascrollPane, new GridBagConstraintsHelper(0, 4, 3, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightTopPanel.add(headerLabel, new GridBagConstraintsHelper(0, 5, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(headerTextAreascrollPane, new GridBagConstraintsHelper(0, 6, 3, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightTopPanel.add(refreshTableButton, new GridBagConstraintsHelper(0, 7, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(clearTableButton, new GridBagConstraintsHelper(1, 7, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightTopPanel.setLayout(new BorderLayout());
+        rightTopPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        // 创建扫描选项面板
+        JPanel scanOptionsPanel = new JPanel();
+        scanOptionsPanel.setLayout(new GridLayout(2, 3, 5, 5));
+        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder("Scan Options"));
+        scanOptionsPanel.add(passiveScanCheckBox);
+        scanOptionsPanel.add(originalValueCheckBox);
+        scanOptionsPanel.add(checkParmamCheckBox);
+        scanOptionsPanel.add(checkHeaderCheckBox);
+        scanOptionsPanel.add(checkWhiteListCheckBox);
+        scanOptionsPanel.add(isDnsOrIpCheckBox);
+
+        // 创建配置面板
+        JPanel configPanel = new JPanel();
+        configPanel.setLayout(new BorderLayout(5, 5));
+        configPanel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+
+        // 白名单域名配置
+        JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
+        whitelistPanel.add(whiteDomainListLabel, BorderLayout.NORTH);
+        whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
+        JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        whitelistButtonPanel.add(saveWhiteListButton);
+        whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
+
+        // Header检测配置
+        JPanel headerPanel = new JPanel(new BorderLayout(5, 5));
+        headerPanel.add(headerLabel, BorderLayout.NORTH);
+        headerPanel.add(headerTextAreascrollPane, BorderLayout.CENTER);
+        JPanel headerButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        headerButtonPanel.add(saveHeaderListButton);
+        headerPanel.add(headerButtonPanel, BorderLayout.SOUTH);
+
+        // 将白名单和Header配置放入分割面板
+        JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        configSplitPane.setResizeWeight(0.5);
+        configSplitPane.setDividerLocation(0.5);
+        configSplitPane.setTopComponent(whitelistPanel);
+        configSplitPane.setBottomComponent(headerPanel);
+        configPanel.add(configSplitPane, BorderLayout.CENTER);
+
+        // 创建操作按钮面板
+        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        actionButtonsPanel.add(refreshTableButton);
+        actionButtonsPanel.add(clearTableButton);
+
+        // 将所有面板放入主面板
+        JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainRightSplitPane.setResizeWeight(0.3);
+        mainRightSplitPane.setDividerLocation(0.3);
+        mainRightSplitPane.setTopComponent(scanOptionsPanel);
+        
+        JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
+        configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
+        configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
+        mainRightSplitPane.setBottomComponent(configAndActionsPanel);
+        
+        rightTopPanel.add(mainRightSplitPane, BorderLayout.CENTER);
 
         rightSplitPane.setTopComponent(rightTopPanel);
 
 
         // 右边的下部分左边
         // log4j payload label
-        JLabel PayloadLabel = new JLabel("payload 列表");
+        JLabel PayloadLabel = new JLabel("Payload List");
         // log4j payload输入框
         // log4j payload保存按钮
         payloadTextArea = new JTextArea(5,10);
         payloadTextArea.setLineWrap(false); // 自动换行
         payloadTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane payloadTextAreascrollPane = new JScrollPane(payloadTextArea);
-        savePayloadButton = new JButton("保存payload");
+        savePayloadButton = new JButton("Save Payload");
         JPanel rightDownLeftPanel = new JPanel();
-        rightDownLeftPanel.setLayout(new GridBagLayout());
-        rightDownLeftPanel.add(PayloadLabel, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightDownLeftPanel.add(payloadTextAreascrollPane, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightDownLeftPanel.add(savePayloadButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightDownLeftPanel.setLayout(new BorderLayout(5, 5));
+        rightDownLeftPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        rightDownLeftPanel.add(PayloadLabel, BorderLayout.NORTH);
+        rightDownLeftPanel.add(payloadTextAreascrollPane, BorderLayout.CENTER);
+        JPanel payloadButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        payloadButtonPanel.add(savePayloadButton);
+        rightDownLeftPanel.add(payloadButtonPanel, BorderLayout.SOUTH);
 
 
         // 左右分割面板添加rightDownLeftPanel和rightDownRightPanel

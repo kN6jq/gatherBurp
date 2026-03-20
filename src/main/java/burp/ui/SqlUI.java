@@ -1362,9 +1362,9 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         HRequestTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
         HResponseTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
         tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("请求", HRequestTextEditor.getComponent());
+        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
         tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("响应", HResponseTextEditor.getComponent());
+        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
         zxSplitPane.setLeftComponent(tabbedPanereq);
         zxSplitPane.setRightComponent(tabbedPaneresp);
 
@@ -1380,20 +1380,20 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         // 右边的上部分
         // 添加被动扫描选择框
-        passiveScanCheckBox = new JCheckBox("被动扫描");
+        passiveScanCheckBox = new JCheckBox("Passive Scan");
         // 添加删除原始值选择框
-        deleteOriginalValueCheckBox = new JCheckBox("删除原始值");
+        deleteOriginalValueCheckBox = new JCheckBox("Delete Original Value");
         // 添加检测cookie选择框
-        checkCookieCheckBox = new JCheckBox("检测cookie");
+        checkCookieCheckBox = new JCheckBox("Check Cookie");
         // 添加检测header选择框
-        checkHeaderCheckBox = new JCheckBox("检测header");
+        checkHeaderCheckBox = new JCheckBox("Check Header");
         // 添加白名单域名检测选择框
-        checkWhiteListCheckBox = new JCheckBox("白名单域名检测");
-        urlEncodeCheckBox = new JCheckBox("url编码");
+        checkWhiteListCheckBox = new JCheckBox("Whitelist Domain");
+        urlEncodeCheckBox = new JCheckBox("URL Encode");
         // 白名单域名保存按钮
-        saveWhiteListButton = new JButton("保存白名单域名");
+        saveWhiteListButton = new JButton("Save Whitelist");
         // 保存header按钮
-        saveHeaderListButton = new JButton("保存header");
+        saveHeaderListButton = new JButton("Save Headers");
         // 白名单域名输入框列表
         whiteListTextArea = new JTextArea(5, 10);
         whiteListTextArea.setLineWrap(false); // 自动换行
@@ -1406,40 +1406,87 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         headerTextArea.setWrapStyleWord(true); // 按单词换行
         JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
         // 刷新表格按钮
-        refreshTableButton = new JButton("刷新表格");
+        refreshTableButton = new JButton("Refresh");
         // 清空表格按钮
-        clearTableButton = new JButton("清空表格");
+        clearTableButton = new JButton("Clear");
         // 白名单域名label
-        JLabel whiteDomainListLabel = new JLabel("白名单域名");
+        JLabel whiteDomainListLabel = new JLabel("Whitelist Domains");
         // 检测header label
-        JLabel headerLabel = new JLabel("header检测列表");
+        JLabel headerLabel = new JLabel("Header Detection List");
 
-        booleanBlindCheckBox = new JCheckBox("布尔盲注");
-        // 添加到右边的上部分
+        booleanBlindCheckBox = new JCheckBox("Boolean Blind");
+        
+        // 添加到右边的上部分 - 重新设计布局
         JPanel rightTopPanel = new JPanel();
-        rightTopPanel.setLayout(new GridBagLayout());
-        rightTopPanel.add(passiveScanCheckBox, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(deleteOriginalValueCheckBox, new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkCookieCheckBox, new GridBagConstraintsHelper(2, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkHeaderCheckBox, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(checkWhiteListCheckBox, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(urlEncodeCheckBox, new GridBagConstraintsHelper(2, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(booleanBlindCheckBox, new GridBagConstraintsHelper(2, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(saveWhiteListButton, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(saveHeaderListButton, new GridBagConstraintsHelper(1, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(whiteDomainListLabel, new GridBagConstraintsHelper(0, 3, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(whiteListTextAreascrollPane, new GridBagConstraintsHelper(0, 4, 3, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightTopPanel.add(headerLabel, new GridBagConstraintsHelper(0, 5, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(headerTextAreascrollPane, new GridBagConstraintsHelper(0, 6, 3, 1).setInsets(5).setIpad(0, 0).setWeight(1.0, 1.0).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        rightTopPanel.add(refreshTableButton, new GridBagConstraintsHelper(0, 7, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightTopPanel.add(clearTableButton, new GridBagConstraintsHelper(1, 7, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
+        rightTopPanel.setLayout(new BorderLayout());
+        rightTopPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        // 创建扫描选项面板
+        JPanel scanOptionsPanel = new JPanel();
+        scanOptionsPanel.setLayout(new GridLayout(2, 3, 5, 5));
+        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder("Scan Options"));
+        scanOptionsPanel.add(passiveScanCheckBox);
+        scanOptionsPanel.add(deleteOriginalValueCheckBox);
+        scanOptionsPanel.add(checkCookieCheckBox);
+        scanOptionsPanel.add(checkHeaderCheckBox);
+        scanOptionsPanel.add(checkWhiteListCheckBox);
+        scanOptionsPanel.add(urlEncodeCheckBox);
+        scanOptionsPanel.add(booleanBlindCheckBox);
+
+        // 创建配置面板
+        JPanel configPanel = new JPanel();
+        configPanel.setLayout(new BorderLayout(5, 5));
+        configPanel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+
+        // 白名单域名配置
+        JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
+        whitelistPanel.add(whiteDomainListLabel, BorderLayout.NORTH);
+        whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
+        JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        whitelistButtonPanel.add(saveWhiteListButton);
+        whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
+
+        // Header检测配置
+        JPanel headerPanel = new JPanel(new BorderLayout(5, 5));
+        headerPanel.add(headerLabel, BorderLayout.NORTH);
+        headerPanel.add(headerTextAreascrollPane, BorderLayout.CENTER);
+        JPanel headerButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        headerButtonPanel.add(saveHeaderListButton);
+        headerPanel.add(headerButtonPanel, BorderLayout.SOUTH);
+
+        // 将白名单和Header配置放入分割面板
+        JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        configSplitPane.setResizeWeight(0.5);
+        configSplitPane.setDividerLocation(0.5);
+        configSplitPane.setTopComponent(whitelistPanel);
+        configSplitPane.setBottomComponent(headerPanel);
+        configPanel.add(configSplitPane, BorderLayout.CENTER);
+
+        // 创建操作按钮面板
+        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        actionButtonsPanel.add(refreshTableButton);
+        actionButtonsPanel.add(clearTableButton);
+
+        // 将所有面板放入主面板
+        JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainRightSplitPane.setResizeWeight(0.3);
+        mainRightSplitPane.setDividerLocation(0.3);
+        mainRightSplitPane.setTopComponent(scanOptionsPanel);
+        
+        JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
+        configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
+        configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
+        mainRightSplitPane.setBottomComponent(configAndActionsPanel);
+        
+        rightTopPanel.add(mainRightSplitPane, BorderLayout.CENTER);
 
         rightSplitPane.setTopComponent(rightTopPanel);
 
 
         // 右边的下部分左边
         // sql payload label
-        JLabel sqlPayloadLabel = new JLabel("sql payload");
+        JLabel sqlPayloadLabel = new JLabel("SQL Payload");
         // sqlpayload输入框
         // sqlpayload保存按钮
         sqlPayloadTextArea = new JTextArea(5, 10);
@@ -1447,19 +1494,19 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         sqlPayloadTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlPayloadTextAreascrollPane = new JScrollPane(sqlPayloadTextArea);
 
-        saveSqlPayloadButton = new JButton("保存sql payload");
+        saveSqlPayloadButton = new JButton("Save SQL Payload");
         JPanel rightDownLeftPanel = new JPanel();
         rightDownLeftPanel.setLayout(new BorderLayout());
         rightDownLeftPanel.add(sqlPayloadLabel, BorderLayout.NORTH);
         rightDownLeftPanel.add(sqlPayloadTextAreascrollPane, BorderLayout.CENTER);
         rightDownLeftPanel.add(saveSqlPayloadButton, BorderLayout.SOUTH);
         // 右边的下部分左边
-        JLabel sqlErrKey = new JLabel("sql error key");
+        JLabel sqlErrKey = new JLabel("SQL Error Key");
         sqlErrorKeyTextArea = new JTextArea(5, 10);
         sqlErrorKeyTextArea.setLineWrap(false); // 自动换行
         sqlErrorKeyTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlErrorKeyTextAreascrollPane = new JScrollPane(sqlErrorKeyTextArea);
-        saveSqlErrorKeyButton = new JButton("保存sql error key");
+        saveSqlErrorKeyButton = new JButton("Save SQL Error Key");
         JPanel rightDownRightPanel = new JPanel();
         rightDownRightPanel.setLayout(new BorderLayout());
         rightDownRightPanel.add(sqlErrKey, BorderLayout.NORTH);

@@ -315,7 +315,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         originPaneSplitPane.setLeftComponent(originarequest.getComponent());
         originPaneSplitPane.setRightComponent(originaresponse.getComponent());
         originPane.add(originPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("原始请求包", originPane);
+        tabbedPanereqresp.addTab("Original Request", originPane);
         // 添加低权限请求面板
         lowpermPane = new JPanel(new BorderLayout());
         final JSplitPane lowpermPaneSplitPane = new JSplitPane();
@@ -326,7 +326,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         lowpermPaneSplitPane.setLeftComponent(lowpermrequest.getComponent());
         lowpermPaneSplitPane.setRightComponent(lowpermresponse.getComponent());
         lowpermPane.add(lowpermPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("低权限请求包", lowpermPane);
+        tabbedPanereqresp.addTab("Low Privilege Request", lowpermPane);
         // 添加无权限请求面板
         nopermPane = new JPanel(new BorderLayout());
         final JSplitPane nopermPaneSplitPane = new JSplitPane();
@@ -337,7 +337,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         nopermPaneSplitPane.setLeftComponent(nopermrequest.getComponent());
         nopermPaneSplitPane.setRightComponent(nopermresponse.getComponent());
         nopermPane.add(nopermPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("无权限请求包", nopermPane);
+        tabbedPanereqresp.addTab("No Privilege Request", nopermPane);
 
         // 请求tab添加到leftBottomSplitPane的左边
         leftBottomSplitPane.setLeftComponent(tabbedPanereqresp);
@@ -345,33 +345,48 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // 将leftSplitPane添加到mainsplitPane的左边
         mainsplitPane.add(leftSplitPane, BorderLayout.CENTER);
 
-        JPanel rightSplitPane = new JPanel(new GridBagLayout());
-        // 右边的上面
+        JPanel rightSplitPane = new JPanel(new BorderLayout());
+        rightSplitPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        // 右边的上面 - 扫描选项
+        JPanel scanOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder("Scan Options"));
         // 被动扫描选择框
-        passiveScanCheckBox = new JCheckBox("被动扫描");
+        passiveScanCheckBox = new JCheckBox("Passive Scan");
         // 白名单域名选择框
-        whiteDomainListCheckBox = new JCheckBox("白名单域名");
+        whiteDomainListCheckBox = new JCheckBox("Whitelist Domain");
+        scanOptionsPanel.add(passiveScanCheckBox);
+        scanOptionsPanel.add(whiteDomainListCheckBox);
+
+        // 右边的中间 - 配置区域
+        JPanel configPanel = new JPanel(new BorderLayout(5, 5));
+        configPanel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+        
+        // 白名单域名配置
+        JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
         // 白名单域名Label
-        JLabel whiteListLabel = new JLabel("白名单域名");
+        JLabel whiteListLabel = new JLabel("Whitelist Domains");
         // 白名单域名输入框
         whiteDomainListTextArea = new JTextArea(5,10);
         whiteDomainListTextArea.setLineWrap(false); // 自动换行
         whiteDomainListTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteDomainListTextArea);
         // 保存白名单按钮
-        saveWhiteDomainButton = new JButton("保存白名单");
-        // 保存认证数据按钮
-        saveAuthDataButton = new JButton("保存认证数据");
-        // 刷新按钮
-        refreshButton = new JButton("刷新表格");
-        // 清空数据按钮
-        clearButton = new JButton("清空表格");
-        // 导出按钮
-        exportButton = new JButton("导出数据");
+        saveWhiteDomainButton = new JButton("Save Whitelist");
+        whitelistPanel.add(whiteListLabel, BorderLayout.NORTH);
+        whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
+        JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        whitelistButtonPanel.add(saveWhiteDomainButton);
+        whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
 
-        // 右边的下部分
+        // 认证数据配置
+        JPanel authDataPanel = new JPanel(new BorderLayout(5, 5));
+        // 保存认证数据按钮
+        saveAuthDataButton = new JButton("Save Auth Data");
+        // 导出按钮
+        exportButton = new JButton("Export Data");
         // 低权限认证请求信息Label
-        JLabel lowPermAuthLabel = new JLabel("低权限认证请求信息");
+        JLabel lowPermAuthLabel = new JLabel("Low Privilege Auth Info");
         // 低权限认证请求信息输入框
         lowPermAuthTextArea = new JTextArea(5,10);
         lowPermAuthTextArea.setLineWrap(false); // 自动换行
@@ -379,38 +394,65 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         JScrollPane lowPermAuthTextAreascrollPane = new JScrollPane(lowPermAuthTextArea);
 
         // 无权限认证请求信息Label
-        JLabel noPermAuthLabel = new JLabel("无权限认证请求信息(输入请求头信息，不输入请求体信息)");
+        JLabel noPermAuthLabel = new JLabel("No Privilege Auth Info (Headers Only)");
         // 无权限认证请求信息输入框
         noPermAuthTextArea = new JTextArea(5,10);
         noPermAuthTextArea.setLineWrap(false); // 自动换行
         noPermAuthTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane noPermAuthTextAreascrollPane = new JScrollPane(noPermAuthTextArea);
 
-        // passiveScanCheckBox和whiteDomainListCheckBox在第一行
-        rightSplitPane.add(passiveScanCheckBox, new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightSplitPane.add(whiteDomainListCheckBox, new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // saveWhiteListButton在第二行第一列
-        rightSplitPane.add(saveWhiteDomainButton, new GridBagConstraintsHelper(0, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // saveAuthDataButton和exportButton在第二行第二列
-        JPanel authExportPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        authExportPanel.add(saveAuthDataButton);
-        authExportPanel.add(exportButton);
-        rightSplitPane.add(authExportPanel, new GridBagConstraintsHelper(1, 1, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // whiteListLabel在第三行
-        rightSplitPane.add(whiteListLabel, new GridBagConstraintsHelper(0, 2, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // whiteListTextArea在第四行
-        rightSplitPane.add(whiteListTextAreascrollPane, new GridBagConstraintsHelper(0, 3, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        // refreshButton和clearButton在第五行
-        rightSplitPane.add(refreshButton, new GridBagConstraintsHelper(0, 4, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        rightSplitPane.add(clearButton, new GridBagConstraintsHelper(1, 4, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // lowPermAuthLabel在第六行
-        rightSplitPane.add(lowPermAuthLabel, new GridBagConstraintsHelper(0, 5, 2, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // lowPermAuthTextArea在第七行
-        rightSplitPane.add(lowPermAuthTextAreascrollPane, new GridBagConstraintsHelper(0, 6, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
-        // noPermAuthLabel在第八行
-        rightSplitPane.add(noPermAuthLabel, new GridBagConstraintsHelper(0, 7, 2, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        // noPermAuthTextArea在第九行
-        rightSplitPane.add(noPermAuthTextAreascrollPane, new GridBagConstraintsHelper(0, 8, 2, 1).setInsets(5).setIpad(0, 0).setWeight(1, 1).setAnchor(GridBagConstraints.CENTER).setFill(GridBagConstraints.BOTH));
+        // 将认证信息放入分割面板
+        JSplitPane authSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        authSplitPane.setResizeWeight(0.5);
+        authSplitPane.setDividerLocation(0.5);
+        
+        JPanel lowPermPanel = new JPanel(new BorderLayout(5, 5));
+        lowPermPanel.add(lowPermAuthLabel, BorderLayout.NORTH);
+        lowPermPanel.add(lowPermAuthTextAreascrollPane, BorderLayout.CENTER);
+        
+        JPanel noPermPanel = new JPanel(new BorderLayout(5, 5));
+        noPermPanel.add(noPermAuthLabel, BorderLayout.NORTH);
+        noPermPanel.add(noPermAuthTextAreascrollPane, BorderLayout.CENTER);
+        
+        authSplitPane.setTopComponent(lowPermPanel);
+        authSplitPane.setBottomComponent(noPermPanel);
+        
+        JPanel authButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        authButtonPanel.add(saveAuthDataButton);
+        authButtonPanel.add(exportButton);
+        authDataPanel.add(authButtonPanel, BorderLayout.NORTH);
+        authDataPanel.add(authSplitPane, BorderLayout.CENTER);
+
+        // 将白名单和认证数据配置放入分割面板
+        JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        configSplitPane.setResizeWeight(0.3);
+        configSplitPane.setDividerLocation(0.3);
+        configSplitPane.setTopComponent(whitelistPanel);
+        configSplitPane.setBottomComponent(authDataPanel);
+        configPanel.add(configSplitPane, BorderLayout.CENTER);
+
+        // 右边的下面 - 操作按钮
+        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        // 刷新按钮
+        refreshButton = new JButton("Refresh");
+        // 清空数据按钮
+        clearButton = new JButton("Clear");
+        actionButtonsPanel.add(refreshButton);
+        actionButtonsPanel.add(clearButton);
+
+        // 将所有面板放入主面板
+        JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainRightSplitPane.setResizeWeight(0.2);
+        mainRightSplitPane.setDividerLocation(0.2);
+        mainRightSplitPane.setTopComponent(scanOptionsPanel);
+        
+        JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
+        configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
+        configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
+        mainRightSplitPane.setBottomComponent(configAndActionsPanel);
+        
+        rightSplitPane.add(mainRightSplitPane, BorderLayout.CENTER);
 
         // 将rightSplitPane添加到mainsplitPane的右边
         mainsplitPane.add(rightSplitPane, BorderLayout.EAST);

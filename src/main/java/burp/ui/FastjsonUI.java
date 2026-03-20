@@ -177,11 +177,11 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         // 添加请求响应到左右分割面板
         fastjsonreq = new JTabbedPane();
         HRequestTextEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, true);
-        fastjsonreq.addTab("请求", HRequestTextEditor.getComponent());
+        fastjsonreq.addTab("Request", HRequestTextEditor.getComponent());
 
         fastjsonresp = new JTabbedPane();
         HResponseTextEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, false);
-        fastjsonresp.addTab("响应", HResponseTextEditor.getComponent());
+        fastjsonresp.addTab("Response", HResponseTextEditor.getComponent());
         splitPaneDown.setLeftComponent(fastjsonreq);
         splitPaneDown.setRightComponent(fastjsonresp);
 

@@ -77,7 +77,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         dnslogButton = new JButton();
-        dnslogButton.setText("保存配置");
+        dnslogButton.setText("Save Config");
         configPanelTop.add(dnslogButton, new GridConstraints(0, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -85,7 +85,7 @@ public class ConfigUI implements UIHandler {
 
         // IP配置行
         ipLabel = new JLabel();
-        ipLabel.setText("IP地址");
+        ipLabel.setText("IP Address");
         configPanelTop.add(ipLabel, new GridConstraints(1, 0, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
@@ -98,7 +98,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         ipButton = new JButton();
-        ipButton.setText("保存配置");
+        ipButton.setText("Save Config");
         configPanelTop.add(ipButton, new GridConstraints(1, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -106,7 +106,7 @@ public class ConfigUI implements UIHandler {
 
         // 工具配置行
         toolNameLabel = new JLabel();
-        toolNameLabel.setText("工具名称");
+        toolNameLabel.setText("Tool Name");
         configPanelTop.add(toolNameLabel, new GridConstraints(2, 0, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
@@ -119,7 +119,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(150, -1), null, 0, false));
 
         toolArgvLabel = new JLabel();
-        toolArgvLabel.setText("工具参数");
+        toolArgvLabel.setText("Tool Arguments");
         configPanelTop.add(toolArgvLabel, new GridConstraints(2, 2, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
@@ -132,7 +132,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         toolButton = new JButton();
-        toolButton.setText("保存配置");
+        toolButton.setText("Save Config");
         configPanelTop.add(toolButton, new GridConstraints(2, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -147,19 +147,19 @@ public class ConfigUI implements UIHandler {
                 GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
 
         refershButton = new JButton();
-        refershButton.setText("刷新");
+        refershButton.setText("Refresh");
         buttonPanel.add(refershButton);
 
         deleteSelectButton = new JButton();
-        deleteSelectButton.setText("删除选中");
+        deleteSelectButton.setText("Delete Selected");
         buttonPanel.add(deleteSelectButton);
 
         clearCacheButton = new JButton();
-        clearCacheButton.setText("清除缓存");
+        clearCacheButton.setText("Clear Cache");
         buttonPanel.add(clearCacheButton);
 
         // 新增按钮
-        resetUrl = new JButton("重置重复性校验");
+        resetUrl = new JButton("Reset Duplicate Check");
         buttonPanel.add(resetUrl);
 
         // 配置下部面板（表格）
@@ -229,9 +229,9 @@ public class ConfigUI implements UIHandler {
                 // 弹出提示框
                 boolean deleteReqFile = Utils.deleteReqFile();
                 if (deleteReqFile){
-                    JOptionPane.showMessageDialog(null, "删除成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Delete Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
                 }else {
-                    JOptionPane.showMessageDialog(null, "删除失败", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Delete Failed", "Info", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         });
@@ -246,7 +246,7 @@ public class ConfigUI implements UIHandler {
                 FastjsonUI.dnslog = dns;
                 Log4jUI.dns = dns;
                 // 弹窗提示
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -259,7 +259,7 @@ public class ConfigUI implements UIHandler {
                 saveConfig(config);
                 FastjsonUI.ip = ip;
                 Log4jUI.ip = ip;
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -272,14 +272,14 @@ public class ConfigUI implements UIHandler {
                 ConfigBean config = new ConfigBean(module, type, value);
                 saveConfig(config);
                 addData(type, value);
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
             }
         });
         resetUrl.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 UrlCacheUtil.resetAllCaches();
-                JOptionPane.showMessageDialog(null, "重置成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Reset Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
             }
         });
 

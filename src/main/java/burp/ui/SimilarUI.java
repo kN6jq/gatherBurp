@@ -111,10 +111,10 @@ public class SimilarUI implements UIHandler, IHttpListener {
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         // 初始化控制组件
-        currentProjectLabel = new JLabel("当前项目: 未选择");
-        scanButton = new JToggleButton("开启扫描");
-        projectManageButton = new JButton("项目管理");
-        domainConfigButton = new JButton("配置主域名");
+        currentProjectLabel = new JLabel("Current Project: Not Selected");
+        scanButton = new JToggleButton("Start Scan");
+        projectManageButton = new JButton("Project Management");
+        domainConfigButton = new JButton("Configure Main Domain");
 
         // 添加按钮事件监听
         setupControlButtons();
@@ -123,7 +123,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         controlPanel.add(currentProjectLabel);
         controlPanel.add(scanButton);
         controlPanel.add(projectManageButton);
-        controlPanel.add(new JLabel("主域名配置:"));
+        controlPanel.add(new JLabel("Main Domain Configuration:"));
         controlPanel.add(domainConfigButton);
 
         return controlPanel;
@@ -139,14 +139,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
         // 域名表格面板
         domainTable = new DomainTable();
         JPanel domainPanel = new JPanel(new BorderLayout());
-        domainPanel.add(new JLabel(" 域名列表:"), BorderLayout.NORTH);
+        domainPanel.add(new JLabel(" Domain List:"), BorderLayout.NORTH);
         domainPanel.add(new JScrollPane(domainTable), BorderLayout.CENTER);
         splitPane.setLeftComponent(domainPanel);
 
         // URL表格面板
         urlTable = new URLTable();
         JPanel urlPanel = new JPanel(new BorderLayout());
-        urlPanel.add(new JLabel(" URL列表:"), BorderLayout.NORTH);
+        urlPanel.add(new JLabel(" URL List:"), BorderLayout.NORTH);
         urlPanel.add(new JScrollPane(urlTable), BorderLayout.CENTER);
         splitPane.setRightComponent(urlPanel);
 
@@ -158,14 +158,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private JPanel createStatsPanel() {
         JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JLabel statsLabel = new JLabel("统计信息: ");
+        JLabel statsLabel = new JLabel("Statistics: ");
         statsPanel.add(statsLabel);
 
         // 定时更新统计信息
         Timer statsTimer = new Timer(5000, e -> {
             // 获取缓存统计
             Map<String, Integer> stats = CacheManager.getCacheStats();
-            statsLabel.setText(String.format("统计信息: 域名缓存: %d | URL缓存: %d",
+            statsLabel.setText(String.format("Statistics: Domain Cache: %d | URL Cache: %d",
                     stats.get("domainIpCache"),
                     stats.get("projectUrlCache")));
         });

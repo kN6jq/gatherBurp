@@ -68,8 +68,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         // 创建顶部面板，包含清除按钮和被动扫描开关
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        chkPassiveScan = new JCheckBox("被动扫描", false);  // 默认开启
-        btnClear = new JButton("清除");
+        chkPassiveScan = new JCheckBox("Passive Scan", false);  // 默认开启
+        btnClear = new JButton("Clear");
         topPanel.add(chkPassiveScan);
         topPanel.add(btnClear);
         leftPanel.add(topPanel, BorderLayout.NORTH);
@@ -122,8 +122,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
         requestViewer = Utils.callbacks.createMessageEditor(this, false);
         responseViewer = Utils.callbacks.createMessageEditor(this, false);
 
-        requestPane.addTab("请求", requestViewer.getComponent());
-        responsePane.addTab("响应", responseViewer.getComponent());
+        requestPane.addTab("Request", requestViewer.getComponent());
+        responsePane.addTab("Response", responseViewer.getComponent());
 
         viewerSplitPane.setLeftComponent(requestPane);
         viewerSplitPane.setRightComponent(responsePane);
@@ -164,10 +164,10 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
     private JPanel setupSettingsPanel() {
         JPanel settingsPanel = new JPanel();
         settingsPanel.setLayout(new BoxLayout(settingsPanel, BoxLayout.Y_AXIS));
-        settingsPanel.setBorder(BorderFactory.createTitledBorder("设置"));
+        settingsPanel.setBorder(BorderFactory.createTitledBorder("Settings"));
 
         // 创建表格模型
-        paramModel = new DefaultTableModel(new String[]{"参数"}, 0);
+        paramModel = new DefaultTableModel(new String[]{"Parameter"}, 0);
         payloadModel = new DefaultTableModel(new String[]{"Payload"}, 0);
 
         // 设置默认参数
@@ -180,7 +180,7 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
         };
 
         // 创建并添加面板（带默认值）
-        settingsPanel.add(createInputPanel("参数", paramModel, defaultParams));
+        settingsPanel.add(createInputPanel("Parameters", paramModel, defaultParams));
         settingsPanel.add(createInputPanel("Payloads", payloadModel, defaultPayloads));
 
         // 设置最小宽度以防止组件被压缩
@@ -236,8 +236,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         // 创建按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
-        JButton addBtn = new JButton("添加");
-        JButton clearBtn = new JButton("清除");
+        JButton addBtn = new JButton("Add");
+        JButton clearBtn = new JButton("Clear");
 
         buttonPanel.add(addBtn);
         buttonPanel.add(clearBtn);
@@ -511,7 +511,7 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
                 case 4:
                     return entry.statusCode;
                 case 5:
-                    return entry.isVulnerable ? "是" : "否";
+                    return entry.isVulnerable ? "Yes" : "No";
                 default:
                     return null;
             }
