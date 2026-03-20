@@ -73,6 +73,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
     private static final ConcurrentHashMap<Integer, List<PayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
+    
+    public static void resetAllCaches() {
+        urlHashList.clear();
+        urlPayloadMapping.clear();
+        urlIdCounter.set(0);
+        UrlCacheUtil.resetCache("sqli");
+        Utils.stdout.println("[SqlUI] All caches reset");
+    }
+    
     private static final String[] rules = {
             "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
             "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
@@ -1074,6 +1083,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             payloaddata.clear();
             payloaddata2.clear();
             vul.clear();
+            UrlCacheUtil.resetCache("sqli");  // 清空URL缓存
             HRequestTextEditor.setMessage(new byte[0], true);
             HResponseTextEditor.setMessage(new byte[0], false);
             urltable.updateUI();

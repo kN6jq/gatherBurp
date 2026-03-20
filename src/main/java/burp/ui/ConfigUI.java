@@ -297,6 +297,11 @@ public class ConfigUI implements UIHandler {
             @Override
             public void actionPerformed(ActionEvent e) {
                 UrlCacheUtil.resetAllCaches();
+                RouteUI.resetAllCaches();
+                PermUI.resetAllCaches();
+                Log4jUI.resetAllCaches();
+                FastjsonUI.resetAllCaches();
+                SqlUI.resetAllCaches();
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.reset_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });

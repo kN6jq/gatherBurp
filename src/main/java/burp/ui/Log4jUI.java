@@ -68,7 +68,13 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     public static String dns;
     public static String ip;
     private static final Lock lock = new ReentrantLock();
-
+    
+    public static void resetAllCaches() {
+        urlHashList.clear();
+        parameterList.clear();
+        UrlCacheUtil.resetCache("log4j");
+        Utils.stdout.println("[Log4jUI] All caches reset");
+    }
 
 
     @Override
@@ -294,6 +300,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 HRequestTextEditor.setMessage(new byte[0], true);
                 HResponseTextEditor.setMessage(new byte[0], false);
                 urlHashList.clear();
+                UrlCacheUtil.resetCache("log4j");  // 清空URL缓存
                 log4jtable.updateUI();
             }
         });

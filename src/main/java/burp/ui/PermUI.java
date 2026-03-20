@@ -58,6 +58,13 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     private static boolean ispassiveScan; // 是否被动扫描
     private static boolean isWhiteDomainList; // 是否白名单
     private static final Lock lock = new ReentrantLock();
+    
+    public static void resetAllCaches() {
+        urlHashList.clear();
+        parameterList.clear();
+        UrlCacheUtil.resetCache("perm");
+        Utils.stdout.println("[PermUI] All caches reset");
+    }
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
@@ -233,6 +240,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                 nopermrequest.setMessage(new byte[0], false);
                 nopermresponse.setMessage(new byte[0], false);
                 urlHashList.clear();
+                UrlCacheUtil.resetCache("perm");  // 清空URL缓存
                 permTable.updateUI();
             }
         });

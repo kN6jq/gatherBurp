@@ -54,6 +54,11 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     private static List<FastjsonBean> echoPayloads = new ArrayList<>(); // jndi payloads
     private static final Lock lock = new ReentrantLock();
     private boolean isPassiveScanEnabled = false; // 控制被动扫描状态
+    
+    public static void resetAllCaches() {
+        UrlCacheUtil.resetCache("fastjson");
+        Utils.stdout.println("[FastjsonUI] All caches reset");
+    }
 
     @Override
     public IHttpService getHttpService() {
@@ -92,6 +97,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             @Override
             public void actionPerformed(ActionEvent e) {
                 fastjsonlog.clear();
+                UrlCacheUtil.resetCache("fastjson");  // 清空URL缓存
                 HRequestTextEditor.setMessage(new byte[0], true);
                 HResponseTextEditor.setMessage(new byte[0], false);
                 refreshTable();
