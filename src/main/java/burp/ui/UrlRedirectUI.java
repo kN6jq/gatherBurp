@@ -484,7 +484,7 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
     private static class RedirectModel extends AbstractTableModel {
         // 将COLUMNS修改为包含是否存在漏洞的列
-        private final String[] COLUMNS = {"#", "方法", "URL", "参数", "状态码", "是否存在漏洞"};
+        private final String[] COLUMNS = {"#", "Method", "URL", "Parameter", "Status Code", "Vulnerable"};
 
         @Override
         public int getRowCount() {

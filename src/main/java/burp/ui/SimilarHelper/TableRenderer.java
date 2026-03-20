@@ -32,7 +32,7 @@ public class TableRenderer extends DefaultTableCellRenderer {
         // 为特定列设置对齐方式
         if (table.getColumnName(column).equals("ID")) {
             setHorizontalAlignment(SwingConstants.CENTER);
-        } else if (table.getColumnName(column).equals("时间")) {
+        } else if (table.getColumnName(column).equals("Time")) {
             setHorizontalAlignment(SwingConstants.CENTER);
         } else if (table.getColumnName(column).equals("IP")) {
             setHorizontalAlignment(SwingConstants.CENTER);

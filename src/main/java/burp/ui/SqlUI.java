@@ -1629,19 +1629,19 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         public String getColumnName(int column) {
             switch (column) {
                 case 0:
-                    return "参数";
+                    return "Parameter";
                 case 1:
-                    return "参数值";
+                    return "Value";
                 case 2:
-                    return "响应长度";
+                    return "Response Length";
                 case 3:
-                    return "变化";
+                    return "Change";
                 case 4:
-                    return "报错";
+                    return "Error";
                 case 5:
-                    return "时间";
+                    return "Time";
                 case 6:
-                    return "返回码";
+                    return "Status Code";
                 default:
                     return null;
             }

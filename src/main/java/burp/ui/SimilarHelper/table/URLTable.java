@@ -45,7 +45,7 @@ public class URLTable extends JTable {
     public URLTable() {
         // 初始化表格模型
         model = new TableModel(
-                new String[]{"ID", "URL", "时间"},
+                new String[]{"ID", "URL", "Time"},
                 1  // URL列作为唯一键
         );
         setModel(model);
