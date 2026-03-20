@@ -73,7 +73,6 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         urlHashList.clear();
         parameterList.clear();
         UrlCacheUtil.resetCache("log4j");
-        Utils.stdout.println("[Log4jUI] All caches reset");
     }
 
 

@@ -57,7 +57,6 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     
     public static void resetAllCaches() {
         UrlCacheUtil.resetCache("fastjson");
-        Utils.stdout.println("[FastjsonUI] All caches reset");
     }
 
     @Override

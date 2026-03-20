@@ -79,7 +79,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         urlPayloadMapping.clear();
         urlIdCounter.set(0);
         UrlCacheUtil.resetCache("sqli");
-        Utils.stdout.println("[SqlUI] All caches reset");
     }
     
     private static final String[] rules = {

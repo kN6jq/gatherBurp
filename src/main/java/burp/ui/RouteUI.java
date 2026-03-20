@@ -60,7 +60,6 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         urlHashList.clear();
         discoveredIssues.clear();
         UrlCacheUtil.resetCache("route");
-        Utils.stdout.println("[RouteScan] All caches reset");
     }
 
     @Override
@@ -345,28 +344,19 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             URL baseUrl = analyzeRequest.getUrl();
             String method = analyzeRequest.getMethod();
             String originalPath = baseUrl.getPath();
-            
-            Utils.stdout.println("[RouteScan] Starting check for: " + baseUrl.toString());
-            Utils.stdout.println("[RouteScan] Method: " + method + ", Path: " + originalPath);
-            Utils.stdout.println("[RouteScan] isSend: " + isSend);
 
             // 2. 基础验证
             if (!method.equals("GET") && !method.equals("POST")) {
-                Utils.stdout.println("[RouteScan] Skipped: Method not GET/POST");
                 return;
             }
             // 验证后缀
             if (Utils.isUrlBlackListSuffix(baseUrl.toString())) {
-                Utils.stdout.println("[RouteScan] Skipped: URL suffix in blacklist");
                 return;
             }
             // 重复性检查
             if (!isSend && !UrlCacheUtil.checkUrlUnique("route", method, baseUrl, analyzeRequest.getParameters())) {
-                Utils.stdout.println("[RouteScan] Skipped: Duplicate URL");
                 return;
             }
-            
-            Utils.stdout.println("[RouteScan] Route list size: " + routeList.size());
 
             // 3. 获取原始请求的完整内容
             byte[] rawRequest = baseRequest.getRequest();
@@ -376,27 +366,20 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
             // 4. 遍历所有路由规则
             for (RouteBean routeBean : routeList) {
                 if (routeBean.getEnable() != 1) {
-                    Utils.stdout.println("[RouteScan] Skipped rule: " + routeBean.getName() + " (disabled)");
                     continue;
                 }
-                
-                Utils.stdout.println("[RouteScan] Processing rule: " + routeBean.getName() + " - " + routeBean.getPath());
 
                 // 5. 对每个路径生成测试路径
                 List<String> testPaths = generateTestPaths(originalPath, routeBean.getPath());
-                Utils.stdout.println("[RouteScan] Generated " + testPaths.size() + " test paths");
-                
+
                 for (String testPath : testPaths) {
                     String fullTestUrl = baseUrl.getHost() + testPath;
 
                     // 去重检查（仅被动扫描时检查，右键菜单调用时跳过）
                     if (!isSend && uniqueUrl.contains(fullTestUrl)) {
-                        Utils.stdout.println("[RouteScan] Skipped duplicate: " + fullTestUrl);
                         continue;
                     }
                     uniqueUrl.add(fullTestUrl);
-
-                    Utils.stdout.println("[RouteScan] Sending request to: " + testPath);
 
                     // 6. 构造新的请求
                     byte[] newRequest = buildNewRequest(
@@ -414,11 +397,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     IHttpRequestResponse response = sendRequestWithSmartDetect(
                             baseRequest.getHttpService(), fullUrl, newRequest);
                     if (response != null && response.getResponse() != null) {
-                        Utils.stdout.println("[RouteScan] Got response, status: " +
-                            Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
                         processResponse(response, routeBean, baseRequest);
-                    } else {
-                        Utils.stdout.println("[RouteScan] No response or null response");
                     }
                 }
             }

@@ -30,12 +30,9 @@ public class SmartRequestDetector {
         }
 
         if (isBlockedResponse(normalResponse)) {
-            Utils.stdout.println("[SmartDetector] Normal request blocked, trying encoding bypass: " + url);
-
             List<IHttpRequestResponse> encodedResponses = tryEncodingBypass(url, request);
             for (IHttpRequestResponse response : encodedResponses) {
                 if (isSuccessResponse(response)) {
-                    Utils.stdout.println("[SmartDetector] Encoding bypass successful: " + url);
                     return response;
                 }
             }
@@ -71,7 +68,6 @@ public class SmartRequestDetector {
                 }
             }
         } catch (Exception e) {
-            Utils.stderr.println("[SmartDetector] Error in encoding bypass: " + e.getMessage());
         }
 
         return responses;

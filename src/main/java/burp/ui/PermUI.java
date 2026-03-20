@@ -63,7 +63,6 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         urlHashList.clear();
         parameterList.clear();
         UrlCacheUtil.resetCache("perm");
-        Utils.stdout.println("[PermUI] All caches reset");
     }
 
     @Override
