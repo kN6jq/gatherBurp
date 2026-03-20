@@ -32,9 +32,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                 Utils.callbacks.customizeUiComponent(mainUI);
             }
         });
-        Utils.stdout.println("Loaded " + Utils.NAME + " v" + Utils.VERSION + " by " + Utils.AUTHOR+"\n");
-        Utils.stdout.println("If an error occurs, please delete the .gather directory under the user's directory and reload.\n");
-        Utils.stdout.println("GITHUB: https://github.com/kN6jq/gatherBurp\n");
+        Utils.stdout.println("[" + Utils.NAME + " v" + Utils.VERSION + "] by " + Utils.AUTHOR + " loaded successfully.\n");
+        Utils.stdout.println("Tip: If any errors occur, delete the '.gather' directory in your user folder and reload the extension.\n");
+        Utils.stdout.println("GitHub: https://github.com/kN6jq/gatherBurp\n");
 
     }
 
