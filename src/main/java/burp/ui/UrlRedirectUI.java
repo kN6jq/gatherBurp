@@ -1,6 +1,7 @@
 package burp.ui;
 
 import burp.*;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -68,8 +69,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         // 创建顶部面板，包含清除按钮和被动扫描开关
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        chkPassiveScan = new JCheckBox("Passive Scan", false);  // 默认开启
-        btnClear = new JButton("Clear");
+        chkPassiveScan = new JCheckBox(I18nUtils.get("redirect.checkbox.passive"), false);  // 默认开启
+        btnClear = new JButton(I18nUtils.get("redirect.button.clear"));
         topPanel.add(chkPassiveScan);
         topPanel.add(btnClear);
         leftPanel.add(topPanel, BorderLayout.NORTH);
@@ -164,11 +165,11 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
     private JPanel setupSettingsPanel() {
         JPanel settingsPanel = new JPanel();
         settingsPanel.setLayout(new BoxLayout(settingsPanel, BoxLayout.Y_AXIS));
-        settingsPanel.setBorder(BorderFactory.createTitledBorder("Settings"));
+        settingsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("redirect.border.settings")));
 
         // 创建表格模型
-        paramModel = new DefaultTableModel(new String[]{"Parameter"}, 0);
-        payloadModel = new DefaultTableModel(new String[]{"Payload"}, 0);
+        paramModel = new DefaultTableModel(new String[]{I18nUtils.get("redirect.label.parameter")}, 0);
+        payloadModel = new DefaultTableModel(new String[]{I18nUtils.get("redirect.label.payloads")}, 0);
 
         // 设置默认参数
         String[] defaultParams = {
@@ -236,8 +237,8 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
         // 创建按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
-        JButton addBtn = new JButton("Add");
-        JButton clearBtn = new JButton("Clear");
+        JButton addBtn = new JButton(I18nUtils.get("redirect.button.add"));
+        JButton clearBtn = new JButton(I18nUtils.get("redirect.button.clear"));
 
         buttonPanel.add(addBtn);
         buttonPanel.add(clearBtn);
@@ -484,7 +485,7 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
 
     private static class RedirectModel extends AbstractTableModel {
         // 将COLUMNS修改为包含是否存在漏洞的列
-        private final String[] COLUMNS = {"#", "Method", "URL", "Parameter", "Status Code", "Vulnerable"};
+        private final String[] COLUMNS = {"#", "Method", "URL", I18nUtils.get("redirect.label.parameter"), "Status Code", "Vulnerable"};
 
         @Override
         public int getRowCount() {
@@ -511,7 +512,7 @@ public class UrlRedirectUI implements UIHandler, IMessageEditorController, IHttp
                 case 4:
                     return entry.statusCode;
                 case 5:
-                    return entry.isVulnerable ? "Yes" : "No";
+                    return entry.isVulnerable ? I18nUtils.get("redirect.value.yes") : I18nUtils.get("redirect.value.no");
                 default:
                     return null;
             }

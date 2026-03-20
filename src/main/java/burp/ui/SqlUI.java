@@ -1105,7 +1105,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 获取所有payload
             sqliPayload = getSqlListsByType("payload");
             sqlPayloadTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
         });
         // 保存header
         saveHeaderListButton.addActionListener(e -> {
@@ -1131,7 +1131,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             // 获取数据库中的header
             headerList = getSqlListsByType("header");
             headerTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
         });
         // 保存白名单域名
         saveWhiteListButton.addActionListener(e -> {
@@ -1160,7 +1160,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 domainList.add(sqlBean.getValue());
             }
             whiteListTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
         });
         saveSqlErrorKeyButton.addActionListener(new AbstractAction() {
             @Override
@@ -1190,7 +1190,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     listErrorKey.add(sqlBean.getValue());
                 }
                 sqlErrorKeyTextArea.updateUI();
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
         // 被动扫描选择框事件
@@ -1380,20 +1380,20 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         // 右边的上部分
         // 添加被动扫描选择框
-        passiveScanCheckBox = new JCheckBox("Passive Scan");
+        passiveScanCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.passive"));
         // 添加删除原始值选择框
-        deleteOriginalValueCheckBox = new JCheckBox("Delete Original Value");
+        deleteOriginalValueCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.delete_original"));
         // 添加检测cookie选择框
-        checkCookieCheckBox = new JCheckBox("Check Cookie");
+        checkCookieCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_cookie"));
         // 添加检测header选择框
-        checkHeaderCheckBox = new JCheckBox("Check Header");
+        checkHeaderCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_header"));
         // 添加白名单域名检测选择框
-        checkWhiteListCheckBox = new JCheckBox("Whitelist Domain");
-        urlEncodeCheckBox = new JCheckBox("URL Encode");
+        checkWhiteListCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.whitelist"));
+        urlEncodeCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.url_encode"));
         // 白名单域名保存按钮
-        saveWhiteListButton = new JButton("Save Whitelist");
+        saveWhiteListButton = new JButton(I18nUtils.get("sql.button.save_whitelist"));
         // 保存header按钮
-        saveHeaderListButton = new JButton("Save Headers");
+        saveHeaderListButton = new JButton(I18nUtils.get("sql.button.save_header"));
         // 白名单域名输入框列表
         whiteListTextArea = new JTextArea(5, 10);
         whiteListTextArea.setLineWrap(false); // 自动换行
@@ -1406,15 +1406,15 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         headerTextArea.setWrapStyleWord(true); // 按单词换行
         JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
         // 刷新表格按钮
-        refreshTableButton = new JButton("Refresh");
+        refreshTableButton = new JButton(I18nUtils.get("sql.button.refresh"));
         // 清空表格按钮
-        clearTableButton = new JButton("Clear");
+        clearTableButton = new JButton(I18nUtils.get("sql.button.clear"));
         // 白名单域名label
-        JLabel whiteDomainListLabel = new JLabel("Whitelist Domains");
+        JLabel whiteDomainListLabel = new JLabel(I18nUtils.get("sql.label.whitelist"));
         // 检测header label
-        JLabel headerLabel = new JLabel("Header Detection List");
+        JLabel headerLabel = new JLabel(I18nUtils.get("sql.label.header"));
 
-        booleanBlindCheckBox = new JCheckBox("Boolean Blind");
+        booleanBlindCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.boolean_blind"));
         
         // 添加到右边的上部分 - 重新设计布局
         JPanel rightTopPanel = new JPanel();
@@ -1424,7 +1424,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 创建扫描选项面板
         JPanel scanOptionsPanel = new JPanel();
         scanOptionsPanel.setLayout(new GridLayout(2, 3, 5, 5));
-        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder("Scan Options"));
+        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.scan_options")));
         scanOptionsPanel.add(passiveScanCheckBox);
         scanOptionsPanel.add(deleteOriginalValueCheckBox);
         scanOptionsPanel.add(checkCookieCheckBox);
@@ -1436,7 +1436,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 创建配置面板
         JPanel configPanel = new JPanel();
         configPanel.setLayout(new BorderLayout(5, 5));
-        configPanel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+        configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.configuration")));
 
         // 白名单域名配置
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
@@ -1464,7 +1464,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         // 创建操作按钮面板
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.actions")));
         actionButtonsPanel.add(refreshTableButton);
         actionButtonsPanel.add(clearTableButton);
 
@@ -1486,7 +1486,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         // 右边的下部分左边
         // sql payload label
-        JLabel sqlPayloadLabel = new JLabel("SQL Payload");
+        JLabel sqlPayloadLabel = new JLabel(I18nUtils.get("sql.label.payload"));
         // sqlpayload输入框
         // sqlpayload保存按钮
         sqlPayloadTextArea = new JTextArea(5, 10);
@@ -1494,19 +1494,19 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         sqlPayloadTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlPayloadTextAreascrollPane = new JScrollPane(sqlPayloadTextArea);
 
-        saveSqlPayloadButton = new JButton("Save SQL Payload");
+        saveSqlPayloadButton = new JButton(I18nUtils.get("sql.button.save_payload"));
         JPanel rightDownLeftPanel = new JPanel();
         rightDownLeftPanel.setLayout(new BorderLayout());
         rightDownLeftPanel.add(sqlPayloadLabel, BorderLayout.NORTH);
         rightDownLeftPanel.add(sqlPayloadTextAreascrollPane, BorderLayout.CENTER);
         rightDownLeftPanel.add(saveSqlPayloadButton, BorderLayout.SOUTH);
         // 右边的下部分左边
-        JLabel sqlErrKey = new JLabel("SQL Error Key");
+        JLabel sqlErrKey = new JLabel(I18nUtils.get("sql.label.error_key"));
         sqlErrorKeyTextArea = new JTextArea(5, 10);
         sqlErrorKeyTextArea.setLineWrap(false); // 自动换行
         sqlErrorKeyTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane sqlErrorKeyTextAreascrollPane = new JScrollPane(sqlErrorKeyTextArea);
-        saveSqlErrorKeyButton = new JButton("Save SQL Error Key");
+        saveSqlErrorKeyButton = new JButton(I18nUtils.get("sql.button.save_error_key"));
         JPanel rightDownRightPanel = new JPanel();
         rightDownRightPanel.setLayout(new BorderLayout());
         rightDownRightPanel.add(sqlErrKey, BorderLayout.NORTH);

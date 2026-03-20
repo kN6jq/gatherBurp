@@ -3,6 +3,7 @@ package burp.ui.SimilarHelper.table;
 import burp.ui.SimilarHelper.tablemodel.TableModel;
 import burp.ui.SimilarHelper.TableRenderer;
 import burp.ui.SimilarHelper.bean.URL;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -87,17 +88,17 @@ public class URLTable extends JTable {
      */
     private void setupContextMenu() {
         // 复制选中URL菜单项
-        JMenuItem copyUrlItem = new JMenuItem("复制选中URL");
+        JMenuItem copyUrlItem = new JMenuItem(I18nUtils.get("similar.table.copy_selected_url"));
         copyUrlItem.setMnemonic(KeyEvent.VK_C);
         copyUrlItem.addActionListener(e -> copySelectedUrls());
 
         // 复制全部URL菜单项
-        JMenuItem copyAllItem = new JMenuItem("复制全部URL");
+        JMenuItem copyAllItem = new JMenuItem(I18nUtils.get("similar.table.copy_all_url"));
         copyAllItem.setMnemonic(KeyEvent.VK_A);
         copyAllItem.addActionListener(e -> copyAllUrls());
 
         // 清除选择菜单项
-        JMenuItem clearSelectionItem = new JMenuItem("清除选择");
+        JMenuItem clearSelectionItem = new JMenuItem(I18nUtils.get("similar.table.clear_selection"));
         clearSelectionItem.setMnemonic(KeyEvent.VK_L);
         clearSelectionItem.addActionListener(e -> clearSelection());
 

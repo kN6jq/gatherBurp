@@ -16,6 +16,7 @@ import burp.ui.SimilarHelper.dialog.DomainConfigDialog;
 import burp.ui.SimilarHelper.dialog.ProjectManageDialog;
 import burp.ui.SimilarHelper.table.DomainTable;
 import burp.ui.SimilarHelper.table.URLTable;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -111,10 +112,10 @@ public class SimilarUI implements UIHandler, IHttpListener {
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         // 初始化控制组件
-        currentProjectLabel = new JLabel("Current Project: Not Selected");
-        scanButton = new JToggleButton("Start Scan");
-        projectManageButton = new JButton("Project Management");
-        domainConfigButton = new JButton("Configure Main Domain");
+        currentProjectLabel = new JLabel(I18nUtils.get("similar.label.project"));
+        scanButton = new JToggleButton(I18nUtils.get("similar.button.scan"));
+        projectManageButton = new JButton(I18nUtils.get("similar.button.manage"));
+        domainConfigButton = new JButton(I18nUtils.get("similar.button.config"));
 
         // 添加按钮事件监听
         setupControlButtons();
@@ -123,7 +124,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         controlPanel.add(currentProjectLabel);
         controlPanel.add(scanButton);
         controlPanel.add(projectManageButton);
-        controlPanel.add(new JLabel("Main Domain Configuration:"));
+        controlPanel.add(new JLabel(I18nUtils.get("similar.label.main_domain")));
         controlPanel.add(domainConfigButton);
 
         return controlPanel;
@@ -139,14 +140,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
         // 域名表格面板
         domainTable = new DomainTable();
         JPanel domainPanel = new JPanel(new BorderLayout());
-        domainPanel.add(new JLabel(" Domain List:"), BorderLayout.NORTH);
+        domainPanel.add(new JLabel(I18nUtils.get("similar.label.domain")), BorderLayout.NORTH);
         domainPanel.add(new JScrollPane(domainTable), BorderLayout.CENTER);
         splitPane.setLeftComponent(domainPanel);
 
         // URL表格面板
         urlTable = new URLTable();
         JPanel urlPanel = new JPanel(new BorderLayout());
-        urlPanel.add(new JLabel(" URL List:"), BorderLayout.NORTH);
+        urlPanel.add(new JLabel(I18nUtils.get("similar.label.url")), BorderLayout.NORTH);
         urlPanel.add(new JScrollPane(urlTable), BorderLayout.CENTER);
         splitPane.setRightComponent(urlPanel);
 
@@ -158,16 +159,16 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private JPanel createStatsPanel() {
         JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JLabel statsLabel = new JLabel("Statistics: ");
+        JLabel statsLabel = new JLabel(I18nUtils.get("similar.label.stats"));
         statsPanel.add(statsLabel);
 
         // 定时更新统计信息
         Timer statsTimer = new Timer(5000, e -> {
             // 获取缓存统计
             Map<String, Integer> stats = CacheManager.getCacheStats();
-            statsLabel.setText(String.format("Statistics: Domain Cache: %d | URL Cache: %d",
-                    stats.get("domainIpCache"),
-                    stats.get("projectUrlCache")));
+            statsLabel.setText(String.format(I18nUtils.get("similar.label.stats") + " %s | %s",
+                    I18nUtils.get("similar.label.domain_cache") + ": " + stats.get("domainIpCache"),
+                    I18nUtils.get("similar.label.url_cache") + ": " + stats.get("projectUrlCache")));
         });
         statsTimer.start();
 
@@ -188,7 +189,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private void handleScanButtonClick() {
         if (currentProject == null && scanButton.isSelected()) {
-            JOptionPane.showMessageDialog(mainPanel, "请先选择项目!");
+            JOptionPane.showMessageDialog(mainPanel, I18nUtils.get("similar.message.select_project"));
             scanButton.setSelected(false);
         } else {
             scanEnabled = scanButton.isSelected();
@@ -203,7 +204,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         if (currentProject == null) {
             JOptionPane.showMessageDialog(mainPanel,
                     "请先选择项目!",
-                    "提示",
+                    I18nUtils.get("config.title.info"),
                     JOptionPane.WARNING_MESSAGE);
             return;
         }

@@ -3,6 +3,7 @@ package burp.ui;
 import burp.*;
 import burp.bean.FastjsonBean;
 import burp.utils.CustomScanIssue;
+import burp.utils.I18nUtils;
 import burp.utils.JsonUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -135,8 +136,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         btnClear = new JButton("Clear");
         passiveScanCheckBox = new JCheckBox("Enable Passive Scan");
-        btnRefresh = new JButton("Refresh"); // 添加刷新按钮
-        autoRefreshCheckBox = new JCheckBox("Auto Refresh"); // 添加自动刷新开关
+        btnRefresh = new JButton(I18nUtils.get("fastjson.button.refresh"));
+        autoRefreshCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.auto_refresh"));
         autoRefreshCheckBox.setSelected(true); // 默认开启自动刷新
         topPanel.add(btnClear);
         topPanel.add(btnRefresh);
@@ -242,9 +243,9 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
             // 弹出一个输入框，用于获取用户输入的dnslog地址
             String defaultValue = "whoami";
-            String echoVul = (String) JOptionPane.showInputDialog(null, "请输入echo 命令", "提示", JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
+            String echoVul = (String) JOptionPane.showInputDialog(null, I18nUtils.get("fastjson.message.enter_echo"), I18nUtils.get("config.title.info"), JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
             if (echoVul == null){
-                JOptionPane.showMessageDialog(null, "请输入echo命令", "提示", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("fastjson.message.enter_echo"), I18nUtils.get("config.title.info"), JOptionPane.ERROR_MESSAGE);
                 return;
             }
             IHttpService iHttpService = baseRequestResponse.getHttpService();
@@ -299,7 +300,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                 String jndiStr = "";
                 String defaultValue = "IP"; // 设置默认值
                 String[] options = {"DNS", "IP"}; // 单选框选项
-                String selectedValue = (String) JOptionPane.showInputDialog(null, "请选择类型", "提示",
+                String selectedValue = (String) JOptionPane.showInputDialog(null, I18nUtils.get("fastjson.dialog.select_type"), I18nUtils.get("fastjson.dialog.tip"),
                         JOptionPane.PLAIN_MESSAGE, null, options, defaultValue);
                 if (Objects.equals(selectedValue, "DNS")) {
                     jndiStr = dnslog;

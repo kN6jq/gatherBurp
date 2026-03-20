@@ -4,6 +4,7 @@ import burp.*;
 import burp.bean.RouteBean;
 import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
+import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 import javax.swing.*;
@@ -222,44 +223,44 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         // 添加一个JPanel 采用flowLayout布局
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         // 添加一个刷新按钮
-        refreshButton = new JButton("Refresh");
+        refreshButton = new JButton(I18nUtils.get("route.button.refresh"));
         topPanel.add(refreshButton);
         // 添加一个清空按钮
-        clearButton = new JButton("Clear");
+        clearButton = new JButton(I18nUtils.get("route.button.clear"));
         topPanel.add(clearButton);
         // 添加一个被动扫描选择框
-        passiveCheckBox = new JCheckBox("Passive Scan");
+        passiveCheckBox = new JCheckBox(I18nUtils.get("route.checkbox.passive"));
         topPanel.add(passiveCheckBox);
         // 添加一个分割符号
         // 添加一个提示的的Jlabel
-        JLabel tipsLabel = new JLabel("Add Custom Rule: ");
+        JLabel tipsLabel = new JLabel(I18nUtils.get("route.label.tips"));
         topPanel.add(tipsLabel);
         // 添加一个name的Jlabel
-        JLabel nameLabel = new JLabel("Name:");
+        JLabel nameLabel = new JLabel(I18nUtils.get("route.label.name"));
         topPanel.add(nameLabel);
         // 添加一个name的输入框
         nameTextField = new JTextField(10);
         topPanel.add(nameTextField);
         // 添加一个path的Jlabel
-        JLabel pathLabel = new JLabel("Path:");
+        JLabel pathLabel = new JLabel(I18nUtils.get("route.label.path"));
         topPanel.add(pathLabel);
         // 添加一个path的输入框
         pathTextField = new JTextField(10);
         topPanel.add(pathTextField);
         // 添加一个Express的Jlabel
-        JLabel expressLabel = new JLabel("Express:");
+        JLabel expressLabel = new JLabel(I18nUtils.get("route.label.express"));
         topPanel.add(expressLabel);
         // 添加一个express的输入框
         expressTextField = new JTextField(10);
         topPanel.add(expressTextField);
         // 添加一个添加按钮
-        addButton = new JButton("Add Rule");
+        addButton = new JButton(I18nUtils.get("route.button.add"));
         topPanel.add(addButton);
         // 添加一个删除按钮
-        deleteButton = new JButton("Delete Selected");
+        deleteButton = new JButton(I18nUtils.get("route.button.delete"));
         topPanel.add(deleteButton);
         // 添加一个开启选中规则按钮
-        enableButton = new JButton("Enable/Disable Selected");
+        enableButton = new JButton(I18nUtils.get("route.button.enable"));
         topPanel.add(enableButton);
 
         // 添加一个上下对称分割的面板

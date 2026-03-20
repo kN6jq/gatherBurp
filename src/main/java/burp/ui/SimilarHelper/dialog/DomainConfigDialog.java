@@ -1,6 +1,7 @@
 package burp.ui.SimilarHelper.dialog;
 
 import burp.ui.SimilarHelper.bean.Project;
+import burp.utils.I18nUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,7 +14,7 @@ public class DomainConfigDialog extends JDialog {
     private Project currentProject;
 
     public DomainConfigDialog(Window owner, Project project) {
-        super(owner, "主域名配置", ModalityType.APPLICATION_MODAL);
+        super(owner, I18nUtils.get("similar.dialog.domain_config_title"), ModalityType.APPLICATION_MODAL);
         this.currentProject = project;
         initializeUI();
         loadDomains();
@@ -35,10 +36,10 @@ public class DomainConfigDialog extends JDialog {
         // 创建按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
 
-        JButton addButton = new JButton("添加域名");
-        JButton editButton = new JButton("编辑域名");
-        JButton deleteButton = new JButton("删除域名");
-        JButton saveButton = new JButton("保存");
+        JButton addButton = new JButton(I18nUtils.get("similar.dialog.add_domain"));
+        JButton editButton = new JButton(I18nUtils.get("similar.dialog.edit_domain"));
+        JButton deleteButton = new JButton(I18nUtils.get("similar.dialog.delete_domain"));
+        JButton saveButton = new JButton(I18nUtils.get("similar.dialog.save"));
 
         buttonPanel.add(addButton);
         buttonPanel.add(editButton);
@@ -48,7 +49,7 @@ public class DomainConfigDialog extends JDialog {
         // 添加组件到对话框
         JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        mainPanel.add(new JLabel("主域名列表:"), BorderLayout.NORTH);
+        mainPanel.add(new JLabel(I18nUtils.get("similar.dialog.domain_list")), BorderLayout.NORTH);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
         add(mainPanel, BorderLayout.CENTER);
@@ -74,8 +75,8 @@ public class DomainConfigDialog extends JDialog {
 
     private void showAddDomainDialog() {
         String domain = JOptionPane.showInputDialog(this,
-                "请输入域名:",
-                "添加域名",
+                I18nUtils.get("similar.dialog.input_domain"),
+                I18nUtils.get("similar.dialog.add_domain_title"),
                 JOptionPane.PLAIN_MESSAGE);
 
         if (domain != null && !domain.trim().isEmpty()) {
@@ -84,8 +85,8 @@ public class DomainConfigDialog extends JDialog {
                 listModel.addElement(domain);
             } else {
                 JOptionPane.showMessageDialog(this,
-                        "域名已存在!",
-                        "提示",
+                        I18nUtils.get("similar.dialog.domain_exists"),
+                        I18nUtils.get("similar.dialog.tip"),
                         JOptionPane.WARNING_MESSAGE);
             }
         }
@@ -96,7 +97,7 @@ public class DomainConfigDialog extends JDialog {
         if (selectedIndex != -1) {
             String oldDomain = listModel.getElementAt(selectedIndex);
             String newDomain = JOptionPane.showInputDialog(this,
-                    "编辑域名:",
+                    I18nUtils.get("similar.dialog.edit_domain"),
                     oldDomain);
 
             if (newDomain != null && !newDomain.trim().isEmpty()) {
@@ -105,15 +106,15 @@ public class DomainConfigDialog extends JDialog {
                     listModel.setElementAt(newDomain, selectedIndex);
                 } else {
                     JOptionPane.showMessageDialog(this,
-                            "域名已存在!",
-                            "提示",
+                            I18nUtils.get("similar.dialog.domain_exists"),
+                            I18nUtils.get("similar.dialog.tip"),
                             JOptionPane.WARNING_MESSAGE);
                 }
             }
         } else {
             JOptionPane.showMessageDialog(this,
-                    "请先选择要编辑的域名!",
-                    "提示",
+                    I18nUtils.get("similar.dialog.select_domain_to_edit"),
+                    I18nUtils.get("similar.dialog.tip"),
                     JOptionPane.WARNING_MESSAGE);
         }
     }
@@ -122,15 +123,15 @@ public class DomainConfigDialog extends JDialog {
         int selectedIndex = domainList.getSelectedIndex();
         if (selectedIndex != -1) {
             if (JOptionPane.showConfirmDialog(this,
-                    "确定要删除选中的域名吗?",
-                    "确认删除",
+                    I18nUtils.get("similar.dialog.confirm_delete_domain"),
+                    I18nUtils.get("similar.dialog.confirm_delete"),
                     JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
                 listModel.remove(selectedIndex);
             }
         } else {
             JOptionPane.showMessageDialog(this,
-                    "请先选择要删除的域名!",
-                    "提示",
+                    I18nUtils.get("similar.dialog.select_domain_to_delete"),
+                    I18nUtils.get("similar.dialog.tip"),
                     JOptionPane.WARNING_MESSAGE);
         }
     }

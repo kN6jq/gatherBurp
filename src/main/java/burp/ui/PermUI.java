@@ -3,6 +3,7 @@ package burp.ui;
 import burp.*;
 import burp.bean.PermBean;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 import burp.utils.UrlCacheUtil;
 
@@ -178,7 +179,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                     PermBean permBean = new PermBean("domain", whiteDomainList);
                     savePerm(permBean);
                 }
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
         // 保存认证数据
@@ -209,7 +210,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
                     PermBean permBean = new PermBean("permNoAuth", noPermAuthText);
                     savePerm(permBean);
                 }
-                JOptionPane.showMessageDialog(null, "保存成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -248,7 +249,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     // 导出表格数据到剪切板
     private void exportTableToClipboard() {
         if (permlog.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "表格中没有数据", "提示", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.no_data"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         
@@ -272,7 +273,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(stringSelection, null);
         
-        JOptionPane.showMessageDialog(null, "导出成功，已复制到剪切板", "提示", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.export_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
     }
 
     // 初始化ui
@@ -315,7 +316,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         originPaneSplitPane.setLeftComponent(originarequest.getComponent());
         originPaneSplitPane.setRightComponent(originaresponse.getComponent());
         originPane.add(originPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("Original Request", originPane);
+        tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.original"), originPane);
         // 添加低权限请求面板
         lowpermPane = new JPanel(new BorderLayout());
         final JSplitPane lowpermPaneSplitPane = new JSplitPane();
@@ -326,7 +327,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         lowpermPaneSplitPane.setLeftComponent(lowpermrequest.getComponent());
         lowpermPaneSplitPane.setRightComponent(lowpermresponse.getComponent());
         lowpermPane.add(lowpermPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("Low Privilege Request", lowpermPane);
+        tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.low"), lowpermPane);
         // 添加无权限请求面板
         nopermPane = new JPanel(new BorderLayout());
         final JSplitPane nopermPaneSplitPane = new JSplitPane();
@@ -337,7 +338,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         nopermPaneSplitPane.setLeftComponent(nopermrequest.getComponent());
         nopermPaneSplitPane.setRightComponent(nopermresponse.getComponent());
         nopermPane.add(nopermPaneSplitPane, BorderLayout.CENTER);
-        tabbedPanereqresp.addTab("No Privilege Request", nopermPane);
+        tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.no"), nopermPane);
 
         // 请求tab添加到leftBottomSplitPane的左边
         leftBottomSplitPane.setLeftComponent(tabbedPanereqresp);
@@ -350,29 +351,29 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         
         // 右边的上面 - 扫描选项
         JPanel scanOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder("Scan Options"));
+        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.scan_options")));
         // 被动扫描选择框
-        passiveScanCheckBox = new JCheckBox("Passive Scan");
+        passiveScanCheckBox = new JCheckBox(I18nUtils.get("perm.checkbox.passive"));
         // 白名单域名选择框
-        whiteDomainListCheckBox = new JCheckBox("Whitelist Domain");
+        whiteDomainListCheckBox = new JCheckBox(I18nUtils.get("perm.checkbox.whitelist"));
         scanOptionsPanel.add(passiveScanCheckBox);
         scanOptionsPanel.add(whiteDomainListCheckBox);
 
         // 右边的中间 - 配置区域
         JPanel configPanel = new JPanel(new BorderLayout(5, 5));
-        configPanel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+        configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.configuration")));
         
         // 白名单域名配置
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
         // 白名单域名Label
-        JLabel whiteListLabel = new JLabel("Whitelist Domains");
+        JLabel whiteListLabel = new JLabel(I18nUtils.get("perm.label.whitelist"));
         // 白名单域名输入框
         whiteDomainListTextArea = new JTextArea(5,10);
         whiteDomainListTextArea.setLineWrap(false); // 自动换行
         whiteDomainListTextArea.setWrapStyleWord(false); // 按单词换行
         JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteDomainListTextArea);
         // 保存白名单按钮
-        saveWhiteDomainButton = new JButton("Save Whitelist");
+        saveWhiteDomainButton = new JButton(I18nUtils.get("perm.button.save_whitelist"));
         whitelistPanel.add(whiteListLabel, BorderLayout.NORTH);
         whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
         JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -382,11 +383,11 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         // 认证数据配置
         JPanel authDataPanel = new JPanel(new BorderLayout(5, 5));
         // 保存认证数据按钮
-        saveAuthDataButton = new JButton("Save Auth Data");
+        saveAuthDataButton = new JButton(I18nUtils.get("perm.button.save_auth"));
         // 导出按钮
-        exportButton = new JButton("Export Data");
+        exportButton = new JButton(I18nUtils.get("perm.button.export"));
         // 低权限认证请求信息Label
-        JLabel lowPermAuthLabel = new JLabel("Low Privilege Auth Info");
+        JLabel lowPermAuthLabel = new JLabel(I18nUtils.get("perm.label.low_auth"));
         // 低权限认证请求信息输入框
         lowPermAuthTextArea = new JTextArea(5,10);
         lowPermAuthTextArea.setLineWrap(false); // 自动换行
@@ -394,7 +395,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         JScrollPane lowPermAuthTextAreascrollPane = new JScrollPane(lowPermAuthTextArea);
 
         // 无权限认证请求信息Label
-        JLabel noPermAuthLabel = new JLabel("No Privilege Auth Info (Headers Only)");
+        JLabel noPermAuthLabel = new JLabel(I18nUtils.get("perm.label.no_auth"));
         // 无权限认证请求信息输入框
         noPermAuthTextArea = new JTextArea(5,10);
         noPermAuthTextArea.setLineWrap(false); // 自动换行
@@ -433,11 +434,11 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
         // 右边的下面 - 操作按钮
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.actions")));
         // 刷新按钮
-        refreshButton = new JButton("Refresh");
+        refreshButton = new JButton(I18nUtils.get("perm.button.refresh"));
         // 清空数据按钮
-        clearButton = new JButton("Clear");
+        clearButton = new JButton(I18nUtils.get("perm.button.clear"));
         actionButtonsPanel.add(refreshButton);
         actionButtonsPanel.add(clearButton);
 
@@ -494,7 +495,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
             if (isWhiteDomainList) {
                 List<PermBean> domain = getPermListsByType("domain");
                 if (domain.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "请先填写白名单域名", "提示", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.fill_whitelist"), I18nUtils.get("config.title.info"), JOptionPane.ERROR_MESSAGE);
                     return;
                 }
                 // 将domain转为List<String>

@@ -3,6 +3,7 @@ package burp.ui.SimilarHelper.dialog;
 import burp.bean.SimilarProjectBean;
 import burp.dao.SimilarProjectDao;
 import burp.ui.SimilarHelper.bean.Project;
+import burp.utils.I18nUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,7 +20,7 @@ public class ProjectManageDialog extends JDialog {
     private boolean isProcessingSelection = false;  // 添加标志位防止重复处理
 
     public ProjectManageDialog(Window owner, List<Project> projects, Consumer<Project> onProjectSelected) {
-        super(owner, "项目管理", ModalityType.APPLICATION_MODAL);
+        super(owner, I18nUtils.get("similar.dialog.project_manage_title"), ModalityType.APPLICATION_MODAL);
         this.projects = projects;
         this.onProjectSelected = onProjectSelected;
 
@@ -48,9 +49,9 @@ public class ProjectManageDialog extends JDialog {
 
         // 按钮面板
         JPanel buttonPanel = new JPanel();
-        JButton addButton = new JButton("新增项目");
-        JButton deleteButton = new JButton("删除项目");
-        JButton selectButton = new JButton("选择项目");
+        JButton addButton = new JButton(I18nUtils.get("similar.dialog.add_project"));
+        JButton deleteButton = new JButton(I18nUtils.get("similar.dialog.delete_project"));
+        JButton selectButton = new JButton(I18nUtils.get("similar.dialog.select_project"));
 
         buttonPanel.add(addButton);
         buttonPanel.add(deleteButton);
@@ -83,7 +84,7 @@ public class ProjectManageDialog extends JDialog {
     }
 
     private void showAddProjectDialog() {
-        String name = JOptionPane.showInputDialog(this, "请输入项目名称:");
+        String name = JOptionPane.showInputDialog(this, I18nUtils.get("similar.dialog.input_project_name"));
         if (name != null && !name.trim().isEmpty()) {
             try {
                 // 创建项目Bean
@@ -94,8 +95,8 @@ public class ProjectManageDialog extends JDialog {
                 refreshProjectList();
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this,
-                        "创建项目失败: " + e.getMessage(),
-                        "错误",
+                        I18nUtils.get("similar.dialog.create_project_failed") + e.getMessage(),
+                        I18nUtils.get("similar.dialog.error"),
                         JOptionPane.ERROR_MESSAGE);
             }
         }
@@ -105,8 +106,8 @@ public class ProjectManageDialog extends JDialog {
         Project selected = projectList.getSelectedValue();
         if (selected != null) {
             int result = JOptionPane.showConfirmDialog(this,
-                    "确定要删除项目 '" + selected.getName() + "' 吗？",
-                    "确认删除",
+                    I18nUtils.get("similar.dialog.confirm_delete_project") + selected.getName() + "' 吗？",
+                    I18nUtils.get("similar.dialog.confirm_delete"),
                     JOptionPane.YES_NO_OPTION);
 
             if (result == JOptionPane.YES_OPTION) {
@@ -118,8 +119,8 @@ public class ProjectManageDialog extends JDialog {
                     listModel.removeElement(selected);
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog(this,
-                            "删除项目失败: " + e.getMessage(),
-                            "错误",
+                            I18nUtils.get("similar.dialog.delete_project_failed") + e.getMessage(),
+                            I18nUtils.get("similar.dialog.error"),
                             JOptionPane.ERROR_MESSAGE);
                 }
             }
@@ -140,8 +141,8 @@ public class ProjectManageDialog extends JDialog {
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
-                    "刷新项目列表失败: " + e.getMessage(),
-                    "错误",
+                    I18nUtils.get("similar.dialog.refresh_project_list_failed") + e.getMessage(),
+                    I18nUtils.get("similar.dialog.error"),
                     JOptionPane.ERROR_MESSAGE);
         }
     }

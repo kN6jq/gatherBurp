@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.AuthBean;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -91,16 +92,16 @@ public class AuthUI implements UIHandler, IMessageEditorController {
         panel.setLayout(new BorderLayout());
         // 添加FlowLayout布局,将清空按钮添加
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        btnClear = new JButton("Clear");
+        btnClear = new JButton(I18nUtils.get("auth.button.clear"));
         topPanel.add(btnClear);
 
-        JLabel ipLabel = new JLabel("IP:");
+        JLabel ipLabel = new JLabel(I18nUtils.get("auth.label.ip"));
         topPanel.add(ipLabel);
 
         ipInputField = new JTextField("127.0.0.1");
         topPanel.add(ipInputField);
 
-        saveBtn = new JButton("Save");
+        saveBtn = new JButton(I18nUtils.get("auth.button.save"));
         topPanel.add(saveBtn);
 
         panel.add(topPanel, BorderLayout.NORTH);

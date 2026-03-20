@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IBurpExtenderCallbacks;
 import burp.ui.UIHepler.GridBagConstraintsHelper;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -65,19 +66,19 @@ public class SocksUI implements UIHandler {
         panel = new JPanel();
         panel.setLayout(new GridBagLayout());
 
-        saveButton = new JButton("Save");
+        saveButton = new JButton(I18nUtils.get("socks.button.save"));
         panel.add(saveButton,new GridBagConstraintsHelper(0, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        nextButton = new JButton("Next");
+        nextButton = new JButton(I18nUtils.get("socks.button.next"));
         panel.add(nextButton,new GridBagConstraintsHelper(1, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
-        enableCheckBox =  new JCheckBox("Enable Socks");
+        enableCheckBox =  new JCheckBox(I18nUtils.get("socks.checkbox.enable"));
         panel.add(enableCheckBox,new GridBagConstraintsHelper(3, 0, 1, 1).setInsets(5).setIpad(0, 0).setWeight(0, 0).setAnchor(GridBagConstraints.WEST).setFill(GridBagConstraints.NONE));
 
         JSplitPane jSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         ipTextField = new JTextPane();
-        ipTextField.setBorder(BorderFactory.createTitledBorder("Proxy Pool: (example: 1.2.3.4:7890 or 1.2.3.4:7890:user:pass)"));
+        ipTextField.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("socks.border.proxy_pool")));
         ipTextField.setEditable(true);
         logTextField = new JTextPane();
-        logTextField.setBorder(BorderFactory.createTitledBorder("Log"));
+        logTextField.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("socks.border.log")));
         logTextField.setEditable(false);
         jSplitPane.setDividerLocation(0.5);
         jSplitPane.setResizeWeight(0.5);
@@ -241,9 +242,9 @@ public class SocksUI implements UIHandler {
                 }
 
                 if (proxyConfigs.size() > 0) {
-                    JOptionPane.showMessageDialog(null, "成功保存数据"+proxyConfigs.size()+"条", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, String.format(I18nUtils.get("socks.message.save_success"), proxyConfigs.size()), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                 } else {
-                    JOptionPane.showMessageDialog(null, "请输入正确的代理格式", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.invalid_format"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         });
@@ -253,7 +254,7 @@ public class SocksUI implements UIHandler {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (proxyConfigs == null || proxyConfigs.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "请先保存代理配置", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.save_first"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
 
@@ -262,19 +263,21 @@ public class SocksUI implements UIHandler {
                 }
 
                 if (proxyConfigs.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "所有代理已使用完毕", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.all_used"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
 
                 currentIndex = (currentIndex + 1) % proxyConfigs.size();
                 ProxyConfig currentConfig = proxyConfigs.get(currentIndex);
 
-                String message = "当前使用ip:" + currentConfig.ip + ":" + currentConfig.port;
+                String message;
                 if (!currentConfig.username.isEmpty()) {
-                    message += " 用户名:" + currentConfig.username;
+                    message = String.format(I18nUtils.get("socks.message.current_proxy_with_user"), currentConfig.ip, currentConfig.port, currentConfig.username);
+                } else {
+                    message = String.format(I18nUtils.get("socks.message.current_proxy"), currentConfig.ip, currentConfig.port);
                 }
 
-                JOptionPane.showMessageDialog(null, message, "提示", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, message, I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                 writeIpPortSettings(callbacks, currentConfig, enableCheckBox.isSelected());
             }
         });

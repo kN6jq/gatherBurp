@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IBurpExtenderCallbacks;
 import burp.bean.ConfigBean;
+import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -42,6 +43,8 @@ public class ConfigUI implements UIHandler {
     private JScrollPane configPanelDownJscrollPanel;
     private JPanel configPanelTop;
     private JPanel configPanelDown;
+    private JLabel languageLabel;
+    private JComboBox<String> languageComboBox;
 
     private void setupUI() {
         // 创建主面板
@@ -59,81 +62,96 @@ public class ConfigUI implements UIHandler {
 
         // 配置顶部面板
         configPanelTop = new JPanel();
-        configPanelTop.setLayout(new GridLayoutManager(4, 9, new Insets(10, 10, 10, 10), 5, 5));  // 增加间距
+        configPanelTop.setLayout(new GridLayoutManager(5, 9, new Insets(10, 10, 10, 10), 5, 5));  // 增加间距，添加语言选择行
         configPanel.add(configPanelTop, BorderLayout.NORTH);
+
+        // 语言选择行
+        languageLabel = new JLabel();
+        languageLabel.setText(I18nUtils.get("common.label.language"));
+        configPanelTop.add(languageLabel, new GridConstraints(0, 0, 1, 1,
+                GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+                GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
+                null, null, null, 0, false));
+
+        languageComboBox = new JComboBox<>(new String[]{"English", "中文"});
+        languageComboBox.setSelectedItem(I18nUtils.isChinese() ? "中文" : "English");
+        configPanelTop.add(languageComboBox, new GridConstraints(0, 1, 1, 3,
+                GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
+                GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
+                null, new Dimension(250, -1), null, 0, false));
 
         // DNS日志配置行
         dnslogLabel = new JLabel();
-        dnslogLabel.setText("DNS日志");
-        configPanelTop.add(dnslogLabel, new GridConstraints(0, 0, 1, 1,
+        dnslogLabel.setText(I18nUtils.get("config.label.dnslog"));
+        configPanelTop.add(dnslogLabel, new GridConstraints(1, 0, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, null, null, 0, false));
 
         dnslogTextField = new JTextField();
-        configPanelTop.add(dnslogTextField, new GridConstraints(0, 1, 1, 3,
+        configPanelTop.add(dnslogTextField, new GridConstraints(1, 1, 1, 3,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
                 null, new Dimension(250, -1), null, 0, false));
 
         dnslogButton = new JButton();
-        dnslogButton.setText("Save Config");
-        configPanelTop.add(dnslogButton, new GridConstraints(0, 4, 1, 1,
+        dnslogButton.setText(I18nUtils.get("config.button.save"));
+        configPanelTop.add(dnslogButton, new GridConstraints(1, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
                 GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
 
         // IP配置行
         ipLabel = new JLabel();
-        ipLabel.setText("IP Address");
-        configPanelTop.add(ipLabel, new GridConstraints(1, 0, 1, 1,
+        ipLabel.setText(I18nUtils.get("config.label.ip"));
+        configPanelTop.add(ipLabel, new GridConstraints(2, 0, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, null, null, 0, false));
 
         ipTextField = new JTextField();
-        configPanelTop.add(ipTextField, new GridConstraints(1, 1, 1, 3,
+        configPanelTop.add(ipTextField, new GridConstraints(2, 1, 1, 3,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
                 null, new Dimension(250, -1), null, 0, false));
 
         ipButton = new JButton();
-        ipButton.setText("Save Config");
-        configPanelTop.add(ipButton, new GridConstraints(1, 4, 1, 1,
+        ipButton.setText(I18nUtils.get("config.button.save"));
+        configPanelTop.add(ipButton, new GridConstraints(2, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
                 GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
 
         // 工具配置行
         toolNameLabel = new JLabel();
-        toolNameLabel.setText("Tool Name");
-        configPanelTop.add(toolNameLabel, new GridConstraints(2, 0, 1, 1,
+        toolNameLabel.setText(I18nUtils.get("config.label.tool_name"));
+        configPanelTop.add(toolNameLabel, new GridConstraints(3, 0, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, null, null, 0, false));
 
         toolNameTextField = new JTextField();
-        configPanelTop.add(toolNameTextField, new GridConstraints(2, 1, 1, 1,
+        configPanelTop.add(toolNameTextField, new GridConstraints(3, 1, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
                 null, new Dimension(150, -1), null, 0, false));
 
         toolArgvLabel = new JLabel();
-        toolArgvLabel.setText("Tool Arguments");
-        configPanelTop.add(toolArgvLabel, new GridConstraints(2, 2, 1, 1,
+        toolArgvLabel.setText(I18nUtils.get("config.label.tool_args"));
+        configPanelTop.add(toolArgvLabel, new GridConstraints(3, 2, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, null, null, 0, false));
 
         toolArgvTextField = new JTextField();
-        configPanelTop.add(toolArgvTextField, new GridConstraints(2, 3, 1, 1,
+        configPanelTop.add(toolArgvTextField, new GridConstraints(3, 3, 1, 1,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
                 null, new Dimension(250, -1), null, 0, false));
 
         toolButton = new JButton();
-        toolButton.setText("Save Config");
-        configPanelTop.add(toolButton, new GridConstraints(2, 4, 1, 1,
+        toolButton.setText(I18nUtils.get("config.button.save"));
+        configPanelTop.add(toolButton, new GridConstraints(3, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
                 GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -141,25 +159,25 @@ public class ConfigUI implements UIHandler {
         // 按钮行
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 5));  // 使用FlowLayout，左对齐，间距10
-        configPanelTop.add(buttonPanel, new GridConstraints(3, 0, 1, 9,
+        configPanelTop.add(buttonPanel, new GridConstraints(4, 0, 1, 9,
                 GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
                 GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
 
         refershButton = new JButton();
-        refershButton.setText("Refresh");
+        refershButton.setText(I18nUtils.get("config.button.refresh"));
         buttonPanel.add(refershButton);
 
         deleteSelectButton = new JButton();
-        deleteSelectButton.setText("Delete Selected");
+        deleteSelectButton.setText(I18nUtils.get("config.button.delete"));
         buttonPanel.add(deleteSelectButton);
 
         clearCacheButton = new JButton();
-        clearCacheButton.setText("Clear Cache");
+        clearCacheButton.setText(I18nUtils.get("config.button.clear_cache"));
         buttonPanel.add(clearCacheButton);
 
         // 新增按钮
-        resetUrl = new JButton("Reset Duplicate Check");
+        resetUrl = new JButton(I18nUtils.get("config.button.reset"));
         buttonPanel.add(resetUrl);
 
         // 配置下部面板（表格）
@@ -229,9 +247,9 @@ public class ConfigUI implements UIHandler {
                 // 弹出提示框
                 boolean deleteReqFile = Utils.deleteReqFile();
                 if (deleteReqFile){
-                    JOptionPane.showMessageDialog(null, "Delete Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.delete_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                 }else {
-                    JOptionPane.showMessageDialog(null, "Delete Failed", "Info", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.delete_failed"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         });
@@ -246,7 +264,7 @@ public class ConfigUI implements UIHandler {
                 FastjsonUI.dnslog = dns;
                 Log4jUI.dns = dns;
                 // 弹窗提示
-                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -259,7 +277,7 @@ public class ConfigUI implements UIHandler {
                 saveConfig(config);
                 FastjsonUI.ip = ip;
                 Log4jUI.ip = ip;
-                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -272,14 +290,34 @@ public class ConfigUI implements UIHandler {
                 ConfigBean config = new ConfigBean(module, type, value);
                 saveConfig(config);
                 addData(type, value);
-                JOptionPane.showMessageDialog(null, "Save Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
         resetUrl.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 UrlCacheUtil.resetAllCaches();
-                JOptionPane.showMessageDialog(null, "Reset Successfully", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.reset_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        // 语言选择监听器
+        languageComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String selectedLanguage = (String) languageComboBox.getSelectedItem();
+                boolean isChinese = selectedLanguage.equals("中文");
+                I18nUtils.setChinese(isChinese);
+                
+                // 保存语言设置到配置
+                String module = "config";
+                String key = "language";
+                String value = isChinese ? "zh" : "en";
+                ConfigBean config = new ConfigBean(module, key, value);
+                saveConfig(config);
+                
+                // 提示用户重启插件以应用语言更改
+                JOptionPane.showMessageDialog(null, I18nUtils.get("common.message.language_change"), I18nUtils.get("common.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
 

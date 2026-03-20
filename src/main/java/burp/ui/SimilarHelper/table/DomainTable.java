@@ -3,6 +3,7 @@ package burp.ui.SimilarHelper.table;
 import burp.ui.SimilarHelper.tablemodel.TableModel;
 import burp.ui.SimilarHelper.TableRenderer;
 import burp.ui.SimilarHelper.bean.Domain;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -105,15 +106,15 @@ public class DomainTable extends JTable {
         JPopupMenu popupMenu = new JPopupMenu();
 
         // 复制域名菜单项
-        JMenuItem copyDomainItem = new JMenuItem("复制域名");
+        JMenuItem copyDomainItem = new JMenuItem(I18nUtils.get("similar.table.copy_domain"));
         copyDomainItem.addActionListener(e -> copySelectedColumn(1));
 
         // 复制IP菜单项
-        JMenuItem copyIPItem = new JMenuItem("复制IP");
+        JMenuItem copyIPItem = new JMenuItem(I18nUtils.get("similar.table.copy_ip"));
         copyIPItem.addActionListener(e -> copySelectedColumn(2));
 
         // 复制全部选中内容菜单项
-        JMenuItem copyAllSelectedItem = new JMenuItem("复制选中内容");
+        JMenuItem copyAllSelectedItem = new JMenuItem(I18nUtils.get("similar.table.copy_selected"));
         copyAllSelectedItem.addActionListener(e -> copySelectedRows());
 
         // 添加菜单项
