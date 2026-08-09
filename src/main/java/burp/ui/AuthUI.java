@@ -7,8 +7,6 @@ import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
-import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableModel;
 import java.awt.*;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -283,3 +281,4 @@ public class AuthUI extends AbstractScanUI {
         add(method, url, statusCode, length, response);
     }
 }
+
