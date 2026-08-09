@@ -1,8 +1,10 @@
 package burp;
 
 import burp.bean.ConfigBean;
+import burp.dao.ConfigDao;
 import burp.menu.*;
 import burp.ui.MainUI;
+import burp.utils.DbUtils;
 import burp.utils.RobotInput;
 import burp.utils.Utils;
 
@@ -24,6 +26,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         Utils.callbacks.setExtensionName(Utils.NAME);
         Utils.callbacks.registerContextMenuFactory(this);
         Utils.callbacks.registerHttpListener(this);
+        DbUtils.init();
         MainUI mainUI = new MainUI(Utils.callbacks);
         Utils.callbacks.addSuiteTab(mainUI);
         SwingUtilities.invokeLater(new Runnable() {
@@ -92,10 +95,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         }
 
         JMenu fastjson = new JMenu("FastJson");
-        fastjson.add(new FastjsonMenu().FastjsonDnslogMenu(requestResponses));
-        fastjson.add(new FastjsonMenu().FastjsonEchoMenu(requestResponses));
-        fastjson.add(new FastjsonMenu().FastjsonJNDIMenu(requestResponses));
-        fastjson.add(new FastjsonMenu().FastjsonVersionMenu(requestResponses));
+        fastjson.add(FastjsonMenu.FastjsonDnslogMenu(requestResponses));
+        fastjson.add(FastjsonMenu.FastjsonEchoMenu(requestResponses));
+        fastjson.add(FastjsonMenu.FastjsonJNDIMenu(requestResponses));
+        fastjson.add(FastjsonMenu.FastjsonVersionMenu(requestResponses));
         listMenuItems.add(fastjson);
 
         listMenuItems.add(new SqlMenu(requestResponses));

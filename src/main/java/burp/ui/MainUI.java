@@ -7,8 +7,10 @@ import burp.utils.Utils;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 
 public class MainUI extends JPanel implements ITab {
@@ -16,35 +18,31 @@ public class MainUI extends JPanel implements ITab {
     IBurpExtenderCallbacks callbacks;
     public static Map<String, Boolean> moduleStatus;
 
+    private static final List<Supplier<UIHandler>> UI_SUPPLIERS = Arrays.asList(
+        AuthUI::new,
+        SqlUI::new,
+        PermUI::new,
+        FastjsonUI::new,
+        Log4jUI::new,
+        RouteUI::new,
+        SocksUI::new,
+        UrlRedirectUI::new,
+        SimilarUI::new,
+        ConfigUI::new
+    );
 
     public MainUI(IBurpExtenderCallbacks callbacks) {
         this.callbacks = callbacks;
         try {
             mainPanel = new JTabbedPane();
-            for (int i = 0; i < init().size(); i++) {
-                Class<?> clazz = Class.forName(init().get(i));
-                UIHandler uiHandler = (UIHandler) clazz.newInstance();
+            for (Supplier<UIHandler> supplier : UI_SUPPLIERS) {
+                UIHandler uiHandler = supplier.get();
                 uiHandler.init();
                 mainPanel.add(uiHandler.getTabName(), uiHandler.getPanel(callbacks));
             }
-        }catch (Exception e ){
+        } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
         }
-    }
-
-    public static List<String> init() {
-        List<String> uiList = new ArrayList<>();
-        uiList.add("burp.ui.AuthUI");
-        uiList.add("burp.ui.SqlUI");
-        uiList.add("burp.ui.PermUI");
-        uiList.add("burp.ui.FastjsonUI");
-        uiList.add("burp.ui.Log4jUI");
-        uiList.add("burp.ui.RouteUI");
-        uiList.add("burp.ui.SocksUI");
-        uiList.add("burp.ui.UrlRedirectUI");
-        uiList.add("burp.ui.SimilarUI");
-        uiList.add("burp.ui.ConfigUI");
-        return uiList;
     }
 
     @Override

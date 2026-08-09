@@ -2,10 +2,24 @@ package burp.utils;
 
 import java.util.*;
 
+import java.util.regex.Pattern;
+
 public class ResponseSimilarityMatcher {
     // 相似度阈值，可以根据实际测试调整
     private static final double SIMILARITY_THRESHOLD = 0.85;
     private static final int MIN_TOKEN_LENGTH = 4;
+
+    // Pre-compiled patterns for response preprocessing
+    private static final Pattern HTML_TAG_PATTERN = Pattern.compile("<[^>]+>");
+    private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("\\d{10,}");
+    private static final Pattern MD5_PATTERN = Pattern.compile("[0-9a-f]{32}");
+    private static final Pattern SHA1_PATTERN = Pattern.compile("[0-9a-f]{40}");
+    private static final Pattern SHA256_PATTERN = Pattern.compile("[0-9a-f]{64}");
+    private static final Pattern NUM_ID_PATTERN = Pattern.compile("id=\\d+");
+    private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    private static final Pattern TIME_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2}");
+    private static final Pattern NON_ALPHANUMERIC_PATTERN = Pattern.compile("[^a-zA-Z0-9\\u4e00-\\u9fa5]");
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
     /**
      * 判断两个响应数据包的相似度关系
@@ -71,19 +85,19 @@ public class ResponseSimilarityMatcher {
         String result = response;
 
         // 移除HTML标签
-        result = result.replaceAll("<[^>]+>", " ");
+        result = HTML_TAG_PATTERN.matcher(result).replaceAll(" ");
 
         // 移除动态内容
-        result = result.replaceAll("\\d{10,}", "")              // 时间戳
-                .replaceAll("[0-9a-f]{32}", "")                 // MD5
-                .replaceAll("[0-9a-f]{40}", "")                 // SHA1
-                .replaceAll("[0-9a-f]{64}", "")                 // SHA256
-                .replaceAll("id=\\d+", "id=")                   // 数字ID
-                .replaceAll("\\d{4}-\\d{2}-\\d{2}", "")         // 日期
-                .replaceAll("\\d{2}:\\d{2}:\\d{2}", "");        // 时间
+        result = TIMESTAMP_PATTERN.matcher(result).replaceAll("");
+        result = MD5_PATTERN.matcher(result).replaceAll("");
+        result = SHA1_PATTERN.matcher(result).replaceAll("");
+        result = SHA256_PATTERN.matcher(result).replaceAll("");
+        result = NUM_ID_PATTERN.matcher(result).replaceAll("id=");
+        result = DATE_PATTERN.matcher(result).replaceAll("");
+        result = TIME_PATTERN.matcher(result).replaceAll("");
 
         // 移除标点和特殊字符
-        result = result.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5]", " ");
+        result = NON_ALPHANUMERIC_PATTERN.matcher(result).replaceAll(" ");
 
         // 转小写并处理空格
         result = result.toLowerCase().replaceAll("\\s+", " ").trim();

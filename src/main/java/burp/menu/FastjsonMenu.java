@@ -4,13 +4,15 @@ import burp.IHttpRequestResponse;
 import burp.ui.FastjsonUI;
 
 import javax.swing.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-public class FastjsonMenu extends JMenuItem {
-    public JMenuItem FastjsonDnslogMenu(IHttpRequestResponse[] responses) {
-        this.setText("^_^ FastJson Dnslog Check");
-        this.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+public class FastjsonMenu {
+
+    public static JMenuItem FastjsonDnslogMenu(IHttpRequestResponse[] responses) {
+        JMenuItem item = new JMenuItem("^_^ FastJson Dnslog Check");
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -18,16 +20,15 @@ public class FastjsonMenu extends JMenuItem {
                     }
                 });
                 thread.start();
-
             }
         });
-        return this;
+        return item;
     }
 
-    public JMenuItem FastjsonEchoMenu(IHttpRequestResponse[] responses) {
-        this.setText("^_^ FastJson Echo Check");
-        this.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+    public static JMenuItem FastjsonEchoMenu(IHttpRequestResponse[] responses) {
+        JMenuItem item = new JMenuItem("^_^ FastJson Echo Check");
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -35,16 +36,15 @@ public class FastjsonMenu extends JMenuItem {
                     }
                 });
                 thread.start();
-
             }
         });
-        return this;
+        return item;
     }
 
-    public JMenuItem FastjsonJNDIMenu(IHttpRequestResponse[] responses) {
-        this.setText("^_^ FastJson JNDI Check");
-        this.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+    public static JMenuItem FastjsonJNDIMenu(IHttpRequestResponse[] responses) {
+        JMenuItem item = new JMenuItem("^_^ FastJson JNDI Check");
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -52,16 +52,15 @@ public class FastjsonMenu extends JMenuItem {
                     }
                 });
                 thread.start();
-
             }
         });
-        return this;
+        return item;
     }
 
-    public JMenuItem FastjsonVersionMenu(IHttpRequestResponse[] responses) {
-        this.setText("^_^ FastJson Version Check");
-        this.addActionListener(new ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+    public static JMenuItem FastjsonVersionMenu(IHttpRequestResponse[] responses) {
+        JMenuItem item = new JMenuItem("^_^ FastJson Version Check");
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
                 Thread thread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -69,9 +68,8 @@ public class FastjsonMenu extends JMenuItem {
                     }
                 });
                 thread.start();
-
             }
         });
-        return this;
+        return item;
     }
 }
