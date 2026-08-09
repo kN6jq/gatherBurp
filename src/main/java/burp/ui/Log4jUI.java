@@ -440,11 +440,15 @@ public class Log4jUI extends AbstractScanUI {
                 modelRow = convertRowIndexToModel(rowIndex);
             }
             Log4jUIEntry logEntry = log4jlog.get(modelRow);
-            requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
-            if (logEntry.requestResponse.getResponse() == null) {
-                responseEditor.setMessage(new byte[0], false);
-            } else {
-                responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+            if (requestEditor != null) {
+                requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
+            }
+            if (responseEditor != null) {
+                if (logEntry.requestResponse.getResponse() == null) {
+                    responseEditor.setMessage(new byte[0], false);
+                } else {
+                    responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+                }
             }
             currentlyDisplayedItem = logEntry.requestResponse;
             super.changeSelection(rowIndex, columnIndex, toggle, extend);

@@ -22,11 +22,15 @@ public class FastjsonTable extends JTable {
     @Override
     public void changeSelection(int row, int col, boolean toggle, boolean extend) {
         FastjsonEntry logEntry = FastjsonUI.getFastjsonlog().get(row);
-        requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
-        if (logEntry.requestResponse.getResponse() == null) {
-            responseEditor.setMessage(new byte[0], false);
-        } else {
-            responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+        if (requestEditor != null) {
+            requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
+        }
+        if (responseEditor != null) {
+            if (logEntry.requestResponse.getResponse() == null) {
+                responseEditor.setMessage(new byte[0], false);
+            } else {
+                responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+            }
         }
         FastjsonUI.setCurrentlyDisplayedItem(logEntry.requestResponse);
         super.changeSelection(row, col, toggle, extend);

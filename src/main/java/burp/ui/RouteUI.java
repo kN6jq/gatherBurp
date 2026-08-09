@@ -109,9 +109,17 @@ public class RouteUI extends AbstractScanUI {
         topSplitPane.setRightComponent(ruleTableScrollPane);
 
         tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("Request", requestEditor.getComponent());
+        if (requestEditor != null) {
+            tabbedPanereq.addTab("Request", requestEditor.getComponent());
+        } else {
+            tabbedPanereq.addTab("Request", new JScrollPane(new JTextArea()));
+        }
         tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("Response", responseEditor.getComponent());
+        if (responseEditor != null) {
+            tabbedPaneresp.addTab("Response", responseEditor.getComponent());
+        } else {
+            tabbedPaneresp.addTab("Response", new JScrollPane(new JTextArea()));
+        }
 
         JSplitPane bottomSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         bottomSplitPane.setResizeWeight(0.5);
@@ -144,8 +152,8 @@ public class RouteUI extends AbstractScanUI {
             uniqueUrl.clear();
             UrlCacheUtil.resetCache("route");
             issusTable.updateUI();
-            requestEditor.setMessage(new byte[0], true);
-            responseEditor.setMessage(new byte[0], false);
+            if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
+            if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
         });
 
         passiveCheckBox.addActionListener(e -> passiveScanEnabled = passiveCheckBox.isSelected());

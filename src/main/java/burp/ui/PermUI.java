@@ -97,8 +97,13 @@ public class PermUI extends AbstractScanUI {
         originSplit.setResizeWeight(0.5);
         originarequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
         originaresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        originSplit.setLeftComponent(originarequest.getComponent());
-        originSplit.setRightComponent(originaresponse.getComponent());
+        if (originarequest != null && originaresponse != null) {
+            originSplit.setLeftComponent(originarequest.getComponent());
+            originSplit.setRightComponent(originaresponse.getComponent());
+        } else {
+            originSplit.setLeftComponent(new JScrollPane(new JTextArea()));
+            originSplit.setRightComponent(new JScrollPane(new JTextArea()));
+        }
         originPane.add(originSplit, BorderLayout.CENTER);
         tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.original"), originPane);
 
@@ -107,8 +112,13 @@ public class PermUI extends AbstractScanUI {
         lowSplit.setResizeWeight(0.5);
         lowpermrequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
         lowpermresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        lowSplit.setLeftComponent(lowpermrequest.getComponent());
-        lowSplit.setRightComponent(lowpermresponse.getComponent());
+        if (lowpermrequest != null && lowpermresponse != null) {
+            lowSplit.setLeftComponent(lowpermrequest.getComponent());
+            lowSplit.setRightComponent(lowpermresponse.getComponent());
+        } else {
+            lowSplit.setLeftComponent(new JScrollPane(new JTextArea()));
+            lowSplit.setRightComponent(new JScrollPane(new JTextArea()));
+        }
         lowpermPane.add(lowSplit, BorderLayout.CENTER);
         tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.low"), lowpermPane);
 
@@ -117,8 +127,13 @@ public class PermUI extends AbstractScanUI {
         noSplit.setResizeWeight(0.5);
         nopermrequest = Utils.callbacks.createMessageEditor(PermUI.this, true);
         nopermresponse = Utils.callbacks.createMessageEditor(PermUI.this, false);
-        noSplit.setLeftComponent(nopermrequest.getComponent());
-        noSplit.setRightComponent(nopermresponse.getComponent());
+        if (nopermrequest != null && nopermresponse != null) {
+            noSplit.setLeftComponent(nopermrequest.getComponent());
+            noSplit.setRightComponent(nopermresponse.getComponent());
+        } else {
+            noSplit.setLeftComponent(new JScrollPane(new JTextArea()));
+            noSplit.setRightComponent(new JScrollPane(new JTextArea()));
+        }
         nopermPane.add(noSplit, BorderLayout.CENTER);
         tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.no"), nopermPane);
 

@@ -24,11 +24,15 @@ public class RouteIssueTable extends JTable {
     @Override
     public void changeSelection(int row, int col, boolean toggle, boolean extend) {
         RouteIssueEntry issusEntry = RouteUI.getIssuslog().get(row);
-        requestEditor.setMessage(issusEntry.requestResponse.getRequest(), true);
-        if (issusEntry.requestResponse.getResponse() == null) {
-            responseEditor.setMessage(new byte[0], false);
-        } else {
-            responseEditor.setMessage(issusEntry.requestResponse.getResponse(), false);
+        if (requestEditor != null) {
+            requestEditor.setMessage(issusEntry.requestResponse.getRequest(), true);
+        }
+        if (responseEditor != null) {
+            if (issusEntry.requestResponse.getResponse() == null) {
+                responseEditor.setMessage(new byte[0], false);
+            } else {
+                responseEditor.setMessage(issusEntry.requestResponse.getResponse(), false);
+            }
         }
         RouteUI.setCurrentlyDisplayedItem(issusEntry.requestResponse);
         super.changeSelection(row, col, toggle, extend);

@@ -71,10 +71,18 @@ public class AuthUI extends AbstractScanUI {
         splitPaneDown.setDividerLocation(0.5);
 
         requestTabPane = new JTabbedPane();
-        requestTabPane.addTab("Request", requestEditor.getComponent());
+        if (requestEditor != null) {
+            requestTabPane.addTab("Request", requestEditor.getComponent());
+        } else {
+            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
+        }
 
         responseTabPane = new JTabbedPane();
-        responseTabPane.addTab("Response", responseEditor.getComponent());
+        if (responseEditor != null) {
+            responseTabPane.addTab("Response", responseEditor.getComponent());
+        } else {
+            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
+        }
         splitPaneDown.setLeftComponent(requestTabPane);
         splitPaneDown.setRightComponent(responseTabPane);
 
@@ -86,8 +94,8 @@ public class AuthUI extends AbstractScanUI {
     protected void loadSavedData() {
         btnClear.addActionListener(e -> {
             authlog.clear();
-            requestEditor.setMessage(new byte[0], true);
-            responseEditor.setMessage(new byte[0], false);
+            if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
+            if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
             urlHashList.clear();
             UrlCacheUtil.resetCache("auth");
             getResultTable().updateUI();

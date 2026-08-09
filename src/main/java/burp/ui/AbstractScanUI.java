@@ -59,6 +59,10 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
 
     @Override
     public void init() {
+        // 预先初始化panel，确保子类setupScanUI()中可以安全使用
+        if (panel == null) {
+            panel = new JPanel(new BorderLayout());
+        }
         setupScanUI();
         setupCommonUI();
         loadSavedData();
@@ -159,6 +163,14 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         urlHashList.clear();
         parameterList.clear();
         UrlCacheUtil.resetCache(moduleName);
+    }
+
+    /**
+     * 安全设置请求/响应消息到编辑器
+     */
+    protected void safeSetMessage(byte[] request, byte[] response) {
+        if (requestEditor != null) requestEditor.setMessage(request, true);
+        if (responseEditor != null) responseEditor.setMessage(response, false);
     }
 
     /**

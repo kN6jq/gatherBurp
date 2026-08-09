@@ -960,9 +960,17 @@ public class SqlUI extends AbstractScanUI {
         requestEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
         responseEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
         requestTabPane = new JTabbedPane();
-        requestTabPane.addTab("Request", requestEditor.getComponent());
+        if (requestEditor != null) {
+            requestTabPane.addTab("Request", requestEditor.getComponent());
+        } else {
+            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
+        }
         responseTabPane = new JTabbedPane();
-        responseTabPane.addTab("Response", responseEditor.getComponent());
+        if (responseEditor != null) {
+            responseTabPane.addTab("Response", responseEditor.getComponent());
+        } else {
+            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
+        }
         JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         editorSplit.setResizeWeight(0.5);
         editorSplit.setLeftComponent(requestTabPane);
@@ -1128,10 +1136,10 @@ public class SqlUI extends AbstractScanUI {
             payloaddata2.clear();
             vul.clear();
             UrlCacheUtil.resetCache("sqli");
-            requestEditor.setMessage(new byte[0], true);
-            responseEditor.setMessage(new byte[0], false);
-            resultTable.updateUI();
-            payloadtable.updateUI();
+            if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
+            if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
+            if (resultTable != null) resultTable.updateUI();
+            if (payloadtable != null) payloadtable.updateUI();
         });
 
         saveSqlPayloadButton.addActionListener(e -> saveTextAreaContent(sqlPayloadTextArea, "payload", SqlBean::new));
@@ -1379,11 +1387,15 @@ public class SqlUI extends AbstractScanUI {
 
             model.fireTableRowsInserted(payloaddata.size(), payloaddata.size());
             model.fireTableDataChanged();
-            requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
-            if (logEntry.requestResponse.getResponse() == null) {
-                responseEditor.setMessage(new byte[0], false);
-            } else {
-                responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+            if (requestEditor != null) {
+                requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
+            }
+            if (responseEditor != null) {
+                if (logEntry.requestResponse.getResponse() == null) {
+                    responseEditor.setMessage(new byte[0], false);
+                } else {
+                    responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+                }
             }
             currentlyDisplayedItem = logEntry.requestResponse;
             super.changeSelection(rowIndex, columnIndex, toggle, extend);
@@ -1403,11 +1415,15 @@ public class SqlUI extends AbstractScanUI {
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
 
             SqlPayloadEntry dataEntry = payloaddata.get(rowIndex);
-            requestEditor.setMessage(dataEntry.requestResponse.getRequest(), true);
-            if (dataEntry.requestResponse.getResponse() == null) {
-                responseEditor.setMessage(new byte[0], false);
-            } else {
-                responseEditor.setMessage(dataEntry.requestResponse.getResponse(), false);
+            if (requestEditor != null) {
+                requestEditor.setMessage(dataEntry.requestResponse.getRequest(), true);
+            }
+            if (responseEditor != null) {
+                if (dataEntry.requestResponse.getResponse() == null) {
+                    responseEditor.setMessage(new byte[0], false);
+                } else {
+                    responseEditor.setMessage(dataEntry.requestResponse.getResponse(), false);
+                }
             }
             currentlyDisplayedItem = dataEntry.requestResponse;
             super.changeSelection(rowIndex, columnIndex, toggle, extend);

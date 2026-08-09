@@ -104,8 +104,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             public void actionPerformed(ActionEvent e) {
                 fastjsonlog.clear();
                 UrlCacheUtil.resetCache("fastjson");  // 清空URL缓存
-                requestEditor.setMessage(new byte[0], true);
-                responseEditor.setMessage(new byte[0], false);
+                if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
+                if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
                 refreshTable();
             }
         });
@@ -190,11 +190,19 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         // 添加请求响应到左右分割面板
         requestTabPane = new JTabbedPane();
         requestEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, true);
-        requestTabPane.addTab("Request", requestEditor.getComponent());
+        if (requestEditor != null) {
+            requestTabPane.addTab("Request", requestEditor.getComponent());
+        } else {
+            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
+        }
 
         responseTabPane = new JTabbedPane();
         responseEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, false);
-        responseTabPane.addTab("Response", responseEditor.getComponent());
+        if (responseEditor != null) {
+            responseTabPane.addTab("Response", responseEditor.getComponent());
+        } else {
+            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
+        }
         splitPaneDown.setLeftComponent(requestTabPane);
         splitPaneDown.setRightComponent(responseTabPane);
 

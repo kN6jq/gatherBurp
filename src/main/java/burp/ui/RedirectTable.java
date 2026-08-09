@@ -28,11 +28,15 @@ public class RedirectTable extends JTable {
         }
 
         RedirectEntry entry = UrlRedirectUI.getRedirectLog().get(modelRow);
-        requestEditor.setMessage(entry.requestResponse.getRequest(), true);
-        if (entry.requestResponse.getResponse() == null) {
-            responseEditor.setMessage(new byte[0], false);
-        } else {
-            responseEditor.setMessage(entry.requestResponse.getResponse(), false);
+        if (requestEditor != null) {
+            requestEditor.setMessage(entry.requestResponse.getRequest(), true);
+        }
+        if (responseEditor != null) {
+            if (entry.requestResponse.getResponse() == null) {
+                responseEditor.setMessage(new byte[0], false);
+            } else {
+                responseEditor.setMessage(entry.requestResponse.getResponse(), false);
+            }
         }
         UrlRedirectUI.setCurrentlyDisplayedItem(entry.requestResponse);
         super.changeSelection(row, col, toggle, extend);
