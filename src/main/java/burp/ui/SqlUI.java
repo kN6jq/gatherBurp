@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.SqlBean;
-import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.*;
 
 import javax.swing.*;
@@ -13,16 +12,11 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
@@ -31,16 +25,9 @@ import static burp.dao.SqlDao.*;
  * @Author Xm17
  * @Date 2024-06-21 15:39
  */
-public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener {
-    private IHttpRequestResponse currentlyDisplayedItem; // 请求响应
-    private JPanel panel; // 主面板
-    private static JTable urltable; // url 表格
+public class SqlUI extends AbstractScanUI {
     private static JTable payloadtable; // payload 表格
-    private JTabbedPane tabbedPanereq; // 左下的请求
-    private JTabbedPane tabbedPaneresp; // 左下的响应
-    private JScrollPane urltablescrollpane; // url 表格滚动
     private JScrollPane payloadtablescrollpane; // payload 表格滚动
-    private JCheckBox passiveScanCheckBox; // 被动扫描选择框
     private JCheckBox deleteOriginalValueCheckBox; // 删除原始值选择框
     private JCheckBox checkCookieCheckBox; // 检测cookie选择框
     private JCheckBox checkHeaderCheckBox; // 检测header选择框
@@ -56,19 +43,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private JTextArea sqlErrorKeyTextArea; // sqlerrkey输入框
     private JButton saveSqlPayloadButton; // sqlpayload保存按钮
     private JButton saveSqlErrorKeyButton; // sqlerrkey保存按钮
-    private IMessageEditor HRequestTextEditor; // 请求
-    private IMessageEditor HResponseTextEditor; // 响应
+
     private static final List<SqlUIEntry> urldata = new ArrayList<>();  // urldata
     private static final List<SqlPayloadEntry> payloaddata = new ArrayList<>(); // payload
     private static final List<SqlPayloadEntry> payloaddata2 = new ArrayList<>(); // payload
-    public AbstractTableModel model = new SqlPayloadModel(payloaddata); // payload 模型
+    public AbstractTableModel model = new SqlPayloadModel();
     private static boolean isPassiveScan; // 是否被动扫描
     private static boolean isCheckCookie; // 是否检测cookie
     private static boolean isCheckHeader; // 是否检测header
     private static boolean isWhiteDomain; // 是否白名单域名
     private static boolean isDeleteOrgin; // 是否删除原始值
     private static boolean isUrlEncode; // 是否进行URL编码
-    private static final Set<String> urlHashList = new HashSet<>(); // 存放url的hash值
     private static List<String> listErrorKey = new ArrayList<>(); // // 存放错误key
     private static List<SqlBean> sqliPayload = new ArrayList<>(); // 存放sql关键字
     private static List<String> domainList = new ArrayList<>(); // 存放域名白名单
@@ -78,29 +63,119 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
     private static final ConcurrentHashMap<Integer, List<SqlPayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
-    
+
     public static void resetAllCaches() {
         urlHashList.clear();
         urlPayloadMapping.clear();
         urlIdCounter.set(0);
         UrlCacheUtil.resetCache("sqli");
     }
-    
-    private static final List<Pattern> ERROR_PATTERNS = loadRules();
 
-    private static List<Pattern> loadRules() {
-        try (InputStream is = SqlUI.class.getResourceAsStream("/sql/sql_error_rules.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            return reader.lines()
-                    .filter(line -> !line.trim().isEmpty())
-                    .map(line -> Pattern.compile(line.trim(), Pattern.CASE_INSENSITIVE))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            Utils.stderr.println("Failed to load SQL error rules: " + e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
+    private static final String[] rules = {
+            "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
+            "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
+            "MySQL\\s+server\\s+version\\s+for\\s+the\\s+right\\s+syntax\\s+to\\s+use",
+            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+PostgreSQL\\s+result",
+            "Unclosed\\s+quotation\\s+mark\\s+before\\s+the\\s+character\\s+string",
+            "Unclosed\\s+quotation\\s+mark\\s+after\\s+the\\s+character\\s+string",
+            "Column\\s+count\\s+doesn't\\s+match\\s+value\\s+count\\s+at\\s+row",
+            "Syntax\\s+error\\s+in\\s+string\\s+in\\s+query\\s+expression",
+            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+ODBC\\s+Drivers",
+            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+SQL\\s+Server",
+            "\\[Microsoft\\]\\[ODBC\\s+Microsoft\\s+Access\\s+Driver\\]",
+            "You\\s+have\\s+an\\s+error\\s+in\\s+your\\s+SQL\\s+syntax",
+            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+MySQL",
+            "Data\\s+type\\s+mismatch\\s+in\\s+criteria\\s+expression",
+            "internal\\s+error\\s+\\[IBM\\]\\[CLI\\s+Driver\\]\\[DB2",
+            "Unexpected\\s+end\\s+of\\s+command\\s+in\\s+statement",
+            "\\[Microsoft\\]\\[ODBC\\s+SQL\\s+Server\\s+Driver\\]",
+            "\\[Macromedia\\]\\[SQLServer\\s+JDBC\\s+Driver\\]",
+            "has\\s+occurred\\s+in\\s+the\\s+vicinity\\s+of:",
+            "A\\s+Parser\\s+Error\\s+\\(syntax\\s+error\\)",
+            "Procedure\\s+'[^']+'\\s+requires\\s+parameter",
+            "Microsoft\\s+SQL\\s+Native\\s+Client\\s+error",
+            "Syntax\\s+error\\s+in\\s+query\\s+expression",
+            "System\\.Data\\.SqlClient\\.SqlException",
+            "Dynamic\\s+Page\\s+Generation\\s+Error:",
+            "System\\.Exception: SQL Execution Error",
+            "Microsoft\\s+JET\\s+Database\\s+Engine",
+            "System\\.Data\\.OleDb\\.OleDbException",
+            "Sintaxis\\s+incorrecta\\s+cerca\\s+de",
+            "Table\\s+'[^']+'\\s+doesn't\\s+exist",
+            "java\\.sql\\.SQLSyntaxErrorException",
+            "Column\\s+count\\s+doesn't\\s+match",
+            "your\\s+MySQL\\s+server\\s+version",
+            "\\[SQLServer\\s+JDBC\\s+Driver\\]",
+            "ADODB\\.Field\\s+\\(0x800A0BCD\\)",
+            "com.microsoft\\.sqlserver\\.jdbc",
+            "ODBC\\s+SQL\\s+Server\\s+Driver",
+            "(PLS|ORA)-[0-9][0-9][0-9][0-9]",
+            "PostgreSQL\\s+query\\s+failed:",
+            "on\\s+MySQL\\s+result\\s+index",
+            "valid\\s+PostgreSQL\\s+result",
+            "macromedia\\.jdbc\\.sqlserver",
+            "Access\\s+Database\\s+Engine",
+            "SQLServer\\s+JDBC\\s+Driver",
+            "Incorrect\\s+syntax\\s+near",
+            "java\\.sql\\.SQLException",
+            "java\\.sql\\.SQLException",
+            "MySQLSyntaxErrorException",
+            "<b>Warning</b>:\\s+ibase_",
+            "valid\\s+MySQL\\s+result",
+            "org\\.postgresql\\.jdbc",
+            "com\\.jnetdirect\\.jsql",
+            "Dynamic\\s+SQL\\s+Error",
+            "\\[DM_QUERY_E_SYNTAX\\]",
+            "mysql_fetch_array\\(\\)",
+            "pg_query\\(\\)\\s+\\[:",
+            "pg_exec\\(\\)\\s+\\[:",
+            "com\\.informix\\.jdbc",
+            "DB2\\s+SQL\\s+error:",
+            "DB2\\s+SQL\\s+error",
+            "Microsoft\\s+Access",
+            "\\[CLI\\s+Driver\\]",
+            "\\[SQL\\s+Server\\]",
+            "com\\.mysql\\.jdbc",
+            "Sybase\\s+message:",
+            "\\[MySQL\\]\\[ODBC",
+            "ADODB\\.Recordset",
+            "Unknown\\s+column",
+            "mssql_query\\(\\)",
+            "Sybase\\s+message",
+            "Database\\s+error",
+            "PG::SyntaxError:",
+            "where\\s+clause",
+            "Syntax\\s+error",
+            "Oracle\\s+error",
+            "SQLite\\s+error",
+            "SybSQLException",
+            "\\[SqlException",
+            "odbc_exec\\(\\)",
+            "MySqlException",
+            "INSERT\\s+INTO",
+            "SQL\\s+syntax",
+            "Error\\s+SQL:",
+            "SQL\\s+error",
+            "PSQLException",
+            "SQLSTATE=\\d+",
+            "SELECT .{1,30}FROM ",
+            "UPDATE .{1,30}SET ",
+            "附近有语法错误",
+            "MySqlClient",
+            "ORA-\\d{5}",
+            "引号不完整",
+            "数据库出错",
+            "Parameter '\\w+' not found",
+            "org\\.apache\\.ibatis\\.binding\\.BindingException",
+            "mybatis\\.binding\\.BindingException",
+            "org\\.mybatis\\.spring\\.MyBatisSystemException",
+            "java\\.lang\\.IllegalArgumentException: invalid parameter",
+            "Could not resolve parameter",
+            "There is no getter for property named",
+            "Error evaluating expression",
+            "Error parsing parameter",
+            "Invalid bound statement"
+    };
     // sql检测核心方法
     public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
         // 常规初始化流程代码
@@ -177,7 +252,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         // 尝试添加一个url到url表格
         int logid = addUrl(method, url, originalLength, baseRequestResponse);
-        
+
         try {
             // 检测常规注入
             for (IParameter para : paraLists) {
@@ -731,7 +806,17 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 2. 移除所有动态内容（与getCleanResponseLength相同的处理）
         cleanResponse = cleanResponse.replaceAll("[a-zA-Z0-9]{32,}", "TOKEN");
         cleanResponse = cleanResponse.replaceAll("token=([^&\\s\"']+)", "token=TOKEN");
-        // ... [使用与getCleanResponseLength相同的清理规则]
+        cleanResponse = cleanResponse.replaceAll("\\d{10,13}", "TIMESTAMP");
+        cleanResponse = cleanResponse.replaceAll("\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}", "DATETIME");
+        cleanResponse = cleanResponse.replaceAll("id=\"?\\d+\"?", "id=\"ID\"");
+        cleanResponse = cleanResponse.replaceAll("csrf[^=]+=([^&\\s\"']+)", "csrf=TOKEN");
+        cleanResponse = cleanResponse.replaceAll("JSESSIONID=([^;\\s\"']+)", "JSESSIONID=TOKEN");
+        cleanResponse = cleanResponse.replaceAll("session[^=]+=([^&\\s\"']+)", "session=TOKEN");
+        cleanResponse = cleanResponse.replaceAll("/tmp/[^\\s\"']+", "/tmp/FILE");
+        cleanResponse = cleanResponse.replaceAll("filename=\"[^\"]+\"", "filename=\"FILE\"");
+        cleanResponse = cleanResponse.replaceAll("<!--[\\s\\S]*?-->", "");
+        cleanResponse = cleanResponse.replaceAll("v\\d+\\.\\d+\\.\\d+", "VERSION");
+        cleanResponse = cleanResponse.replaceAll("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "UUID");
 
         // 3. 标准化空白字符
         cleanResponse = cleanResponse.replaceAll("\\s+", " ").trim();
@@ -760,7 +845,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             if (index >= 0 && index < urldata.size()) {
                 urldata.set(index, new SqlUIEntry(index, method, url, length, message, requestResponse));
             }
-            urltable.updateUI();
+            resultTable.updateUI();
             payloadtable.updateUI();
         }
     }
@@ -795,8 +880,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 }
             }
         }
+
         String cleanedText = responseBody.replaceAll("\\n|\\r|\\r\\n", "");
-        for (Pattern pattern : ERROR_PATTERNS) {
+        for (String rule : rules) {
+            Pattern pattern = Pattern.compile(rule, Pattern.CASE_INSENSITIVE);
             if (pattern.matcher(cleanedText).find()) {
                 return true;
             }
@@ -824,7 +911,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         SwingUtilities.invokeLater(() -> {
             urldata.add(entry);
-            urltable.updateUI();
+            resultTable.updateUI();
         });
         return id;
     }
@@ -904,17 +991,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                     Utils.stderr.println("CustomScanIssue " + e);
                 }
             }
-            // 常规的检测不存在延时的
-//            if (Integer.parseInt(responseTimes) > 6000) {
-//                errkey = "存在延时";
-//                addToVulStr(logid, "参数" + paraName + "存在延时");
-//                try {
-//                    IScanIssue timeIssues = new CustomScanIssue(newRequestResponses.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses}, "SqlInject Time", "SqlInject 发现延时注入", "High", "Certain");
-//                    Utils.callbacks.addScanIssue(timeIssues);
-//                } catch (MalformedURLException e) {
-//                    throw new RuntimeException("CheckRaw" + e);
-//                }
-//            }
 
             // 记录payload结果
             addPayload(logid, paraName, payload, length, String.valueOf(length - originalLength), errkey, String.valueOf(endTime - startTime), String.valueOf(statusCode), newRequestResponses);
@@ -922,429 +998,86 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         return newRequestResponses;
     }
-
-
     @Override
-    public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
-        if (isPassiveScan && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
-            synchronized (urldata) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Check(new IHttpRequestResponse[]{iHttpRequestResponse}, false);
-                    }
-                });
-                thread.start();
-            }
-        }
-    }
-
-    @Override
-    public IHttpService getHttpService() {
-        return currentlyDisplayedItem.getHttpService();
-    }
-
-    @Override
-    public byte[] getRequest() {
-        return currentlyDisplayedItem.getRequest();
-    }
-
-    @Override
-    public byte[] getResponse() {
-        return currentlyDisplayedItem.getResponse();
-    }
-
-    @Override
-    public void init() {
-        // 获取所有报错关键字
-        List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
-        for (SqlBean sqlBean : sqlErrorKey) {
-            listErrorKey.add(sqlBean.getValue());
-        }
-
-        // 获取所有payload
-        sqliPayload = getSqlListsByType("payload");
-
-        List<SqlBean> domain = getSqlListsByType("domain");
-        // 将domain转为List<String>
-        domainList = new ArrayList<>();
-        for (SqlBean sqlBean : domain) {
-            domainList.add(sqlBean.getValue());
-        }
-
-        // 获取数据库中的header
-        headerList = getSqlListsByType("header");
-
-        setupUI();
-        setupData();
-    }
-
-    private void setupData() {
-        // 盲注检查
-        booleanBlindCheckBox.addActionListener(e -> isBooleanBlind = booleanBlindCheckBox.isSelected());
-
-        refreshTableButton.addActionListener(e -> {
-            urltable.updateUI();
-            payloadtable.updateUI();
-        });
-        clearTableButton.addActionListener(e -> {
-            urlPayloadMapping.clear();
-            urlIdCounter.set(0);
-            urldata.clear();
-            payloaddata.clear();
-            payloaddata2.clear();
-            vul.clear();
-            UrlCacheUtil.resetCache("sqli");  // 清空URL缓存
-            HRequestTextEditor.setMessage(new byte[0], true);
-            HResponseTextEditor.setMessage(new byte[0], false);
-            urltable.updateUI();
-            payloadtable.updateUI();
-        });
-        // 保存sql payload
-        saveSqlPayloadButton.addActionListener(e -> {
-            String sqleditorPane1Text = sqlPayloadTextArea.getText();
-            deleteSqlByType("payload");
-            // 清空内存中的sqliPayload列表
-            sqliPayload.clear();
-            // 如果包含换行符，就分割成多个payload
-            if (sqleditorPane1Text.contains("\n")) {
-                String[] payloads = sqleditorPane1Text.split("\n");
-                for (String payload : payloads) {
-                    if (payload.isEmpty()) {
-                        continue;
-                    }
-                    SqlBean sqlBean = new SqlBean("payload", payload);
-                    saveSql(sqlBean);
-                }
-            } else {
-                if (sqleditorPane1Text.isEmpty()) {
-                    return;
-                }
-                SqlBean sqlBean = new SqlBean("payload", sqleditorPane1Text);
-                saveSql(sqlBean);
-            }
-            // 获取所有payload
-            sqliPayload = getSqlListsByType("payload");
-            sqlPayloadTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-        });
-        // 保存header
-        saveHeaderListButton.addActionListener(e -> {
-            String headerTextAreaText = headerTextArea.getText();
-            deleteSqlByType("header");
-            // 如果包含换行符，就分割成多个header
-            if (headerTextAreaText.contains("\n")) {
-                String[] headers = headerTextAreaText.split("\n");
-                for (String header : headers) {
-                    if (header.isEmpty()) {
-                        continue;
-                    }
-                    SqlBean sqlBean = new SqlBean("header", header);
-                    saveSql(sqlBean);
-                }
-            } else {
-                if (headerTextAreaText.isEmpty()) {
-                    return;
-                }
-                SqlBean sqlBean = new SqlBean("header", headerTextAreaText);
-                saveSql(sqlBean);
-            }
-            // 获取数据库中的header
-            headerList = getSqlListsByType("header");
-            headerTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-        });
-        // 保存白名单域名
-        saveWhiteListButton.addActionListener(e -> {
-            String whiteListTextAreaText = whiteListTextArea.getText();
-            deleteSqlByType("domain");
-            // 如果包含换行符，就分割成多个domain
-            if (whiteListTextAreaText.contains("\n")) {
-                String[] whitedomains = whiteListTextAreaText.split("\n");
-                for (String whitedomain : whitedomains) {
-                    if (whitedomain.isEmpty()) {
-                        continue;
-                    }
-                    SqlBean sqlBean = new SqlBean("domain", whitedomain);
-                    saveSql(sqlBean);
-                }
-            } else {
-                if (whiteListTextAreaText.isEmpty()) {
-                    return;
-                }
-                SqlBean sqlBean = new SqlBean("domain", whiteListTextAreaText);
-                saveSql(sqlBean);
-            }
-            List<SqlBean> domain = getSqlListsByType("domain");
-            // 将domain转为List<String>
-            for (SqlBean sqlBean : domain) {
-                domainList.add(sqlBean.getValue());
-            }
-            whiteListTextArea.updateUI();
-            JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-        });
-        saveSqlErrorKeyButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                deleteSqlByType("sqlErrorKey");
-                String sqlErrorKeyTextAreaText = sqlErrorKeyTextArea.getText();
-                // 如果包含换行符，就分割成多个errorkey
-                if (sqlErrorKeyTextAreaText.contains("\n")) {
-                    String[] errkeys = sqlErrorKeyTextAreaText.split("\n");
-                    for (String errkey : errkeys) {
-                        if (errkey.isEmpty()) {
-                            continue;
-                        }
-                        SqlBean sqlBean = new SqlBean("sqlErrorKey", errkey);
-                        saveSql(sqlBean);
-                    }
-                } else {
-                    if (sqlErrorKeyTextAreaText.isEmpty()) {
-                        return;
-                    }
-                    SqlBean sqlBean = new SqlBean("sqlErrorKey", sqlErrorKeyTextAreaText);
-                    saveSql(sqlBean);
-                }
-                // 获取所有报错关键字
-                List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
-                for (SqlBean sqlBean : sqlErrorKey) {
-                    listErrorKey.add(sqlBean.getValue());
-                }
-                sqlErrorKeyTextArea.updateUI();
-                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        // 被动扫描选择框事件
-        passiveScanCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (passiveScanCheckBox.isSelected()) {
-                    isPassiveScan = true;
-                } else {
-                    isPassiveScan = false;
-                }
-            }
-        });
-        // 删除原始值选择框事件
-        deleteOriginalValueCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (deleteOriginalValueCheckBox.isSelected()) {
-                    isDeleteOrgin = true;
-                } else {
-                    isDeleteOrgin = false;
-                }
-            }
-        });
-        // 检测cookie选择框事件
-        checkCookieCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkCookieCheckBox.isSelected()) {
-                    isCheckCookie = true;
-                } else {
-                    isCheckCookie = false;
-                }
-            }
-        });
-        // 检测header选择框事件
-        checkHeaderCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkHeaderCheckBox.isSelected()) {
-                    isCheckHeader = true;
-                } else {
-                    isCheckHeader = false;
-                }
-            }
-        });
-        // 白名单域名检测选择框事件
-        checkWhiteListCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkWhiteListCheckBox.isSelected()) {
-                    isWhiteDomain = true;
-                } else {
-                    isWhiteDomain = false;
-                }
-            }
-        });
-        // isUrlEncode
-        urlEncodeCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (urlEncodeCheckBox.isSelected()) {
-                    isUrlEncode = true;
-                } else {
-                    isUrlEncode = false;
-                }
-            }
-        });
-        // 数据库获取payload,输出到面板
-        List<SqlBean> sqlList = getSqlListsByType("payload");
-        for (SqlBean sqlBean : sqlList) {
-            // 如果是最后一个，就不加换行符
-            if (sqlList.indexOf(sqlBean) == sqlList.size() - 1) {
-                sqlPayloadTextArea.setText(sqlPayloadTextArea.getText() + sqlBean.getValue());
-                break;
-            }
-            sqlPayloadTextArea.setText(sqlPayloadTextArea.getText() + sqlBean.getValue() + "\n");
-        }
-        // 数据库获取header,输出到面板
-        List<SqlBean> header = getSqlListsByType("header");
-        for (SqlBean sqlBean : header) {
-            // 如果是最后一个，就不加换行符
-            if (header.indexOf(sqlBean) == header.size() - 1) {
-                headerTextArea.setText(headerTextArea.getText() + sqlBean.getValue());
-                break;
-            }
-            headerTextArea.setText(headerTextArea.getText() + sqlBean.getValue() + "\n");
-        }
-        // 数据库获取白名单域名,输出到面板
-        List<SqlBean> domains = getSqlListsByType("domain");
-        for (SqlBean sqlBean : domains) {
-            // 如果是最后一个，就不加换行符
-            if (domains.indexOf(sqlBean) == domains.size() - 1) {
-                whiteListTextArea.setText(whiteListTextArea.getText() + sqlBean.getValue());
-                break;
-            }
-            whiteListTextArea.setText(whiteListTextArea.getText() + sqlBean.getValue() + "\n");
-        }
-        // sqlErrorKeyTextArea
-        List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
-        for (SqlBean sqlBean : sqlErrorKey) {
-            // 如果是最后一个，就不加换行符
-            if (sqlErrorKey.indexOf(sqlBean) == sqlErrorKey.size() - 1) {
-                sqlErrorKeyTextArea.setText(sqlErrorKeyTextArea.getText() + sqlBean.getValue());
-                break;
-            }
-            sqlErrorKeyTextArea.setText(sqlErrorKeyTextArea.getText() + sqlBean.getValue() + "\n");
-        }
-    }
-
-    private void setupUI() {
-        // 注册被动扫描监听器
+    protected void setupScanUI() {
         Utils.callbacks.registerHttpListener(this);
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
 
-        // 左边的面板
-        // 左边的上下分割 上部分和下部分占比6:4
-        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.6);
-        leftSplitPane.setDividerLocation(0.6);
+        resultTable = new URLTable(new SqlUrlModel());
+        payloadtable = new PayloadTable(new SqlPayloadModel());
 
-        // 左边的上部分左右对称分割
-        JSplitPane zsSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        zsSplitPane.setResizeWeight(0.5);
-        zsSplitPane.setDividerLocation(0.5);
-        // 添加到leftSplitPane
-        // 左右对称分割面板
-
-        // 添加到zsSplitPane
-        urltablescrollpane = new JScrollPane();
-        zsSplitPane.setLeftComponent(urltablescrollpane);
-        SqlUrlModel urlModel = new SqlUrlModel(urldata);
-        urltable = new URLTable(urlModel);
-        urltablescrollpane.setViewportView(urltable);
-
-
-        // 创建一个自定义的单元格渲染器
-        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                label.setHorizontalAlignment(JLabel.CENTER);
-                label.setHorizontalTextPosition(JLabel.CENTER);
-                label.setIconTextGap(0);
-                label.setMaximumSize(new Dimension(Integer.MAX_VALUE, label.getPreferredSize().height));
-                label.setToolTipText((String) value); // 设置鼠标悬停时显示的提示文本
-                return label;
-            }
-        };
-        // 表格渲染
-        urltable.getColumnModel().getColumn(4).setCellRenderer(renderer);
-
-
-        payloadtablescrollpane = new JScrollPane();
-        zsSplitPane.setRightComponent(payloadtablescrollpane);
-        SqlPayloadModel payloadModel = new SqlPayloadModel(payloaddata);
-        payloadtable = new PayloadTable(payloadModel);
-        payloadtablescrollpane.setViewportView(payloadtable);
-
-        // 表格渲染
-        payloadtable.getColumnModel().getColumn(0).setCellRenderer(renderer);
-
-        // 左边的下部分左右对称分割
-        JSplitPane zxSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        zxSplitPane.setResizeWeight(0.5);
-        zxSplitPane.setDividerLocation(0.5);
-        // 添加到leftSplitPane下面
-        HRequestTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
-        HResponseTextEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
-        tabbedPanereq = new JTabbedPane();
-        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
-        tabbedPaneresp = new JTabbedPane();
-        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
-        zxSplitPane.setLeftComponent(tabbedPanereq);
-        zxSplitPane.setRightComponent(tabbedPaneresp);
-
-        leftSplitPane.setLeftComponent(zsSplitPane);
-        leftSplitPane.setRightComponent(zxSplitPane);
-
-
-        // 右边的上下按7:3分割
-        JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        rightSplitPane.setResizeWeight(0.7);
-        rightSplitPane.setDividerLocation(0.7);
-
-
-        // 右边的上部分
-        // 添加被动扫描选择框
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.passive"));
-        // 添加删除原始值选择框
         deleteOriginalValueCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.delete_original"));
-        // 添加检测cookie选择框
         checkCookieCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_cookie"));
-        // 添加检测header选择框
         checkHeaderCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_header"));
-        // 添加白名单域名检测选择框
         checkWhiteListCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.whitelist"));
         urlEncodeCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.url_encode"));
-        // 白名单域名保存按钮
-        saveWhiteListButton = new JButton(I18nUtils.get("sql.button.save_whitelist"));
-        // 保存header按钮
-        saveHeaderListButton = new JButton(I18nUtils.get("sql.button.save_header"));
-        // 白名单域名输入框列表
-        whiteListTextArea = new JTextArea(5, 10);
-        whiteListTextArea.setLineWrap(false); // 自动换行
-        whiteListTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteListTextArea);
-
-        // header检测数据框列表
-        headerTextArea = new JTextArea(5, 10);
-        headerTextArea.setLineWrap(true); // 自动换行
-        headerTextArea.setWrapStyleWord(true); // 按单词换行
-        JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
-        // 刷新表格按钮
-        refreshTableButton = new JButton(I18nUtils.get("sql.button.refresh"));
-        // 清空表格按钮
-        clearTableButton = new JButton(I18nUtils.get("sql.button.clear"));
-        // 白名单域名label
-        JLabel whiteDomainListLabel = new JLabel(I18nUtils.get("sql.label.whitelist"));
-        // 检测header label
-        JLabel headerLabel = new JLabel(I18nUtils.get("sql.label.header"));
-
         booleanBlindCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.boolean_blind"));
-        
-        // 添加到右边的上部分 - 重新设计布局
-        JPanel rightTopPanel = new JPanel();
-        rightTopPanel.setLayout(new BorderLayout());
-        rightTopPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // 创建扫描选项面板
-        JPanel scanOptionsPanel = new JPanel();
-        scanOptionsPanel.setLayout(new GridLayout(2, 3, 5, 5));
+        saveWhiteListButton = new JButton(I18nUtils.get("sql.button.save_whitelist"));
+        saveHeaderListButton = new JButton(I18nUtils.get("sql.button.save_header"));
+        whiteListTextArea = new JTextArea(5, 10);
+        whiteListTextArea.setLineWrap(false);
+        headerTextArea = new JTextArea(5, 10);
+        headerTextArea.setLineWrap(true);
+        headerTextArea.setWrapStyleWord(true);
+        refreshTableButton = new JButton(I18nUtils.get("sql.button.refresh"));
+        clearTableButton = new JButton(I18nUtils.get("sql.button.clear"));
+
+        sqlPayloadTextArea = new JTextArea(5, 10);
+        sqlPayloadTextArea.setLineWrap(false);
+        sqlErrorKeyTextArea = new JTextArea(5, 10);
+        sqlErrorKeyTextArea.setLineWrap(false);
+        saveSqlPayloadButton = new JButton(I18nUtils.get("sql.button.save_payload"));
+        saveSqlErrorKeyButton = new JButton(I18nUtils.get("sql.button.save_error_key"));
+    }
+
+    @Override
+    protected void setupCommonUI() {
+        panel = new JPanel(new BorderLayout());
+
+        // 左半部分：上下分割
+        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        leftSplitPane.setResizeWeight(0.6);
+
+        // 上方：URL表格 + Payload表格水平分割
+        JSplitPane tablesSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        tablesSplit.setResizeWeight(0.5);
+        JScrollPane urlScrollPane = new JScrollPane(resultTable);
+        JScrollPane payloadScrollPane = new JScrollPane(payloadtable);
+        tablesSplit.setLeftComponent(urlScrollPane);
+        tablesSplit.setRightComponent(payloadScrollPane);
+        leftSplitPane.setTopComponent(tablesSplit);
+
+        // 下方：请求/响应编辑器
+        requestEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
+        responseEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
+        requestTabPane = new JTabbedPane();
+        requestTabPane.addTab("Request", requestEditor.getComponent());
+        responseTabPane = new JTabbedPane();
+        responseTabPane.addTab("Response", responseEditor.getComponent());
+        JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        editorSplit.setResizeWeight(0.5);
+        editorSplit.setLeftComponent(requestTabPane);
+        editorSplit.setRightComponent(responseTabPane);
+        leftSplitPane.setBottomComponent(editorSplit);
+
+        // 右半部分：配置面板
+        JPanel rightPanel = buildRightPanel();
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setResizeWeight(0.65);
+        mainSplit.setLeftComponent(leftSplitPane);
+        mainSplit.setRightComponent(rightPanel);
+
+        panel.add(mainSplit, BorderLayout.CENTER);
+    }
+
+    private JPanel buildRightPanel() {
+        JPanel rightSplitPane = new JPanel(new BorderLayout());
+        rightSplitPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        // 扫描选项
+        JPanel scanOptionsPanel = new JPanel(new GridLayout(2, 3, 5, 5));
         scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.scan_options")));
         scanOptionsPanel.add(passiveScanCheckBox);
         scanOptionsPanel.add(deleteOriginalValueCheckBox);
@@ -1354,106 +1087,339 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         scanOptionsPanel.add(urlEncodeCheckBox);
         scanOptionsPanel.add(booleanBlindCheckBox);
 
-        // 创建配置面板
-        JPanel configPanel = new JPanel();
-        configPanel.setLayout(new BorderLayout(5, 5));
+        // 配置面板
+        JPanel configPanel = new JPanel(new BorderLayout(5, 5));
         configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.configuration")));
 
-        // 白名单域名配置
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
-        whitelistPanel.add(whiteDomainListLabel, BorderLayout.NORTH);
-        whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
-        JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        whitelistButtonPanel.add(saveWhiteListButton);
-        whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
+        whitelistPanel.add(new JLabel(I18nUtils.get("sql.label.whitelist")), BorderLayout.NORTH);
+        whitelistPanel.add(new JScrollPane(whiteListTextArea), BorderLayout.CENTER);
+        JPanel wlBtn = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        wlBtn.add(saveWhiteListButton);
+        whitelistPanel.add(wlBtn, BorderLayout.SOUTH);
 
-        // Header检测配置
         JPanel headerPanel = new JPanel(new BorderLayout(5, 5));
-        headerPanel.add(headerLabel, BorderLayout.NORTH);
-        headerPanel.add(headerTextAreascrollPane, BorderLayout.CENTER);
-        JPanel headerButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        headerButtonPanel.add(saveHeaderListButton);
-        headerPanel.add(headerButtonPanel, BorderLayout.SOUTH);
+        headerPanel.add(new JLabel(I18nUtils.get("sql.label.header")), BorderLayout.NORTH);
+        headerPanel.add(new JScrollPane(headerTextArea), BorderLayout.CENTER);
+        JPanel hBtn = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        hBtn.add(saveHeaderListButton);
+        headerPanel.add(hBtn, BorderLayout.SOUTH);
 
-        // 将白名单和Header配置放入分割面板
-        JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        configSplitPane.setResizeWeight(0.5);
-        configSplitPane.setDividerLocation(0.5);
-        configSplitPane.setTopComponent(whitelistPanel);
-        configSplitPane.setBottomComponent(headerPanel);
-        configPanel.add(configSplitPane, BorderLayout.CENTER);
+        JSplitPane configSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        configSplit.setResizeWeight(0.5);
+        configSplit.setTopComponent(whitelistPanel);
+        configSplit.setBottomComponent(headerPanel);
+        configPanel.add(configSplit, BorderLayout.CENTER);
 
-        // 创建操作按钮面板
+        // 操作按钮
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.actions")));
         actionButtonsPanel.add(refreshTableButton);
         actionButtonsPanel.add(clearTableButton);
 
-        // 将所有面板放入主面板
-        JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainRightSplitPane.setResizeWeight(0.3);
-        mainRightSplitPane.setDividerLocation(0.3);
-        mainRightSplitPane.setTopComponent(scanOptionsPanel);
-        
-        JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
-        configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
-        configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
-        mainRightSplitPane.setBottomComponent(configAndActionsPanel);
-        
-        rightTopPanel.add(mainRightSplitPane, BorderLayout.CENTER);
+        JSplitPane mainRightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainRightSplit.setResizeWeight(0.3);
+        mainRightSplit.setTopComponent(scanOptionsPanel);
+        JPanel cfgAct = new JPanel(new BorderLayout(5, 5));
+        cfgAct.add(configPanel, BorderLayout.CENTER);
+        cfgAct.add(actionButtonsPanel, BorderLayout.SOUTH);
+        mainRightSplit.setBottomComponent(cfgAct);
+        rightSplitPane.add(mainRightSplit, BorderLayout.CENTER);
 
-        rightSplitPane.setTopComponent(rightTopPanel);
+        // 下方：Payload和Error Key
+        JPanel rightDownPanel = new JPanel(new BorderLayout());
+        JSplitPane downSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        downSplit.setResizeWeight(0.5);
 
+        JPanel payloadPanel = new JPanel(new BorderLayout(5, 5));
+        payloadPanel.add(new JLabel(I18nUtils.get("sql.label.payload")), BorderLayout.NORTH);
+        payloadPanel.add(new JScrollPane(sqlPayloadTextArea), BorderLayout.CENTER);
+        payloadPanel.add(saveSqlPayloadButton, BorderLayout.SOUTH);
 
-        // 右边的下部分左边
-        // sql payload label
-        JLabel sqlPayloadLabel = new JLabel(I18nUtils.get("sql.label.payload"));
-        // sqlpayload输入框
-        // sqlpayload保存按钮
-        sqlPayloadTextArea = new JTextArea(5, 10);
-        sqlPayloadTextArea.setLineWrap(false); // 自动换行
-        sqlPayloadTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane sqlPayloadTextAreascrollPane = new JScrollPane(sqlPayloadTextArea);
+        JPanel errKeyPanel = new JPanel(new BorderLayout(5, 5));
+        errKeyPanel.add(new JLabel(I18nUtils.get("sql.label.error_key")), BorderLayout.NORTH);
+        errKeyPanel.add(new JScrollPane(sqlErrorKeyTextArea), BorderLayout.CENTER);
+        errKeyPanel.add(saveSqlErrorKeyButton, BorderLayout.SOUTH);
 
-        saveSqlPayloadButton = new JButton(I18nUtils.get("sql.button.save_payload"));
-        JPanel rightDownLeftPanel = new JPanel();
-        rightDownLeftPanel.setLayout(new BorderLayout());
-        rightDownLeftPanel.add(sqlPayloadLabel, BorderLayout.NORTH);
-        rightDownLeftPanel.add(sqlPayloadTextAreascrollPane, BorderLayout.CENTER);
-        rightDownLeftPanel.add(saveSqlPayloadButton, BorderLayout.SOUTH);
-        // 右边的下部分左边
-        JLabel sqlErrKey = new JLabel(I18nUtils.get("sql.label.error_key"));
-        sqlErrorKeyTextArea = new JTextArea(5, 10);
-        sqlErrorKeyTextArea.setLineWrap(false); // 自动换行
-        sqlErrorKeyTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane sqlErrorKeyTextAreascrollPane = new JScrollPane(sqlErrorKeyTextArea);
-        saveSqlErrorKeyButton = new JButton(I18nUtils.get("sql.button.save_error_key"));
-        JPanel rightDownRightPanel = new JPanel();
-        rightDownRightPanel.setLayout(new BorderLayout());
-        rightDownRightPanel.add(sqlErrKey, BorderLayout.NORTH);
-        rightDownRightPanel.add(sqlErrorKeyTextAreascrollPane, BorderLayout.CENTER);
-        rightDownRightPanel.add(saveSqlErrorKeyButton, BorderLayout.SOUTH);
-        // 左右分割面板添加rightDownLeftPanel和rightDownRightPanel
-        JSplitPane rightDownPanel = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        rightDownPanel.setResizeWeight(0.5);
-        rightDownPanel.setDividerLocation(0.5);
-        rightDownPanel.setTopComponent(rightDownLeftPanel);
-        rightDownPanel.setBottomComponent(rightDownRightPanel);
-        rightSplitPane.setBottomComponent(rightDownPanel);
+        downSplit.setTopComponent(payloadPanel);
+        downSplit.setBottomComponent(errKeyPanel);
+        rightDownPanel.add(downSplit, BorderLayout.CENTER);
+        rightSplitPane.add(rightDownPanel, BorderLayout.SOUTH);
 
-        panel.add(leftSplitPane, BorderLayout.CENTER);
-        panel.add(rightSplitPane, BorderLayout.EAST);
-
+        return rightSplitPane;
     }
 
     @Override
-    public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
-        return panel;
+    protected void loadSavedData() {
+        // 加载SQL payload
+        List<SqlBean> sqlList = getSqlListsByType("payload");
+        for (int i = 0; i < sqlList.size(); i++) {
+            SqlBean bean = sqlList.get(i);
+            sqlPayloadTextArea.setText(sqlPayloadTextArea.getText() + bean.getValue()
+                    + (i < sqlList.size() - 1 ? "\n" : ""));
+        }
+        // 加载header
+        List<SqlBean> header = getSqlListsByType("header");
+        for (int i = 0; i < header.size(); i++) {
+            SqlBean bean = header.get(i);
+            headerTextArea.setText(headerTextArea.getText() + bean.getValue()
+                    + (i < header.size() - 1 ? "\n" : ""));
+        }
+        // 加载域名白名单
+        List<SqlBean> domains = getSqlListsByType("domain");
+        for (int i = 0; i < domains.size(); i++) {
+            SqlBean bean = domains.get(i);
+            whiteListTextArea.setText(whiteListTextArea.getText() + bean.getValue()
+                    + (i < domains.size() - 1 ? "\n" : ""));
+        }
+        // 加载error key
+        List<SqlBean> sqlErrorKey = getSqlListsByType("sqlErrorKey");
+        for (int i = 0; i < sqlErrorKey.size(); i++) {
+            SqlBean bean = sqlErrorKey.get(i);
+            sqlErrorKeyTextArea.setText(sqlErrorKeyTextArea.getText() + bean.getValue()
+                    + (i < sqlErrorKey.size() - 1 ? "\n" : ""));
+        }
+
+        // 复选框事件
+        passiveScanCheckBox.addActionListener(e -> isPassiveScan = passiveScanCheckBox.isSelected());
+        deleteOriginalValueCheckBox.addActionListener(e -> isDeleteOrgin = deleteOriginalValueCheckBox.isSelected());
+        checkCookieCheckBox.addActionListener(e -> isCheckCookie = checkCookieCheckBox.isSelected());
+        checkHeaderCheckBox.addActionListener(e -> isCheckHeader = checkHeaderCheckBox.isSelected());
+        checkWhiteListCheckBox.addActionListener(e -> isWhiteDomain = checkWhiteListCheckBox.isSelected());
+        urlEncodeCheckBox.addActionListener(e -> isUrlEncode = urlEncodeCheckBox.isSelected());
+        booleanBlindCheckBox.addActionListener(e -> isBooleanBlind = booleanBlindCheckBox.isSelected());
+
+        // 按钮事件
+        refreshTableButton.addActionListener(e -> {
+            resultTable.updateUI();
+            payloadtable.updateUI();
+        });
+        clearTableButton.addActionListener(e -> {
+            urlPayloadMapping.clear();
+            urlIdCounter.set(0);
+            urldata.clear();
+            payloaddata.clear();
+            payloaddata2.clear();
+            vul.clear();
+            UrlCacheUtil.resetCache("sqli");
+            requestEditor.setMessage(new byte[0], true);
+            responseEditor.setMessage(new byte[0], false);
+            resultTable.updateUI();
+            payloadtable.updateUI();
+        });
+
+        saveSqlPayloadButton.addActionListener(e -> saveTextAreaContent(sqlPayloadTextArea, "payload", SqlBean::new));
+        saveHeaderListButton.addActionListener(e -> saveTextAreaContent(headerTextArea, "header", SqlBean::new));
+        saveWhiteListButton.addActionListener(e -> saveTextAreaContent(whiteListTextArea, "domain", SqlBean::new));
+
+        saveSqlErrorKeyButton.addActionListener(e -> {
+            deleteSqlByType("sqlErrorKey");
+            saveTextAreaContent(sqlErrorKeyTextArea, "sqlErrorKey", SqlBean::new);
+            listErrorKey.clear();
+            getSqlListsByType("sqlErrorKey").forEach(b -> listErrorKey.add(b.getValue()));
+            sqlErrorKeyTextArea.updateUI();
+            showSaveSuccess();
+        });
+    }
+
+    @Override
+    protected void doPassiveScan(IHttpRequestResponse[] requestResponses, boolean isManual) {
+        Check(requestResponses, isManual);
+    }
+
+    @Override
+    protected String getScanName() {
+        return "SQL";
     }
 
     @Override
     public String getTabName() {
         return "SqlInject";
+    }
+
+    private void saveTextAreaContent(JTextArea textArea, String type, java.util.function.BiFunction<String, String, SqlBean> factory) {
+        String text = textArea.getText();
+        deleteSqlByType(type);
+        if (text.contains("\n")) {
+            for (String line : text.split("\n")) {
+                if (line.trim().isEmpty()) continue;
+                saveSql(factory.apply(type, line.trim()));
+            }
+        } else if (!text.trim().isEmpty()) {
+            saveSql(factory.apply(type, text.trim()));
+        }
+        if ("payload".equals(type)) sqliPayload = getSqlListsByType("payload");
+        if ("header".equals(type)) headerList = getSqlListsByType("header");
+        if ("domain".equals(type)) {
+            domainList.clear();
+            getSqlListsByType("domain").forEach(b -> domainList.add(b.getValue()));
+        }
+        textArea.updateUI();
+        showSaveSuccess();
+    }
+
+    private void showSaveSuccess() {
+        JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"),
+                I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+    }
+    // url 实体类
+    public static class SqlUIEntry {
+        final int id;
+        final String method;
+        final String url;
+        final int length;
+        final String status;
+        final IHttpRequestResponse requestResponse;
+
+        SqlUIEntry(int id, String method, String url, int length, String status, IHttpRequestResponse requestResponse) {
+            this.id = id;
+            this.method = method;
+            this.url = url;
+            this.length = length;
+            this.status = status;
+            this.requestResponse = requestResponse;
+        }
+    }
+
+    // payload 实体类
+    public static class SqlPayloadEntry {
+        final int selectId;
+        final String key;
+        final String value;
+        final int length;
+        final String change;
+        final String errkey;
+        final String time;
+        final String status;
+        final IHttpRequestResponse requestResponse;
+
+        SqlPayloadEntry(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
+            this.selectId = selectId;
+            this.key = key;
+            this.value = value;
+            this.length = length;
+            this.change = change;
+            this.errkey = errkey;
+            this.time = time;
+            this.status = status;
+            this.requestResponse = requestResponse;
+        }
+    }
+
+    // url 模型
+    static class SqlUrlModel extends AbstractTableModel {
+
+        @Override
+        public int getRowCount() {
+            return urldata.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return 5;
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            switch (columnIndex) {
+                case 0:
+                    return urldata.get(rowIndex).id;
+                case 1:
+                    return urldata.get(rowIndex).method;
+                case 2:
+                    return urldata.get(rowIndex).url;
+                case 3:
+                    return urldata.get(rowIndex).length;
+                case 4:
+                    return urldata.get(rowIndex).status;
+                default:
+                    return null;
+            }
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            switch (column) {
+                case 0:
+                    return "id";
+                case 1:
+                    return "method";
+                case 2:
+                    return "url";
+                case 3:
+                    return "length";
+                case 4:
+                    return "status";
+                default:
+                    return null;
+            }
+        }
+
+        @Override
+        public Class<?> getColumnClass(int column) {
+            if (column == 0) {
+                return Integer.class;
+            }
+            return super.getColumnClass(column);
+        }
+    }
+
+    // Payload 模型
+    static class SqlPayloadModel extends AbstractTableModel {
+
+        @Override
+        public int getRowCount() {
+            return payloaddata.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return 7;
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            switch (columnIndex) {
+                case 0:
+                    return payloaddata.get(rowIndex).key;
+                case 1:
+                    return payloaddata.get(rowIndex).value;
+                case 2:
+                    return payloaddata.get(rowIndex).length;
+                case 3:
+                    return payloaddata.get(rowIndex).change;
+                case 4:
+                    return payloaddata.get(rowIndex).errkey;
+                case 5:
+                    return payloaddata.get(rowIndex).time;
+                case 6:
+                    return payloaddata.get(rowIndex).status;
+                default:
+                    return null;
+            }
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            switch (column) {
+                case 0:
+                    return "Parameter";
+                case 1:
+                    return "Value";
+                case 2:
+                    return "Response Length";
+                case 3:
+                    return "Change";
+                case 4:
+                    return "Error";
+                case 5:
+                    return "Time";
+                case 6:
+                    return "Status Code";
+                default:
+                    return null;
+            }
+        }
     }
 
     // url 表格
@@ -1468,6 +1434,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
+            // 如果表格已排序，需要将视图索引转换为模型索引
             int modelRow = rowIndex;
             if (getRowSorter() != null) {
                 modelRow = convertRowIndexToModel(rowIndex);
@@ -1483,13 +1450,14 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
             }
             payloadtable.updateUI();
 
+
             model.fireTableRowsInserted(payloaddata.size(), payloaddata.size());
             model.fireTableDataChanged();
-            HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
+            requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             if (logEntry.requestResponse.getResponse() == null) {
-                HResponseTextEditor.setMessage(new byte[0], false);
+                responseEditor.setMessage(new byte[0], false);
             } else {
-                HResponseTextEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+                responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
             }
             currentlyDisplayedItem = logEntry.requestResponse;
             super.changeSelection(rowIndex, columnIndex, toggle, extend);
@@ -1507,12 +1475,13 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
+
             SqlPayloadEntry dataEntry = payloaddata.get(rowIndex);
-            HRequestTextEditor.setMessage(dataEntry.requestResponse.getRequest(), true);
+            requestEditor.setMessage(dataEntry.requestResponse.getRequest(), true);
             if (dataEntry.requestResponse.getResponse() == null) {
-                HResponseTextEditor.setMessage(new byte[0], false);
+                responseEditor.setMessage(new byte[0], false);
             } else {
-                HResponseTextEditor.setMessage(dataEntry.requestResponse.getResponse(), false);
+                responseEditor.setMessage(dataEntry.requestResponse.getResponse(), false);
             }
             currentlyDisplayedItem = dataEntry.requestResponse;
             super.changeSelection(rowIndex, columnIndex, toggle, extend);
