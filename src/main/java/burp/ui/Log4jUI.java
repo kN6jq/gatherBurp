@@ -24,14 +24,7 @@ import static burp.IParameter.*;
 import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.Log4jDao.*;
 
-/**
- * @Author Xm17
- * @Date 2024-06-22 12:45
- */
-public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListener {
-    private JPanel panel; // 主面板
-    private static JTable log4jtable; // log4j表格
-    private JCheckBox passiveScanCheckBox; // 被动扫描选择框
+public class Log4jUI extends AbstractScanUI {
     private JCheckBox originalValueCheckBox; // 原始payload值选择框
     private JCheckBox checkHeaderCheckBox; // 检测header选择框
     private JCheckBox isDnsOrIpCheckBox; // 是否是dns或者ip选择框
@@ -45,15 +38,9 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private JTextArea whiteListTextArea; // 白名单域名输入框
     private JTextArea headerTextArea; // header输入框
     private JTextArea payloadTextArea; // payload输入框
-    private JTabbedPane tabbedPanereq; // 请求tab
-    private JTabbedPane tabbedPaneresp; // 响应tab
     private JScrollPane urltablescrollpane; // url table scroll pane
-    private IHttpRequestResponse currentlyDisplayedItem; // currently displayed item
-    private IMessageEditor HRequestTextEditor; // request editor
-    private IMessageEditor HResponseTextEditor; // response editor
+
     private static final List<Log4jUIEntry> log4jlog = new ArrayList<>();
-    private static final List<String> parameterList = new ArrayList<>(); // 参数列表
-    private static final List<String> urlHashList = new ArrayList<>(); // url hash list
     private static boolean isPassiveScan; // 是否是被动扫描
     private static boolean isOriginalValue; // 是否删除原始值
     private static boolean isCheckHeader; // 是否检测header
@@ -67,331 +54,49 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     public static String dns;
     public static String ip;
     private static final Lock lock = new ReentrantLock();
-    
+
     public static void resetAllCaches() {
         urlHashList.clear();
         parameterList.clear();
         UrlCacheUtil.resetCache("log4j");
     }
 
-
     @Override
-    public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
-        if (isPassiveScan && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
-            synchronized (log4jlog) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Check(new IHttpRequestResponse[]{iHttpRequestResponse},false);
-                    }
-                });
-                thread.start();
-            }
-        }
-    }
-
-    @Override
-    public IHttpService getHttpService() {
-        return currentlyDisplayedItem.getHttpService();
-    }
-
-    @Override
-    public byte[] getRequest() {
-        return currentlyDisplayedItem.getRequest();
-    }
-
-    @Override
-    public byte[] getResponse() {
-        return currentlyDisplayedItem.getResponse();
-    }
-
-    @Override
-    public void init() {
-
-        // 存储白名单域名
-        List<Log4jBean> domain = getLog4jListsByType("domain");
-        // 将domain转为List<String>
-        for (Log4jBean log4jBean : domain) {
-            domainList.add(log4jBean.getValue());
-        }
-
-        dns = getConfig("config", "dnslog").getValue();
-        ip = getConfig("config", "ip").getValue();
-
-        setupUI();
-        setupData();
-    }
-
-    // 初始化数据
-    private void setupData() {
-
-        // 被动扫描选择框
-        passiveScanCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (passiveScanCheckBox.isSelected()) {
-                    isPassiveScan = true;
-                } else {
-                    isPassiveScan = false;
-                }
-            }
-        });
-        // 原始payload值选择框
-        originalValueCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (originalValueCheckBox.isSelected()) {
-                    isOriginalValue = true;
-                } else {
-                    isOriginalValue = false;
-                }
-            }
-        });
-        // 检测header选择框
-        checkHeaderCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkHeaderCheckBox.isSelected()) {
-                    isCheckHeader = true;
-                } else {
-                    isCheckHeader = false;
-                }
-            }
-        });
-        // 检测参数选择框
-        checkParmamCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkParmamCheckBox.isSelected()) {
-                    isCheckParam = true;
-                } else {
-                    isCheckParam = false;
-                }
-            }
-        });
-        // 是否是dns或者ip选择框
-        isDnsOrIpCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                dns = getConfig("config", "dnslog").getValue();
-                ip = getConfig("config", "ip").getValue();
-                if (isDnsOrIpCheckBox.isSelected()) {
-                    isDnsOrIp = true;
-                    isDnsOrIpCheckBox.setText("DNS");
-                } else {
-                    isDnsOrIp = false;
-                    isDnsOrIpCheckBox.setText("IP");
-                }
-            }
-        });
-
-        // 初始化白名单输入框
-        List<Log4jBean> domain = getLog4jListsByType("domain");
-        for (Log4jBean log4jBean : domain) {
-            whiteListTextArea.setText(whiteListTextArea.getText() + log4jBean.getValue() + "\n");
-            domainList.add(log4jBean.getValue());
-        }
-        // 初始化header输入框
-        List<Log4jBean> header = getLog4jListsByType("header");
-        for (Log4jBean log4jBean : header) {
-            headerTextArea.setText(headerTextArea.getText() + log4jBean.getValue() + "\n");
-            headerList.add(log4jBean.getValue());
-        }
-        // 初始化payload输入框
-        List<Log4jBean> payload = getLog4jListsByType("payload");
-        for (Log4jBean log4jBean : payload) {
-            payloadTextArea.setText(payloadTextArea.getText() + log4jBean.getValue() + "\n");
-            payloadList.add(log4jBean.getValue());
-        }
-
-        // 检测白名单选择框
-        checkWhiteListCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (checkWhiteListCheckBox.isSelected()) {
-                    isCheckWhiteList = true;
-                } else {
-                    isCheckWhiteList = false;
-                }
-            }
-        });
-        // 保存白名单域名按钮
-        saveWhiteListButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String whiteListTextAreaText = whiteListTextArea.getText();
-                deleteLog4jByType("domain");
-                // 如果包含换行符，就分割成多个domain
-                if (whiteListTextAreaText.contains("\n")) {
-                    String[] split = whiteListTextAreaText.split("\n");
-                    for (String s : split) {
-                        Log4jBean log4jBean = new Log4jBean("domain", s);
-                        saveLog4j(log4jBean);
-                    }
-                } else {
-                    Log4jBean log4jBean = new Log4jBean("domain", whiteListTextAreaText);
-                    saveLog4j(log4jBean);
-                }
-                // 存储白名单域名
-                List<Log4jBean> domain = getLog4jListsByType("domain");
-                // 将domain转为List<String>
-                for (Log4jBean log4jBean : domain) {
-                    domainList.add(log4jBean.getValue());
-                }
-                whiteListTextArea.updateUI();
-                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        // 保存header按钮
-        saveHeaderListButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String headerTextAreaText = headerTextArea.getText();
-                deleteLog4jByType("header");
-                String[] split = headerTextAreaText.split("\n");
-                for (String s : split) {
-                    Log4jBean log4jBean = new Log4jBean("header", s);
-                    saveLog4j(log4jBean);
-                }
-                List<Log4jBean> header = getLog4jListsByType("header");
-                for (Log4jBean log4jBean : header) {
-                    headerList.add(log4jBean.getValue());
-                }
-                headerTextArea.updateUI();
-                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        // 保存payload按钮
-        savePayloadButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String payloadTextAreaText = payloadTextArea.getText();
-                deleteLog4jByType("payload");
-                String[] split = payloadTextAreaText.split("\n");
-                for (String s : split) {
-                    Log4jBean log4jBean = new Log4jBean("payload", s);
-                    saveLog4j(log4jBean);
-                }
-                List<Log4jBean> payload = getLog4jListsByType("payload");
-                for (Log4jBean log4jBean : payload) {
-                    payloadList.add(log4jBean.getValue());
-                }
-
-
-                payloadTextArea.updateUI();
-                JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        // 刷新表格
-        refreshTableButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log4jtable.updateUI();
-            }
-        });
-
-        // 清空表格
-        clearTableButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                log4jlog.clear();
-                HRequestTextEditor.setMessage(new byte[0], true);
-                HResponseTextEditor.setMessage(new byte[0], false);
-                urlHashList.clear();
-                UrlCacheUtil.resetCache("log4j");  // 清空URL缓存
-                log4jtable.updateUI();
-            }
-        });
-
-    }
-
-    // 初始化UI
-    private void setupUI() {
+    protected void setupScanUI() {
         // 注册被动扫描监听器
         Utils.callbacks.registerHttpListener(this);
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
 
-        JPanel splitPane = new JPanel(new BorderLayout());
-        // 左边的面板
-        // 左边的上下按7:3分割
-        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.7);
-        leftSplitPane.setDividerLocation(0.7);
-        // 左边的上面是表格
-        urltablescrollpane = new JScrollPane();
-        log4jtable = new URLTable(new Log4jTableModel(log4jlog));
-        urltablescrollpane.setViewportView(log4jtable);
-        leftSplitPane.setTopComponent(urltablescrollpane);
+        resultTable = new URLTable(new Log4jTableModel(log4jlog));
+        urltablescrollpane = new JScrollPane(resultTable);
 
-
-
-        // 左边的下面是消息编辑器
-        tabbedPanereq = new JTabbedPane();
-        tabbedPaneresp = new JTabbedPane();
-        HRequestTextEditor = Utils.callbacks.createMessageEditor(this, false);
-        HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
-        tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
-        tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
-        JSplitPane leftDownSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        leftDownSplitPane.setResizeWeight(0.5);
-        leftDownSplitPane.setDividerLocation(0.5);
-        leftDownSplitPane.setLeftComponent(tabbedPanereq);
-        leftDownSplitPane.setRightComponent(tabbedPaneresp);
-        leftSplitPane.setBottomComponent(leftDownSplitPane);
-
-
-        // 右边的面板
-        // 右边的上下按7:3分割
-        JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        rightSplitPane.setResizeWeight(0.7);
-        rightSplitPane.setDividerLocation(0.7);
-
-
-        // 右边的上部分 - 重新设计布局
-        // 添加被动扫描选择框
+        // 被动扫描选择框
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.passive"));
-        // 添加删除原始值选择框
         originalValueCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.original"));
-        // 添加检测cookie选择框
         checkParmamCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.params"));
-        // 添加检测header选择框
         checkHeaderCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.headers"));
-        // 添加白名单域名检测选择框
         checkWhiteListCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.whitelist"));
         isDnsOrIpCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.dns_ip"));
-        // 白名单域名保存按钮
-        saveWhiteListButton = new JButton(I18nUtils.get("log4j.button.save_whitelist"));
-        // 保存header按钮
-        saveHeaderListButton = new JButton(I18nUtils.get("log4j.button.save_header"));
-        // 白名单域名输入框列表
-        whiteListTextArea = new JTextArea(5,10);
-        whiteListTextArea.setLineWrap(false); // 自动换行
-        whiteListTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane whiteListTextAreascrollPane = new JScrollPane(whiteListTextArea);
 
-        // header检测数据框列表
-        headerTextArea = new JTextArea(5,10);
-        headerTextArea.setLineWrap(false); // 自动换行
-        headerTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane headerTextAreascrollPane = new JScrollPane(headerTextArea);
-        // 刷新表格按钮
+        saveWhiteListButton = new JButton(I18nUtils.get("log4j.button.save_whitelist"));
+        saveHeaderListButton = new JButton(I18nUtils.get("log4j.button.save_header"));
+        whiteListTextArea = new JTextArea(5, 10);
+        whiteListTextArea.setLineWrap(false);
+        whiteListTextArea.setWrapStyleWord(false);
+        headerTextArea = new JTextArea(5, 10);
+        headerTextArea.setLineWrap(false);
+        headerTextArea.setWrapStyleWord(false);
+
         refreshTableButton = new JButton(I18nUtils.get("log4j.button.refresh"));
-        // 清空表格按钮
         clearTableButton = new JButton(I18nUtils.get("log4j.button.clear"));
-        // 白名单域名label
+
         JLabel whiteDomainListLabel = new JLabel(I18nUtils.get("log4j.label.whitelist"));
-        // 检测header label
         JLabel headerLabel = new JLabel(I18nUtils.get("log4j.label.header"));
 
-        // 添加到右边的上部分 - 重新设计布局
-        JPanel rightTopPanel = new JPanel();
-        rightTopPanel.setLayout(new BorderLayout());
+        // 右边的上部分
+        JPanel rightTopPanel = new JPanel(new BorderLayout());
         rightTopPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // 创建扫描选项面板
-        JPanel scanOptionsPanel = new JPanel();
-        scanOptionsPanel.setLayout(new GridLayout(2, 3, 5, 5));
+        JPanel scanOptionsPanel = new JPanel(new GridLayout(2, 3, 5, 5));
         scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.scan_options")));
         scanOptionsPanel.add(passiveScanCheckBox);
         scanOptionsPanel.add(originalValueCheckBox);
@@ -400,126 +105,190 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         scanOptionsPanel.add(checkWhiteListCheckBox);
         scanOptionsPanel.add(isDnsOrIpCheckBox);
 
-        // 创建配置面板
-        JPanel configPanel = new JPanel();
-        configPanel.setLayout(new BorderLayout(5, 5));
+        JPanel configPanel = new JPanel(new BorderLayout(5, 5));
         configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.configuration")));
 
-        // 白名单域名配置
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
         whitelistPanel.add(whiteDomainListLabel, BorderLayout.NORTH);
-        whitelistPanel.add(whiteListTextAreascrollPane, BorderLayout.CENTER);
+        whitelistPanel.add(new JScrollPane(whiteListTextArea), BorderLayout.CENTER);
         JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         whitelistButtonPanel.add(saveWhiteListButton);
         whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
 
-        // Header检测配置
-        JPanel headerPanel = new JPanel(new BorderLayout(5, 5));
-        headerPanel.add(headerLabel, BorderLayout.NORTH);
-        headerPanel.add(headerTextAreascrollPane, BorderLayout.CENTER);
+        JPanel headerConfigPanel = new JPanel(new BorderLayout(5, 5));
+        headerConfigPanel.add(headerLabel, BorderLayout.NORTH);
+        headerConfigPanel.add(new JScrollPane(headerTextArea), BorderLayout.CENTER);
         JPanel headerButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         headerButtonPanel.add(saveHeaderListButton);
-        headerPanel.add(headerButtonPanel, BorderLayout.SOUTH);
+        headerConfigPanel.add(headerButtonPanel, BorderLayout.SOUTH);
 
-        // 将白名单和Header配置放入分割面板
         JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         configSplitPane.setResizeWeight(0.5);
-        configSplitPane.setDividerLocation(0.5);
         configSplitPane.setTopComponent(whitelistPanel);
-        configSplitPane.setBottomComponent(headerPanel);
+        configSplitPane.setBottomComponent(headerConfigPanel);
         configPanel.add(configSplitPane, BorderLayout.CENTER);
 
-        // 创建操作按钮面板
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.actions")));
         actionButtonsPanel.add(refreshTableButton);
         actionButtonsPanel.add(clearTableButton);
 
-        // 将所有面板放入主面板
         JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         mainRightSplitPane.setResizeWeight(0.3);
-        mainRightSplitPane.setDividerLocation(0.3);
         mainRightSplitPane.setTopComponent(scanOptionsPanel);
-        
         JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
         configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
         configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
         mainRightSplitPane.setBottomComponent(configAndActionsPanel);
-        
         rightTopPanel.add(mainRightSplitPane, BorderLayout.CENTER);
 
-        rightSplitPane.setTopComponent(rightTopPanel);
-
-
-        // 右边的下部分左边
-        // log4j payload label
-        JLabel PayloadLabel = new JLabel(I18nUtils.get("log4j.label.payload"));
-        // log4j payload输入框
-        // log4j payload保存按钮
-        payloadTextArea = new JTextArea(5,10);
-        payloadTextArea.setLineWrap(false); // 自动换行
-        payloadTextArea.setWrapStyleWord(false); // 按单词换行
-        JScrollPane payloadTextAreascrollPane = new JScrollPane(payloadTextArea);
+        // payload区域
+        JLabel payloadLabel = new JLabel(I18nUtils.get("log4j.label.payload"));
+        payloadTextArea = new JTextArea(5, 10);
+        payloadTextArea.setLineWrap(false);
+        payloadTextArea.setWrapStyleWord(false);
         savePayloadButton = new JButton(I18nUtils.get("log4j.button.save_payload"));
-        JPanel rightDownLeftPanel = new JPanel();
-        rightDownLeftPanel.setLayout(new BorderLayout(5, 5));
-        rightDownLeftPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        rightDownLeftPanel.add(PayloadLabel, BorderLayout.NORTH);
-        rightDownLeftPanel.add(payloadTextAreascrollPane, BorderLayout.CENTER);
+        JPanel payloadPanel = new JPanel(new BorderLayout(5, 5));
+        payloadPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        payloadPanel.add(payloadLabel, BorderLayout.NORTH);
+        payloadPanel.add(new JScrollPane(payloadTextArea), BorderLayout.CENTER);
         JPanel payloadButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         payloadButtonPanel.add(savePayloadButton);
-        rightDownLeftPanel.add(payloadButtonPanel, BorderLayout.SOUTH);
+        payloadPanel.add(payloadButtonPanel, BorderLayout.SOUTH);
 
+        JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        rightSplitPane.setResizeWeight(0.7);
+        rightSplitPane.setTopComponent(rightTopPanel);
+        rightSplitPane.setBottomComponent(payloadPanel);
 
-        // 左右分割面板添加rightDownLeftPanel和rightDownRightPanel
-        JPanel rightDownPanel = new JPanel(new BorderLayout());
-        rightDownPanel.add(rightDownLeftPanel, BorderLayout.CENTER);
-        rightSplitPane.setBottomComponent(rightDownPanel);
+        // 主体：左边表格+编辑器，右边配置
+        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        leftSplitPane.setResizeWeight(0.65);
+        leftSplitPane.setLeftComponent(urltablescrollpane);
 
-        // 添加到splitPane
-        splitPane.add(leftSplitPane, BorderLayout.CENTER);
-        splitPane.add(rightSplitPane, BorderLayout.EAST);
-        panel.add(splitPane, BorderLayout.CENTER);
+        JSplitPane editorSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        editorSplit.setResizeWeight(0.5);
+        editorSplit.setLeftComponent(requestTabPane);
+        editorSplit.setRightComponent(responseTabPane);
+        leftSplitPane.setRightComponent(editorSplit);
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setResizeWeight(0.65);
+        mainSplit.setLeftComponent(leftSplitPane);
+        mainSplit.setRightComponent(rightSplitPane);
+
+        panel.add(mainSplit, BorderLayout.CENTER);
     }
 
     @Override
-    public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
-        return panel;
+    protected void loadSavedData() {
+        // 被动扫描选择框
+        passiveScanCheckBox.addActionListener(e -> isPassiveScan = passiveScanCheckBox.isSelected());
+        originalValueCheckBox.addActionListener(e -> isOriginalValue = originalValueCheckBox.isSelected());
+        checkHeaderCheckBox.addActionListener(e -> isCheckHeader = checkHeaderCheckBox.isSelected());
+        checkParmamCheckBox.addActionListener(e -> isCheckParam = checkParmamCheckBox.isSelected());
+        isDnsOrIpCheckBox.addActionListener(e -> {
+            dns = getConfig("config", "dnslog").getValue();
+            ip = getConfig("config", "ip").getValue();
+            isDnsOrIp = isDnsOrIpCheckBox.isSelected();
+            isDnsOrIpCheckBox.setText(isDnsOrIp ? "DNS" : "IP");
+        });
+        checkWhiteListCheckBox.addActionListener(e -> isCheckWhiteList = checkWhiteListCheckBox.isSelected());
+
+        // 初始化白名单
+        List<Log4jBean> domain = getLog4jListsByType("domain");
+        for (Log4jBean bean : domain) {
+            whiteListTextArea.setText(whiteListTextArea.getText() + bean.getValue() + "\n");
+            domainList.add(bean.getValue());
+        }
+        List<Log4jBean> header = getLog4jListsByType("header");
+        for (Log4jBean bean : header) {
+            headerTextArea.setText(headerTextArea.getText() + bean.getValue() + "\n");
+            headerList.add(bean.getValue());
+        }
+        List<Log4jBean> payload = getLog4jListsByType("payload");
+        for (Log4jBean bean : payload) {
+            payloadTextArea.setText(payloadTextArea.getText() + bean.getValue() + "\n");
+            payloadList.add(bean.getValue());
+        }
+
+        // 按钮事件
+        saveWhiteListButton.addActionListener(e -> {
+            deleteLog4jByType("domain");
+            for (String s : whiteListTextArea.getText().split("\n")) {
+                if (s.trim().isEmpty()) continue;
+                saveLog4j(new Log4jBean("domain", s.trim()));
+            }
+            domainList.clear();
+            getLog4jListsByType("domain").forEach(b -> domainList.add(b.getValue()));
+            whiteListTextArea.updateUI();
+            showSaveSuccess();
+        });
+        saveHeaderListButton.addActionListener(e -> {
+            deleteLog4jByType("header");
+            for (String s : headerTextArea.getText().split("\n")) {
+                if (s.trim().isEmpty()) continue;
+                saveLog4j(new Log4jBean("header", s.trim()));
+            }
+            headerList.clear();
+            getLog4jListsByType("header").forEach(b -> headerList.add(b.getValue()));
+            headerTextArea.updateUI();
+            showSaveSuccess();
+        });
+        savePayloadButton.addActionListener(e -> {
+            deleteLog4jByType("payload");
+            for (String s : payloadTextArea.getText().split("\n")) {
+                if (s.trim().isEmpty()) continue;
+                saveLog4j(new Log4jBean("payload", s.trim()));
+            }
+            payloadList.clear();
+            getLog4jListsByType("payload").forEach(b -> payloadList.add(b.getValue()));
+            payloadTextArea.updateUI();
+            showSaveSuccess();
+        });
+        refreshTableButton.addActionListener(e -> resultTable.updateUI());
+        clearTableButton.addActionListener(e -> {
+            log4jlog.clear();
+            clearResults();
+            urlHashList.clear();
+            UrlCacheUtil.resetCache("log4j");
+            resultTable.updateUI();
+        });
+    }
+
+    @Override
+    protected void doPassiveScan(IHttpRequestResponse[] requestResponses, boolean isManual) {
+        Check(requestResponses, isManual);
+    }
+
+    @Override
+    protected String getScanName() {
+        return "Log4j";
     }
 
     @Override
     public String getTabName() {
         return "Log4jScan";
     }
+
     // 添加数据
     public static void add(String extensionMethod, String url, String status, String res, IHttpRequestResponse baseRequestResponse) {
         synchronized (log4jlog) {
             int id = log4jlog.size();
             log4jlog.add(new Log4jUIEntry(id, extensionMethod, url, status, res, baseRequestResponse));
-            log4jtable.updateUI();
         }
-
+        SwingUtilities.invokeLater(() -> resultTable.updateUI());
     }
 
     // 获取请求包的tag
     private static String getReqTag(IHttpRequestResponse baseRequestResponse, IRequestInfo req, String type) {
-        // 获取并处理URI
         String uri = req.getHeaders().get(0).split(" ")[1].split("\\?")[0].replace("/", ".");
-
-        // 如果URI超过25个字符，截取并处理结尾的点号
         if (uri.length() > 25) {
-            uri = uri.substring(0, 25);
-            if (uri.endsWith(".")) {
-                uri = uri.substring(0, uri.length() - 1);
-            }
+            uri = uri.substring(0, uri.endsWith(".") ? uri.length() - 1 : uri.length());
         }
-
-        // 处理URI末尾的点号
         if (uri.endsWith(".")) {
             uri = uri.substring(0, uri.length() - 1);
         }
-
-        // 构建最终标签
         String tag = req.getMethod() + "." + baseRequestResponse.getHttpService().getHost() + uri;
         return "dns".equalsIgnoreCase(type) ? tag + "." : tag;
     }
@@ -527,80 +296,52 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     // 检测核心方法
     public static void Check(IHttpRequestResponse[] messageInfo, boolean isSend) {
         lock.lock();
-        try{
+        try {
             IHttpRequestResponse baseRequestResponse = messageInfo[0];
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
-            List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            List<String> reqheaders = analyzeRequest.getHeaders();
             String method = analyzeRequest.getMethod();
             String host = baseRequestResponse.getHttpService().getHost();
             URL rdurlURL = analyzeRequest.getUrl();
-            String url = analyzeRequest.getUrl().toString();
+            String url = rdurlURL.toString();
             List<IParameter> paraLists = analyzeRequest.getParameters();
 
-            // 如果method不是get或者post方式直接返回
-            if (!method.equals("GET") && !method.equals("POST")) {
-                return;
-            }
-            // url 中匹配为静态资源
-            if (Utils.isUrlBlackListSuffix(url)){
-                return;
-            }
-            // 如果没有开启检测参数和检测header 并且参数没有值 直接返回
-            if (!isCheckParam && !isCheckHeader) {
-                return;
-            }
+            if (!method.equals("GET") && !method.equals("POST")) return;
+            if (Utils.isUrlBlackListSuffix(url)) return;
+            if (!isCheckParam && !isCheckHeader) return;
 
-            // 判断参数类型，不符合的直接跳过检测
-            boolean ruleHit = true; // 默认设置为true，表示命中规则
+            boolean ruleHit = true;
             for (IParameter para : paraLists) {
                 if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
                         || isCheckHeader) {
-                    ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了header 检测，则不命中规则
+                    ruleHit = false;
                     break;
                 }
             }
-            if (ruleHit) {
-                return; // 如果命中规则，则直接返回
-            }
+            if (ruleHit) return;
 
-
-            // 如果不是手动发送则需要进行url去重
             if (!isSend) {
-                if (!UrlCacheUtil.checkUrlUnique("log4j", method, rdurlURL, paraLists)) {
-                    return;
-                }
-            }else {
+                if (!UrlCacheUtil.checkUrlUnique("log4j", method, rdurlURL, paraLists)) return;
+            } else {
                 isCheckWhiteList = false;
             }
 
-            if (isCheckWhiteList) {
-                // 如果未匹配到 直接返回
-                if (!Utils.isMatchDomainName(host,domainList)){
-                    return;
-                }
-            }
-            // 加入payload前先清空列表
+            if (isCheckWhiteList && !Utils.isMatchDomainName(host, domainList)) return;
+
             log4jPayload.clear();
-            // 将数据库中的payload加入到列表
             for (String log4j : payloadList) {
                 if (isOriginalValue) {
                     log4jPayload.add(log4j);
-                } else {
-                    if (log4j.contains("dnslog-url")) {
-                        if (isDnsOrIp) {
-                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
-                            // 新增：为log4j dnslog payload加前缀
-                            String log4jDnslogPayload = logPrefix + "log4j." + dns;
-                            log4jPayload.add(log4j.replace("dnslog-url", log4jDnslogPayload));
-                        } else {
-                            String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
-                            // 新增：为log4j ip payload加前缀
-                            String log4jIpPayload = ip + "/log4j." + logPrefix;
-                            log4jPayload.add(log4j.replace("dnslog-url", log4jIpPayload));
-                        }
+                } else if (log4j.contains("dnslog-url")) {
+                    if (isDnsOrIp) {
+                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "dns");
+                        log4jPayload.add(log4j.replace("dnslog-url", logPrefix + "log4j." + dns));
                     } else {
-                        log4jPayload.add(log4j);
+                        String logPrefix = getReqTag(baseRequestResponse, analyzeRequest, "ip");
+                        log4jPayload.add(log4j.replace("dnslog-url", ip + "/log4j." + logPrefix));
                     }
+                } else {
+                    log4jPayload.add(log4j);
                 }
             }
 
@@ -609,69 +350,26 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 for (IParameter para : paraLists) {
                     if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON) {
                         String paraName = para.getName();
-                        String paraValue = para.getValue();
-                        // 判断参数是否在url中
                         if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY) {
                             for (String logPayload : log4jPayload) {
-                                // 如果是在get请求中，需要对payload进行url编码
-                                if (para.getType() == PARAM_URL) {
-                                    logPayload = Utils.UrlEncode(logPayload);
-                                }
+                                if (para.getType() == PARAM_URL) logPayload = Utils.UrlEncode(logPayload);
                                 IParameter iParameter = Utils.helpers.buildParameter(paraName, logPayload, para.getType());
                                 byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameter);
                                 IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                                IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-                                byte[] log4jresponseBody = newRequestResponse.getResponse();
-                                String ParamLength = "";
-                                String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
-                                if (log4jresponseBody != null) {
-                                    // 判断有无Content-Length字段
-                                    IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
-                                    List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
-                                    if (contentLength != null){
-                                        ParamLength = contentLength;
-                                    }
-                                }
-                                if (ParamLength.isEmpty()) {
-                                    assert log4jresponseBody != null;
-                                    ParamLength = String.valueOf(log4jresponseBody.length);
-                                }
-                                add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
+                                String ParamLength = getResponseLength(newRequestResponse);
+                                add(method, url, String.valueOf(Utils.helpers.analyzeResponse(newRequestResponse.getResponse()).getStatusCode()), ParamLength, newRequestResponse);
                             }
-
                         }
-                        // 判断参数是否在json中
                         if (para.getType() == PARAM_JSON) {
                             for (String logPayload : log4jPayload) {
                                 String request_data = Utils.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
                                 Map<String, Object> request_json = JSON.parseObject(request_data);
                                 List<Object> objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(logPayload), 0);
-                                String json = "";
-                                for (Object o : objectList) {
-                                    json = JSON.toJSONString(o);
-                                }
-                                byte[] bytes = Utils.helpers.buildHttpMessage(reqheaders, json.getBytes());
+                                String json = objectList.stream().map(Object::toString).findFirst().orElse("");
+                                byte[] bytes = Utils.callbacks.getHelpers().buildHttpMessage(reqheaders, json.getBytes());
                                 IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                                IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(newRequestResponse.getResponse());
-                                byte[] log4jresponseBody = newRequestResponse.getResponse();
-                                String ParamLength = "";
-                                String ParamstatusCode = String.valueOf(analyzeResponse.getStatusCode());
-                                if (log4jresponseBody != null) {
-                                    // 判断有无Content-Length字段
-                                    IResponseInfo ReqResponse = Utils.helpers.analyzeResponse(log4jresponseBody);
-                                    List<String> log4jHeaders = ReqResponse.getHeaders();
-                                    String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
-                                    if (contentLength != null){
-                                        ParamLength = contentLength;
-                                    }
-                                }
-                                if (ParamLength.isEmpty()) {
-                                    assert log4jresponseBody != null;
-                                    ParamLength = String.valueOf(log4jresponseBody.length);
-                                }
-                                add(method, url, ParamstatusCode, ParamLength, newRequestResponse);
-
+                                String ParamLength = getResponseLength(newRequestResponse);
+                                add(method, url, String.valueOf(Utils.helpers.analyzeResponse(newRequestResponse.getResponse()).getStatusCode()), ParamLength, newRequestResponse);
                             }
                             break;
                         }
@@ -679,15 +377,13 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 }
             }
 
-
             // 检测header
             if (isCheckHeader) {
                 byte[] byte_Request = baseRequestResponse.getRequest();
                 int bodyOffset = analyzeRequest.getBodyOffset();
-                int len = byte_Request.length;
-                byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, len);
+                byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, byte_Request.length);
                 for (String logPayload : log4jPayload) {
-                    List<String> reqheaders2 = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+                    List<String> reqheaders2 = new ArrayList<>(Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders());
                     List<String> newReqheaders = new ArrayList<>();
                     Iterator<String> iterator = reqheaders2.iterator();
                     while (iterator.hasNext()) {
@@ -696,76 +392,63 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                             if (reqheader.contains(header)) {
                                 iterator.remove();
                                 String newHeader = header + ": " + logPayload;
-                                if (!newReqheaders.contains(newHeader)) {
-                                    newReqheaders.add(newHeader);
-                                }
+                                if (!newReqheaders.contains(newHeader)) newReqheaders.add(newHeader);
                             }
                         }
                     }
                     for (String header : headerList) {
-                        String newHeader = header + ": " + logPayload;
-//                    if (!reqheaders2.contains(header) && !newReqheaders.contains(newHeader)) {
-//                        newReqheaders.add(newHeader);
-//                    }
-                        newReqheaders.add(newHeader);
+                        newReqheaders.add(header + ": " + logPayload);
                     }
-
                     reqheaders2.addAll(newReqheaders);
                     byte[] postMessage = Utils.helpers.buildHttpMessage(reqheaders2, body);
                     IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-                    byte[] responseBody = originalRequestResponse.getResponse();
-
-                    String originallength = "";
-                    String statusCode = "";
-                    if (responseBody != null) {
-                        IResponseInfo originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-                        List<String> log4jHeaders = originalReqResponse.getHeaders();
-                        statusCode = String.valueOf(originalReqResponse.getStatusCode());
-                        String contentLength = HelperPlus.getHeaderValueOf(log4jHeaders, "Content-Length");
-                        if (contentLength != null){
-                            originallength = contentLength;
-                        }
-                    }
-                    if (originallength.isEmpty()) {
-                        assert responseBody != null;
-                        originallength = String.valueOf(responseBody.length);
-                    }
+                    String originallength = getResponseLength(originalRequestResponse);
+                    String statusCode = originalRequestResponse.getResponse() != null ?
+                            String.valueOf(Utils.helpers.analyzeResponse(originalRequestResponse.getResponse()).getStatusCode()) : "";
                     add(method, url, statusCode, originallength, originalRequestResponse);
                 }
             }
-        }finally {
+        } finally {
             lock.unlock();
         }
     }
 
+    private static String getResponseLength(IHttpRequestResponse response) {
+        if (response.getResponse() != null) {
+            IResponseInfo info = Utils.helpers.analyzeResponse(response.getResponse());
+            String cl = HelperPlus.getHeaderValueOf(info.getHeaders(), "Content-Length");
+            if (cl != null) return cl;
+        }
+        return response.getResponse() != null ? String.valueOf(response.getResponse().length) : "0";
+    }
 
+    private void showSaveSuccess() {
+        JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+    }
 
+    // url 表格
     class URLTable extends JTable {
         public URLTable(TableModel tableModel) {
             super(tableModel);
             setAutoCreateRowSorter(true);
             TableColumnModel columnModel = getColumnModel();
             columnModel.getColumn(0).setMaxWidth(50);
-
         }
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-            // 如果表格已排序，需要将视图索引转换为模型索引
             int modelRow = rowIndex;
             if (getRowSorter() != null) {
                 modelRow = convertRowIndexToModel(rowIndex);
             }
-            
             Log4jUIEntry logEntry = log4jlog.get(modelRow);
-            HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
+            requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             if (logEntry.requestResponse.getResponse() == null) {
-                HResponseTextEditor.setMessage(new byte[0], false);
+                responseEditor.setMessage(new byte[0], false);
             } else {
-                HResponseTextEditor.setMessage(logEntry.requestResponse.getResponse(), false);
+                responseEditor.setMessage(logEntry.requestResponse.getResponse(), false);
             }
             currentlyDisplayedItem = logEntry.requestResponse;
-
             super.changeSelection(rowIndex, columnIndex, toggle, extend);
         }
     }
