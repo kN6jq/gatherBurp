@@ -22,22 +22,40 @@ public class ResponseSimilarityMatcher {
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
     /**
-     * 判断两个响应数据包的相似度关系
+     * 判断两个响应数据包的相似度关系（使用默认阈值0.85）
      * @return true 如果两个响应包差异显著（相似度低于阈值）
      */
     public static boolean compareTwoResponses(String response1, String response2) {
+        return compareTwoResponses(response1, response2, SIMILARITY_THRESHOLD);
+    }
+
+    /**
+     * 判断两个响应数据包的相似度关系
+     * @param threshold 相似度阈值，低于此值视为差异显著
+     * @return true 如果两个响应包差异显著（相似度低于阈值）
+     */
+    public static boolean compareTwoResponses(String response1, String response2, double threshold) {
         if (response1 == null || response2 == null) {
             return false;
         }
         double similarity = calculateJaccardSimilarity(response1, response2);
-        return similarity < SIMILARITY_THRESHOLD;
+        return similarity < threshold;
+    }
+
+    /**
+     * 判断三个响应包的相似度关系，用于SQL注入检测（使用默认阈值0.85）
+     * @return true 如果response1和response3相似，且都与response2不相似
+     */
+    public static boolean compareThreeResponses(String response1, String response2, String response3) {
+        return compareThreeResponses(response1, response2, response3, SIMILARITY_THRESHOLD);
     }
 
     /**
      * 判断三个响应包的相似度关系，用于SQL注入检测
+     * @param threshold 相似度阈值
      * @return true 如果response1和response3相似，且都与response2不相似
      */
-    public static boolean compareThreeResponses(String response1, String response2, String response3) {
+    public static boolean compareThreeResponses(String response1, String response2, String response3, double threshold) {
         if (response1 == null || response2 == null || response3 == null) {
             return false;
         }
@@ -46,9 +64,9 @@ public class ResponseSimilarityMatcher {
         double similarity1_2 = calculateJaccardSimilarity(response1, response2);  // 与异常响应相似度
         double similarity2_3 = calculateJaccardSimilarity(response2, response3);  // 与异常响应相似度
 
-        return similarity1_3 >= SIMILARITY_THRESHOLD &&
-                similarity1_2 < SIMILARITY_THRESHOLD &&
-                similarity2_3 < SIMILARITY_THRESHOLD;
+        return similarity1_3 >= threshold &&
+                similarity1_2 < threshold &&
+                similarity2_3 < threshold;
     }
 
     /**

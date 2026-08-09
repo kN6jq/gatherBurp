@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import static burp.IParameter.*;
+import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.SqlDao.*;
 
 /**
@@ -60,6 +61,8 @@ public class SqlUI extends AbstractScanUI {
     private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
     private static int timeBlindThreshold = 6000; // 延时注入阈值(ms)
+    private static int lengthThreshold = 10; // 响应长度差异阈值
+    private static int similarityThreshold = 85; // 相似度阈值(百分比)
     private static final ConcurrentHashMap<Integer, List<SqlPayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
 
@@ -552,7 +555,7 @@ public class SqlUI extends AbstractScanUI {
         } catch (Exception e) {
             // 检测过程中出现异常，记录错误信息
             addToVulStr(logid, I18nUtils.get("sql.detection.error") + " " + e.getMessage());
-            Utils.stderr.println(I18nUtils.get("sql.detection.error_prefix") + e.getMessage());
+            Utils.stderr.println(I18nUtils.get("sql.detection.error_prefix") + " " + e.getMessage());
             e.printStackTrace();
         } finally {
             // 无论是否出现异常，都要更新最终状态
@@ -643,13 +646,10 @@ public class SqlUI extends AbstractScanUI {
         int diffOriginalNormal = Math.abs(cleanOriginalLength - cleanNormalLength);
         int diffNormalAbnormal = Math.abs(cleanNormalLength - cleanAbnormalLength);
 
-        // 定义长度差异阈值（可根据实际情况调整）
-        int LENGTH_THRESHOLD = 10;
-
-        // 判断长度模式
-        return diffOriginalNormal <= LENGTH_THRESHOLD && // 原始响应和正常响应长度相近
-                diffOriginalAbnormal > LENGTH_THRESHOLD && // 原始响应和异常响应长度差异明显
-                diffNormalAbnormal > LENGTH_THRESHOLD;     // 正常响应和异常响应长度差异明显
+        // 判断长度模式（使用配置的阈值）
+        return diffOriginalNormal <= lengthThreshold && // 原始响应和正常响应长度相近
+                diffOriginalAbnormal > lengthThreshold && // 原始响应和异常响应长度差异明显
+                diffNormalAbnormal > lengthThreshold;     // 正常响应和异常响应长度差异明显
     }
 
     // 清理响应内容（用于长度计算和相似度比对）
@@ -691,13 +691,14 @@ public class SqlUI extends AbstractScanUI {
         String cleanAbnormal = cleanResponse(abnormalResponse);
         String cleanNormal = cleanResponse(normalResponse);
 
-        // 相似度比对
+        // 相似度比对（使用配置的阈值，百分比转小数）
+        double simThreshold = similarityThreshold / 100.0;
         boolean originalVsNormalSimilar = !ResponseSimilarityMatcher.compareTwoResponses(
-                cleanOriginal, cleanNormal);    // 相似
+                cleanOriginal, cleanNormal, simThreshold);    // 相似
         boolean originalVsAbnormalDifferent = ResponseSimilarityMatcher.compareTwoResponses(
-                cleanOriginal, cleanAbnormal);  // 不相似
+                cleanOriginal, cleanAbnormal, simThreshold);  // 不相似
         boolean normalVsAbnormalDifferent = ResponseSimilarityMatcher.compareTwoResponses(
-                cleanNormal, cleanAbnormal);    // 不相似
+                cleanNormal, cleanAbnormal, simThreshold);    // 不相似
 
         return originalVsNormalSimilar &&
                 originalVsAbnormalDifferent &&
@@ -752,7 +753,7 @@ public class SqlUI extends AbstractScanUI {
 
     // 存在盲注漏洞
     private static void reportBlindInjection(int logid, String paraName, String url, IHttpRequestResponse requestResponse, String type) {
-        addToVulStr(logid, String.format(I18nUtils.get("sql.vuln.possible_blind"), paraName));
+        addToVulStr(logid, String.format(I18nUtils.get("sql.vuln.possible_blind"), paraName, type));
 
         try {
             IScanIssue issues = new CustomScanIssue(requestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{requestResponse}, "SQL Injection Blind", String.format(I18nUtils.get("sql.issue.blind"), type), "High", "Certain");
@@ -1085,6 +1086,24 @@ public class SqlUI extends AbstractScanUI {
             SqlBean bean = sqlErrorKey.get(i);
             sqlErrorKeyTextArea.setText(sqlErrorKeyTextArea.getText() + bean.getValue()
                     + (i < sqlErrorKey.size() - 1 ? "\n" : ""));
+        }
+
+        // 加载阈值配置
+        try {
+            String lt = getConfig("config", "lengthThreshold").getValue();
+            if (lt != null && !lt.isEmpty()) {
+                lengthThreshold = Integer.parseInt(lt);
+            }
+            String st = getConfig("config", "similarityThreshold").getValue();
+            if (st != null && !st.isEmpty()) {
+                similarityThreshold = Integer.parseInt(st);
+            }
+            String tt = getConfig("config", "timeBlindThreshold").getValue();
+            if (tt != null && !tt.isEmpty()) {
+                timeBlindThreshold = Integer.parseInt(tt);
+            }
+        } catch (Exception e) {
+            Utils.stderr.println(I18nUtils.get("sql.detection.error_prefix") + e.getMessage());
         }
 
         // 复选框事件
