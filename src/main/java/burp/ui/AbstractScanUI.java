@@ -11,6 +11,7 @@ import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,18 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected static final List<String> urlHashList = new ArrayList<>();
     protected static final List<String> parameterList = new ArrayList<>();
     protected boolean passiveScanEnabled;
+
+    // ===== 主推样式常量（Canonical house style）=====
+    /** 结果表 / 编辑器 纵向分割权重 */
+    protected static final double WEIGHT_TABLE_EDITOR = 0.6;
+    /** 请求 / 响应编辑器横向分割权重 */
+    protected static final double WEIGHT_EDITORS = 0.5;
+    /** 外层 主区 / 右侧配置 水平分割权重 */
+    protected static final double WEIGHT_MAIN = 0.65;
+    /** 右侧配置内部（扫描选项 / 配置+操作）纵向分割权重 */
+    protected static final double WEIGHT_RIGHT_CONFIG = 0.3;
+    /** 配置面板标准内边距 */
+    protected static final Border PADDING_BORDER = BorderFactory.createEmptyBorder(5, 5, 5, 5);
 
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
@@ -101,33 +114,56 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         if (resultTable == null) {
             resultTable = new JTable();
         }
-        JScrollPane tableScrollPane = new JScrollPane(resultTable);
-        tableScrollPane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
+        JScrollPane tableScrollPane = wrapResultsTable(resultTable);
 
-        requestTabPane = new JTabbedPane();
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-        responseTabPane = new JTabbedPane();
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-
-        JSplitPane editorSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        editorSplitPane.setLeftComponent(requestTabPane);
-        editorSplitPane.setRightComponent(responseTabPane);
-        editorSplitPane.setResizeWeight(0.5);
+        JSplitPane editorSplitPane = buildEditorSplit();
 
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         mainSplitPane.setTopComponent(tableScrollPane);
         mainSplitPane.setBottomComponent(editorSplitPane);
-        mainSplitPane.setResizeWeight(0.6);
+        applyWeights(mainSplitPane, WEIGHT_TABLE_EDITOR);
 
         panel.add(mainSplitPane, BorderLayout.CENTER);
+    }
+
+    /**
+     * 用主推样式包裹结果表：带 common.border.results 标题的滚动面板。
+     */
+    protected JScrollPane wrapResultsTable(JTable table) {
+        JScrollPane sp = new JScrollPane(table);
+        sp.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
+        return sp;
+    }
+
+    /**
+     * 构建标准的请求/响应横向编辑器分割（标签走 i18n）。
+     * 复用 createEditors() 创建的 requestEditor/responseEditor，同时给
+     * requestTabPane/responseTabPane 赋值，保持表格 changeSelection 引用兼容。
+     */
+    protected JSplitPane buildEditorSplit() {
+        requestTabPane = new JTabbedPane();
+        requestTabPane.addTab(I18nUtils.get("common.tab.request"),
+                requestEditor != null ? requestEditor.getComponent() : fallbackPane());
+        responseTabPane = new JTabbedPane();
+        responseTabPane.addTab(I18nUtils.get("common.tab.response"),
+                responseEditor != null ? responseEditor.getComponent() : fallbackPane());
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        split.setLeftComponent(requestTabPane);
+        split.setRightComponent(responseTabPane);
+        return applyWeights(split, WEIGHT_EDITORS);
+    }
+
+    private static JScrollPane fallbackPane() {
+        return new JScrollPane(new JTextArea());
+    }
+
+    /**
+     * 同时设置分割面板的 resizeWeight 与初始 dividerLocation，使初始布局确定。
+     */
+    protected JSplitPane applyWeights(JSplitPane split, double weight) {
+        split.setResizeWeight(weight);
+        split.setDividerLocation(weight);
+        return split;
     }
 
     /**
