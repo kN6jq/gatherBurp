@@ -208,7 +208,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         return "Fastjson";
     }
     // dnslog检测
-    public void CheckDnslog(IHttpRequestResponse[] responses) {
+    public static void CheckDnslog(IHttpRequestResponse[] responses) {
         lock.lock();
         try{
             IHttpRequestResponse baseRequestResponse = responses[0];
@@ -238,7 +238,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     }
 
     // echo命令检测
-    public void CheckEchoVul(IHttpRequestResponse[] responses) {
+    public static void CheckEchoVul(IHttpRequestResponse[] responses) {
         lock.lock();
         try{
             IHttpRequestResponse baseRequestResponse = responses[0];
@@ -292,7 +292,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         }
     }
     // jndi检测
-    public void CheckJNDIVul(IHttpRequestResponse[] responses) {
+    public static void CheckJNDIVul(IHttpRequestResponse[] responses) {
         lock.lock();
         try {
             IHttpRequestResponse baseRequestResponse = responses[0];
@@ -342,7 +342,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         }
     }
     // version检测
-    public void CheckVersion(IHttpRequestResponse[] responses) {
+    public static void CheckVersion(IHttpRequestResponse[] responses) {
         lock.lock();
         try{
             IHttpRequestResponse baseRequestResponse = responses[0];

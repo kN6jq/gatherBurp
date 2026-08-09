@@ -12,24 +12,18 @@ public abstract class AbstractScanMenu extends JMenuItem {
     public AbstractScanMenu(String name, IHttpRequestResponse[] requestResponses) {
         super(name);
         this.requestResponses = requestResponses;
-        this.addActionListener(new java.awt.event.ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            doScan();
-                        } catch (Exception ex) {
-                            Utils.stderr.println(ex.getMessage());
-                        }
-                    }
-                });
-                thread.start();
+        this.addActionListener(e -> new Thread(() -> {
+            try {
+                doScan();
+            } catch (Exception ex) {
+                Utils.stderr.println(getScanName() + " scan error: " + ex.getMessage());
             }
-        });
+        }).start());
     }
 
-    /** Override to perform the actual scan logic. */
     protected abstract void doScan();
+
+    protected String getScanName() {
+        return getClass().getSimpleName().replace("Menu", "");
+    }
 }

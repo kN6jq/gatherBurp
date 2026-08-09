@@ -4,72 +4,45 @@ import burp.IHttpRequestResponse;
 import burp.ui.FastjsonUI;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
-public class FastjsonMenu {
+public abstract class FastjsonMenu extends AbstractScanMenu {
+    private FastjsonMenu(IHttpRequestResponse[] requestResponses, String name) {
+        super(name, requestResponses);
+    }
 
     public static JMenuItem FastjsonDnslogMenu(IHttpRequestResponse[] responses) {
-        JMenuItem item = new JMenuItem("^_^ FastJson Dnslog Check");
-        item.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastjsonUI().CheckDnslog(responses);
-                    }
-                });
-                thread.start();
+        return new FastjsonMenu(responses, "^_^ FastJson Dnslog Check") {
+            @Override
+            protected void doScan() {
+                FastjsonUI.CheckDnslog(requestResponses);
             }
-        });
-        return item;
+        };
     }
 
     public static JMenuItem FastjsonEchoMenu(IHttpRequestResponse[] responses) {
-        JMenuItem item = new JMenuItem("^_^ FastJson Echo Check");
-        item.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastjsonUI().CheckEchoVul(responses);
-                    }
-                });
-                thread.start();
+        return new FastjsonMenu(responses, "^_^ FastJson Echo Check") {
+            @Override
+            protected void doScan() {
+                FastjsonUI.CheckEchoVul(requestResponses);
             }
-        });
-        return item;
+        };
     }
 
     public static JMenuItem FastjsonJNDIMenu(IHttpRequestResponse[] responses) {
-        JMenuItem item = new JMenuItem("^_^ FastJson JNDI Check");
-        item.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastjsonUI().CheckJNDIVul(responses);
-                    }
-                });
-                thread.start();
+        return new FastjsonMenu(responses, "^_^ FastJson JNDI Check") {
+            @Override
+            protected void doScan() {
+                FastjsonUI.CheckJNDIVul(requestResponses);
             }
-        });
-        return item;
+        };
     }
 
     public static JMenuItem FastjsonVersionMenu(IHttpRequestResponse[] responses) {
-        JMenuItem item = new JMenuItem("^_^ FastJson Version Check");
-        item.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent evt) {
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        new FastjsonUI().CheckVersion(responses);
-                    }
-                });
-                thread.start();
+        return new FastjsonMenu(responses, "^_^ FastJson Version Check") {
+            @Override
+            protected void doScan() {
+                FastjsonUI.CheckVersion(requestResponses);
             }
-        });
-        return item;
+        };
     }
 }
