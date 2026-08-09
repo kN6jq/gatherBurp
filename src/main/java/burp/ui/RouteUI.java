@@ -10,10 +10,8 @@ import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
-import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -411,3 +409,4 @@ public class RouteUI extends AbstractScanUI {
         }
     }
 }
+

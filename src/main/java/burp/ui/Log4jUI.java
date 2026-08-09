@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.Log4jBean;
-import burp.ui.UIHepler.GridBagConstraintsHelper;
 import burp.utils.I18nUtils;
 import burp.utils.JsonUtils;
 import burp.utils.Utils;
@@ -13,7 +12,6 @@ import javax.swing.*;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.net.URL;
 import java.util.List;
 import java.util.*;
@@ -453,3 +451,4 @@ public class Log4jUI extends AbstractScanUI {
         }
     }
 }
+

@@ -6,10 +6,8 @@ import burp.utils.*;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
@@ -1495,3 +1493,4 @@ public class SqlUI extends AbstractScanUI {
     }
 
 }
+

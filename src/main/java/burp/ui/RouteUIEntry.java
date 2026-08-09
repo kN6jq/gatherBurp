@@ -1,6 +1,5 @@
 package burp.ui;
 
-import burp.IHttpRequestResponse;
 
 public class RouteUIEntry {
     final int id;
@@ -17,3 +16,4 @@ public class RouteUIEntry {
         this.express = express;
     }
 }
+

@@ -1,10 +1,8 @@
 package burp.ui;
 
-import burp.IHttpRequestResponse;
 import burp.IMessageEditor;
 
 import javax.swing.*;
-import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 
@@ -36,3 +34,4 @@ public class RouteIssueTable extends JTable {
         super.changeSelection(row, col, toggle, extend);
     }
 }
+
