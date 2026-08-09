@@ -8,7 +8,6 @@ import burp.utils.Utils;
 import burp.utils.UrlCacheUtil;
 
 import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
@@ -52,7 +51,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     private IMessageEditor lowpermresponse; // 低权限响应
     private IMessageEditor nopermrequest; // 无权限请求
     private IMessageEditor nopermresponse; // 无权限响应
-    private static final List<PermEntry> permlog = new ArrayList<>(); // permlog 用于存储请求
+    private static final List<PermUIEntry> permlog = new ArrayList<>(); // permlog 用于存储请求
     private static final List<String> parameterList = new ArrayList<>(); // 参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // url hash list
     private static boolean ispassiveScan; // 是否被动扫描
@@ -265,7 +264,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
         content.append("id\tmethod\turl\toriginallength\tlowlength\tnolength\tisSuccess\n");
         
         // 添加表格数据
-        for (PermEntry entry : permlog) {
+        for (PermUIEntry entry : permlog) {
             content.append(entry.id).append("\t")
                    .append(entry.method).append("\t")
                    .append(entry.url).append("\t")
@@ -300,7 +299,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
         // 将urlTable添加到leftSplitPane的上边
         JScrollPane leftScrollPane = new JScrollPane();
-        permTable = new URLTable(new PermModel());
+        permTable = new URLTable(new PermTableModel(permlog));
         permTable.setAutoCreateRowSorter(true);
         leftScrollPane.setViewportView(permTable);
         leftSplitPane.setTopComponent(leftScrollPane);
@@ -639,101 +638,8 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
     private static void add(String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse baseRequestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
         synchronized (permlog) {
             int id = permlog.size();
-            permlog.add(new PermEntry(id, method, url, originalength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse));
+            permlog.add(new PermUIEntry(id, method, url, originalength, lowlength, nolength, isSuccess, baseRequestResponse, lowRequestResponse, noRequestResponse));
             permTable.updateUI();
-        }
-    }
-
-    // perm 模型
-    static class PermModel extends AbstractTableModel {
-
-        @Override
-        public int getRowCount() {
-            return permlog.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 7;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            switch (columnIndex) {
-                case 0:
-                    return permlog.get(rowIndex).id;
-                case 1:
-                    return permlog.get(rowIndex).method;
-                case 2:
-                    return permlog.get(rowIndex).url;
-                case 3:
-                    return permlog.get(rowIndex).originalength;
-                case 4:
-                    return permlog.get(rowIndex).lowlength;
-                case 5:
-                    return permlog.get(rowIndex).nolength;
-                case 6:
-                    return permlog.get(rowIndex).isSuccess;
-                default:
-                    return null;
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "id";
-                case 1:
-                    return "method";
-                case 2:
-                    return "url";
-                case 3:
-                    return "originalength";
-                case 4:
-                    return "lowlength";
-                case 5:
-                    return "nolength";
-                case 6:
-                    return "isSuccess";
-                default:
-                    return null;
-            }
-        }
-        
-        @Override
-        public Class<?> getColumnClass(int column) {
-            if (column == 0) {
-                return Integer.class;
-            }
-            return super.getColumnClass(column);
-        }
-    }
-
-    // perm 实体
-    private static class PermEntry {
-        final int id;
-        final String method;
-        final String url;
-        final String originalength;
-        final String lowlength;
-        final String nolength;
-        final String isSuccess;
-        IHttpRequestResponse requestResponse;
-        IHttpRequestResponse lowRequestResponse;
-        IHttpRequestResponse noRequestResponse;
-
-        public PermEntry(int id, String method, String url, String originalength, String lowlength, String nolength, String isSuccess, IHttpRequestResponse requestResponse, IHttpRequestResponse lowRequestResponse, IHttpRequestResponse noRequestResponse) {
-            this.id = id;
-            this.method = method;
-            this.url = url;
-            this.originalength = originalength;
-            this.lowlength = lowlength;
-            this.nolength = nolength;
-            this.isSuccess = isSuccess;
-            this.requestResponse = requestResponse;
-            this.lowRequestResponse = lowRequestResponse;
-            this.noRequestResponse = noRequestResponse;
         }
     }
 
@@ -747,7 +653,7 @@ public class PermUI implements UIHandler, IMessageEditorController, IHttpListene
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            PermEntry logEntry = permlog.get(row);
+            PermUIEntry logEntry = permlog.get(row);
             originarequest.setMessage(logEntry.requestResponse.getRequest(), true);
             originaresponse.setMessage(logEntry.requestResponse.getResponse(), false);
             if (logEntry.lowRequestResponse == null || logEntry.noRequestResponse == null) {

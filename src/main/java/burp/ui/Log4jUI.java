@@ -10,7 +10,6 @@ import burp.utils.UrlCacheUtil;
 import com.alibaba.fastjson.JSON;
 
 import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
@@ -52,7 +51,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     private IHttpRequestResponse currentlyDisplayedItem; // currently displayed item
     private IMessageEditor HRequestTextEditor; // request editor
     private IMessageEditor HResponseTextEditor; // response editor
-    private static final List<Log4jEntry> log4jlog = new ArrayList<>();
+    private static final List<Log4jUIEntry> log4jlog = new ArrayList<>();
     private static final List<String> parameterList = new ArrayList<>(); // 参数列表
     private static final List<String> urlHashList = new ArrayList<>(); // url hash list
     private static boolean isPassiveScan; // 是否是被动扫描
@@ -321,7 +320,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         leftSplitPane.setDividerLocation(0.7);
         // 左边的上面是表格
         urltablescrollpane = new JScrollPane();
-        log4jtable = new URLTable(new Log4jModel());
+        log4jtable = new URLTable(new Log4jTableModel(log4jlog));
         urltablescrollpane.setViewportView(log4jtable);
         leftSplitPane.setTopComponent(urltablescrollpane);
 
@@ -496,7 +495,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
     public static void add(String extensionMethod, String url, String status, String res, IHttpRequestResponse baseRequestResponse) {
         synchronized (log4jlog) {
             int id = log4jlog.size();
-            log4jlog.add(new Log4jEntry(id, extensionMethod, url, status, res, baseRequestResponse));
+            log4jlog.add(new Log4jUIEntry(id, extensionMethod, url, status, res, baseRequestResponse));
             log4jtable.updateUI();
         }
 
@@ -739,82 +738,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
         }
     }
 
-    static class Log4jModel extends AbstractTableModel {
 
-        @Override
-        public int getRowCount() {
-            return log4jlog.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 5;
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "#";
-                case 1:
-                    return "Method";
-                case 2:
-                    return "URL";
-                case 3:
-                    return "Status";
-                case 4:
-                    return "Length";
-                default:
-                    return "";
-            }
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            Log4jEntry logEntry = log4jlog.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return logEntry.id;
-                case 1:
-                    return logEntry.extensionMethod;
-                case 2:
-                    return logEntry.url;
-                case 3:
-                    return logEntry.res;
-                case 4:
-                    return logEntry.length;
-                default:
-                    return null;
-            }
-        }
-        
-        @Override
-        public Class<?> getColumnClass(int column) {
-            if (column == 0) {
-                return Integer.class;
-            }
-            return super.getColumnClass(column);
-        }
-    }
-
-    public static class Log4jEntry {
-        final int id;
-        final String extensionMethod;
-        final String url;
-        final String length;
-        final String res;
-
-        final IHttpRequestResponse requestResponse;
-
-        public Log4jEntry(int id, String extensionMethod, String url, String res, String length, IHttpRequestResponse requestResponse) {
-            this.id = id;
-            this.extensionMethod = extensionMethod;
-            this.url = url;
-            this.length = length;
-            this.res = res;
-            this.requestResponse = requestResponse;
-        }
-    }
 
     class URLTable extends JTable {
         public URLTable(TableModel tableModel) {
@@ -833,7 +757,7 @@ public class Log4jUI implements UIHandler, IMessageEditorController, IHttpListen
                 modelRow = convertRowIndexToModel(rowIndex);
             }
             
-            Log4jEntry logEntry = log4jlog.get(modelRow);
+            Log4jUIEntry logEntry = log4jlog.get(modelRow);
             HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             if (logEntry.requestResponse.getResponse() == null) {
                 HResponseTextEditor.setMessage(new byte[0], false);

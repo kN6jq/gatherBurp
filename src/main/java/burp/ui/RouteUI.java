@@ -30,10 +30,10 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     private IMessageEditor HResponseTextEditor; // 响应
     private JTabbedPane tabbedPanereq; // 请求tab
     private JTabbedPane tabbedPaneresp; // 响应tab
-    private static RouteIssusTable issusTable; // 问题表格
+    private static RouteIssueTable issusTable; // 问题表格
     private RouteTable ruleTable; // 规则表格
-    private static final List<RouteIssusEntry> issuslog = new ArrayList<>();  // urldata
-    private static final List<RouteEntry> routelog = new ArrayList<>();  // routelog
+    private static final List<RouteIssueEntry> issuslog = new ArrayList<>();  // urldata
+    private static final List<RouteUIEntry> routelog = new ArrayList<>();  // routelog
     private JScrollPane issustablescrollpane; // 问题表格滚动面板
     private JScrollPane ruleTableScrollPane; // 规则表格滚动面板
     private JButton refreshButton; // 刷新按钮
@@ -51,6 +51,14 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
     static Set<String> uniqueUrl = new HashSet<>(); // 存放已经扫描出来的url
     private static final Lock lock = new ReentrantLock();
     private static final Set<String> discoveredIssues = Collections.synchronizedSet(new HashSet<>()); // 问题集合，用于去重
+
+    static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
+        currentlyDisplayedItem = item;
+    }
+
+    static List<RouteIssueEntry> getIssuslog() {
+        return issuslog;
+    }
 
     /**
      * 重置所有缓存（供外部调用）
@@ -108,7 +116,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         List<RouteBean> routeLists = getRouteLists();
         for (int i = 0; i < routeLists.size(); i++) {
             RouteBean routeBean = routeLists.get(i);
-            routelog.add(new RouteEntry(i, routeBean.getEnable(), routeBean.getName(), routeBean.getPath(), routeBean.getExpress()));
+            routelog.add(new RouteUIEntry(i, routeBean.getEnable(), routeBean.getName(), routeBean.getPath(), routeBean.getExpress()));
         }
         // 刷新
         refreshButton.addActionListener(new AbstractAction() {
@@ -119,7 +127,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 List<RouteBean> routeLists = getRouteLists();
                 for (int i = 0; i < routeLists.size(); i++) {
                     RouteBean routeBean = routeLists.get(i);
-                    routelog.add(new RouteEntry(i, routeBean.getEnable(), routeBean.getName(), routeBean.getPath(), routeBean.getExpress()));
+                    routelog.add(new RouteUIEntry(i, routeBean.getEnable(), routeBean.getName(), routeBean.getPath(), routeBean.getExpress()));
                 }
                 ruleTable.updateUI();
             }
@@ -165,7 +173,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 List<RouteBean> routeLists = getRouteLists();
                 for (int i = 0; i < routeLists.size(); i++) {
                     RouteBean routeBean1 = routeLists.get(i);
-                    routelog.add(new RouteEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
+                    routelog.add(new RouteUIEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
                 }
                 ruleTable.updateUI();
             }
@@ -178,7 +186,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 if (selectedRow == -1) {
                     return;
                 }
-                RouteEntry routeEntry = routelog.get(selectedRow);
+                RouteUIEntry routeEntry = routelog.get(selectedRow);
                 RouteBean routeBean = new RouteBean();
                 routeBean.setName(routeEntry.name);
                 routeBean.setPath(routeEntry.path);
@@ -188,7 +196,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 List<RouteBean> routeLists = getRouteLists();
                 for (int i = 0; i < routeLists.size(); i++) {
                     RouteBean routeBean1 = routeLists.get(i);
-                    routelog.add(new RouteEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
+                    routelog.add(new RouteUIEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
                 }
                 ruleTable.updateUI();
             }
@@ -202,7 +210,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                     return;
                 }
                 RouteBean routeBean = new RouteBean();
-                RouteEntry routeEntry = routelog.get(selectedRow);
+                RouteUIEntry routeEntry = routelog.get(selectedRow);
                 if (routeEntry.enable == 1){
                     routeBean.setEnable(0);
                 }else if (routeEntry.enable == 0){
@@ -216,7 +224,7 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
                 List<RouteBean> routeLists = getRouteLists();
                 for (int i = 0; i < routeLists.size(); i++) {
                     RouteBean routeBean1 = routeLists.get(i);
-                    routelog.add(new RouteEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
+                    routelog.add(new RouteUIEntry(i, routeBean1.getEnable(), routeBean1.getName(), routeBean1.getPath(), routeBean1.getExpress()));
                 }
                 routeList = getRouteLists();
                 ruleTable.updateUI();
@@ -283,34 +291,34 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
         JSplitPane topSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         topSplitPane.setResizeWeight(0.5);
         topSplitPane.setDividerLocation(0.5);
-        // 添加RouteIssusTable
+
+        // 创建消息编辑器（需在创建RouteIssueTable之前初始化）
+        HRequestTextEditor = Utils.callbacks.createMessageEditor(this, true);
+        HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
+
+        // 添加RouteIssueTable
         issustablescrollpane = new JScrollPane();
-        issusTable = new RouteIssusTable(new RouteIssusModel());
+        issusTable = new RouteIssueTable(new RouteIssueTableModel(issuslog), HRequestTextEditor, HResponseTextEditor);
         issustablescrollpane.setViewportView(issusTable);
         topSplitPane.setLeftComponent(issustablescrollpane);
 
         // 添加RouteTable
         ruleTableScrollPane = new JScrollPane();
-        ruleTable = new RouteTable(new RouteModel());
+        ruleTable = new RouteTable(new RouteTableModel(routelog));
         ruleTableScrollPane.setViewportView(ruleTable);
         topSplitPane.setRightComponent(ruleTableScrollPane);
-
-
 
         // 下面的面板左右对称分割
         JSplitPane bottomSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         bottomSplitPane.setResizeWeight(0.5);
         bottomSplitPane.setDividerLocation(0.5);
 
-        HRequestTextEditor = Utils.callbacks.createMessageEditor(this, true);
-        HResponseTextEditor = Utils.callbacks.createMessageEditor(this, false);
         tabbedPanereq = new JTabbedPane();
         tabbedPanereq.addTab("Request", HRequestTextEditor.getComponent());
         tabbedPaneresp = new JTabbedPane();
         tabbedPaneresp.addTab("Response", HResponseTextEditor.getComponent());
         bottomSplitPane.setLeftComponent(tabbedPanereq);
         bottomSplitPane.setRightComponent(tabbedPaneresp);
-
 
         splitPane.setTopComponent(topSplitPane);
         splitPane.setBottomComponent(bottomSplitPane);
@@ -570,200 +578,10 @@ public class RouteUI implements UIHandler, IMessageEditorController, IHttpListen
 
         synchronized (issuslog) {
             if (discoveredIssues.add(issueKey)) {  // Set.add()会返回false如果元素已存在
-                issuslog.add(new RouteIssusEntry(issuslog.size(), name, url, Status, requestResponse));
+                issuslog.add(new RouteIssueEntry(issuslog.size(), name, url, Status, requestResponse));
                 issusTable.updateUI();
             }
         }
     }
 
-    // RouteIssusModel模型
-    static class RouteIssusModel extends AbstractTableModel {
-
-        @Override
-        public int getRowCount() {
-            return issuslog.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 4;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            RouteIssusEntry logEntry = issuslog.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return logEntry.id;
-                case 1:
-                    return logEntry.issueName;
-                case 2:
-                    return logEntry.url;
-                case 3:
-                    return logEntry.status;
-                default:
-                    return "";
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "id";
-                case 1:
-                    return "Issus name";
-                case 2:
-                    return "url";
-                case 3:
-                    return "status";
-                default:
-                    return "";
-            }
-
-        }
-
-    }
-    // RouteIssus实体
-    private static class RouteIssusEntry {
-        final int id;
-        final String issueName;
-        final String url;
-        final String status;
-        final IHttpRequestResponse requestResponse;
-
-        public RouteIssusEntry(int id, String issueName, String url, String status, IHttpRequestResponse requestResponse) {
-            this.id = id;
-            this.issueName = issueName;
-            this.url = url;
-            this.status = status;
-            this.requestResponse = requestResponse;
-        }
-    }
-    // RouteIssusTable表格
-    private class RouteIssusTable extends JTable {
-        public RouteIssusTable(TableModel tableModel) {
-            super(tableModel);
-            TableColumnModel columnModel = getColumnModel();
-            columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(1).setMinWidth(100);
-            columnModel.getColumn(1).setMaxWidth(150);
-            columnModel.getColumn(3).setMaxWidth(50);
-        }
-
-        @Override
-        public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            RouteIssusEntry issusEntry = issuslog.get(row);
-            HRequestTextEditor.setMessage(issusEntry.requestResponse.getRequest(), true);
-            if (issusEntry.requestResponse.getResponse() == null) {
-                HResponseTextEditor.setMessage(new byte[0], false);
-            } else {
-                HResponseTextEditor.setMessage(issusEntry.requestResponse.getResponse(), false);
-            }
-            currentlyDisplayedItem = issusEntry.requestResponse;
-            super.changeSelection(row, col, toggle, extend);
-        }
-    }
-
-    // 路由规则实体
-    public static class RouteEntry {
-        final int id;
-        int enable;
-        final String name;
-        final String path;
-        final String express;
-
-        public RouteEntry(int id, int enable, String name, String path, String express) {
-            this.id = id;
-            this.enable = enable;
-            this.name = name;
-            this.path = path;
-            this.express = express;
-        }
-    }
-    // 路由表格模型
-    static class RouteModel extends AbstractTableModel {
-
-        @Override
-        public int getRowCount() {
-            return routelog.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 5;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            RouteEntry logEntry = routelog.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return logEntry.id;
-                case 1:
-                    return logEntry.enable == 1 ? "开启" : "关闭";
-                case 2:
-                    return logEntry.name;
-                case 3:
-                    return logEntry.path;
-                case 4:
-                    return logEntry.express;
-                default:
-                    return "";
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "id";
-                case 1:
-                    return "enable";
-                case 2:
-                    return "name";
-                case 3:
-                    return "path";
-                case 4:
-                    return "express";
-                default:
-                    return "";
-            }
-
-        }
-
-    }
-    // 路由表格
-    private class RouteTable extends JTable {
-        public RouteTable(TableModel tableModel) {
-            super(tableModel);
-            // 设置列宽
-            TableColumnModel columnModel = getColumnModel();
-            columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(1).setMaxWidth(50);
-            columnModel.getColumn(2).setMinWidth(100);
-            columnModel.getColumn(2).setMaxWidth(150);
-        }
-        @Override
-        public TableCellRenderer getCellRenderer(int row, int column) {
-            return new CustomTableCellRenderer();
-        }
-
-    }
-    // 自定义TableCellRenderer，用于将"开启"/"关闭"显示为特定颜色等样式
-    private static class CustomTableCellRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            if (value instanceof String) {
-                String text = (String) value;
-                if ("开启".equals(text)) {
-                    setForeground(Color.GREEN); // 设置开启状态的文字颜色为绿色
-                } else if ("关闭".equals(text)) {
-                    setForeground(Color.RED); // 设置关闭状态的文字颜色为红色
-                }
-            }
-            return this;
-        }
-    }
 }
