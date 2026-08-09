@@ -86,11 +86,9 @@ public class SimilarDomainResultDao {
             ps.setInt(1, id);
             ps.setString(2, domain);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return true;
-                }
+                return rs.next();
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
         }
         return false;
