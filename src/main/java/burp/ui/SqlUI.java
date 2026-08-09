@@ -13,11 +13,16 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static burp.IParameter.*;
 import static burp.dao.SqlDao.*;
@@ -53,10 +58,10 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private JButton saveSqlErrorKeyButton; // sqlerrkey保存按钮
     private IMessageEditor HRequestTextEditor; // 请求
     private IMessageEditor HResponseTextEditor; // 响应
-    private static final List<UrlEntry> urldata = new ArrayList<>();  // urldata
-    private static final List<PayloadEntry> payloaddata = new ArrayList<>(); // payload
-    private static final List<PayloadEntry> payloaddata2 = new ArrayList<>(); // payload
-    public AbstractTableModel model = new PayloadModel(); // payload 模型
+    private static final List<SqlUIEntry> urldata = new ArrayList<>();  // urldata
+    private static final List<SqlPayloadEntry> payloaddata = new ArrayList<>(); // payload
+    private static final List<SqlPayloadEntry> payloaddata2 = new ArrayList<>(); // payload
+    public AbstractTableModel model = new SqlPayloadModel(payloaddata); // payload 模型
     private static boolean isPassiveScan; // 是否被动扫描
     private static boolean isCheckCookie; // 是否检测cookie
     private static boolean isCheckHeader; // 是否检测header
@@ -71,7 +76,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
     private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
-    private static final ConcurrentHashMap<Integer, List<PayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, List<SqlPayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
     
     public static void resetAllCaches() {
@@ -81,111 +86,20 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         UrlCacheUtil.resetCache("sqli");
     }
     
-    private static final String[] rules = {
-            "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
-            "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
-            "MySQL\\s+server\\s+version\\s+for\\s+the\\s+right\\s+syntax\\s+to\\s+use",
-            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+PostgreSQL\\s+result",
-            "Unclosed\\s+quotation\\s+mark\\s+before\\s+the\\s+character\\s+string",
-            "Unclosed\\s+quotation\\s+mark\\s+after\\s+the\\s+character\\s+string",
-            "Column\\s+count\\s+doesn't\\s+match\\s+value\\s+count\\s+at\\s+row",
-            "Syntax\\s+error\\s+in\\s+string\\s+in\\s+query\\s+expression",
-            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+ODBC\\s+Drivers",
-            "Microsoft\\s+OLE\\s+DB\\s+Provider\\s+for\\s+SQL\\s+Server",
-            "\\[Microsoft\\]\\[ODBC\\s+Microsoft\\s+Access\\s+Driver\\]",
-            "You\\s+have\\s+an\\s+error\\s+in\\s+your\\s+SQL\\s+syntax",
-            "supplied\\s+argument\\s+is\\s+not\\s+a\\s+valid\\s+MySQL",
-            "Data\\s+type\\s+mismatch\\s+in\\s+criteria\\s+expression",
-            "internal\\s+error\\s+\\[IBM\\]\\[CLI\\s+Driver\\]\\[DB2",
-            "Unexpected\\s+end\\s+of\\s+command\\s+in\\s+statement",
-            "\\[Microsoft\\]\\[ODBC\\s+SQL\\s+Server\\s+Driver\\]",
-            "\\[Macromedia\\]\\[SQLServer\\s+JDBC\\s+Driver\\]",
-            "has\\s+occurred\\s+in\\s+the\\s+vicinity\\s+of:",
-            "A\\s+Parser\\s+Error\\s+\\(syntax\\s+error\\)",
-            "Procedure\\s+'[^']+'\\s+requires\\s+parameter",
-            "Microsoft\\s+SQL\\s+Native\\s+Client\\s+error",
-            "Syntax\\s+error\\s+in\\s+query\\s+expression",
-            "System\\.Data\\.SqlClient\\.SqlException",
-            "Dynamic\\s+Page\\s+Generation\\s+Error:",
-            "System\\.Exception: SQL Execution Error",
-            "Microsoft\\s+JET\\s+Database\\s+Engine",
-            "System\\.Data\\.OleDb\\.OleDbException",
-            "Sintaxis\\s+incorrecta\\s+cerca\\s+de",
-            "Table\\s+'[^']+'\\s+doesn't\\s+exist",
-            "java\\.sql\\.SQLSyntaxErrorException",
-            "Column\\s+count\\s+doesn't\\s+match",
-            "your\\s+MySQL\\s+server\\s+version",
-            "\\[SQLServer\\s+JDBC\\s+Driver\\]",
-            "ADODB\\.Field\\s+\\(0x800A0BCD\\)",
-            "com.microsoft\\.sqlserver\\.jdbc",
-            "ODBC\\s+SQL\\s+Server\\s+Driver",
-            "(PLS|ORA)-[0-9][0-9][0-9][0-9]",
-            "PostgreSQL\\s+query\\s+failed:",
-            "on\\s+MySQL\\s+result\\s+index",
-            "valid\\s+PostgreSQL\\s+result",
-            "macromedia\\.jdbc\\.sqlserver",
-            "Access\\s+Database\\s+Engine",
-            "SQLServer\\s+JDBC\\s+Driver",
-            "Incorrect\\s+syntax\\s+near",
-            "java\\.sql\\.SQLException",
-            "java\\.sql\\.SQLException",
-            "MySQLSyntaxErrorException",
-            "<b>Warning</b>:\\s+ibase_",
-            "valid\\s+MySQL\\s+result",
-            "org\\.postgresql\\.jdbc",
-            "com\\.jnetdirect\\.jsql",
-            "Dynamic\\s+SQL\\s+Error",
-            "\\[DM_QUERY_E_SYNTAX\\]",
-            "mysql_fetch_array\\(\\)",
-            "pg_query\\(\\)\\s+\\[:",
-            "pg_exec\\(\\)\\s+\\[:",
-            "com\\.informix\\.jdbc",
-            "DB2\\s+SQL\\s+error:",
-            "DB2\\s+SQL\\s+error",
-            "Microsoft\\s+Access",
-            "\\[CLI\\s+Driver\\]",
-            "\\[SQL\\s+Server\\]",
-            "com\\.mysql\\.jdbc",
-            "Sybase\\s+message:",
-            "\\[MySQL\\]\\[ODBC",
-            "ADODB\\.Recordset",
-            "Unknown\\s+column",
-            "mssql_query\\(\\)",
-            "Sybase\\s+message",
-            "Database\\s+error",
-            "PG::SyntaxError:",
-            "where\\s+clause",
-            "Syntax\\s+error",
-            "Oracle\\s+error",
-            "SQLite\\s+error",
-            "SybSQLException",
-            "\\[SqlException",
-            "odbc_exec\\(\\)",
-            "MySqlException",
-            "INSERT\\s+INTO",
-            "SQL\\s+syntax",
-            "Error\\s+SQL:",
-            "SQL\\s+error",
-            "PSQLException",
-            "SQLSTATE=\\d+",
-            "SELECT .{1,30}FROM ",
-            "UPDATE .{1,30}SET ",
-            "附近有语法错误",
-            "MySqlClient",
-            "ORA-\\d{5}",
-            "引号不完整",
-            "数据库出错",
-            "Parameter '\\w+' not found",
-            "org\\.apache\\.ibatis\\.binding\\.BindingException",
-            "mybatis\\.binding\\.BindingException",
-            "org\\.mybatis\\.spring\\.MyBatisSystemException",
-            "java\\.lang\\.IllegalArgumentException: invalid parameter",
-            "Could not resolve parameter",
-            "There is no getter for property named",
-            "Error evaluating expression",
-            "Error parsing parameter",
-            "Invalid bound statement"
-    };
+    private static final List<Pattern> ERROR_PATTERNS = loadRules();
+
+    private static List<Pattern> loadRules() {
+        try (InputStream is = SqlUI.class.getResourceAsStream("/sql/sql_error_rules.txt");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            return reader.lines()
+                    .filter(line -> !line.trim().isEmpty())
+                    .map(line -> Pattern.compile(line.trim(), Pattern.CASE_INSENSITIVE))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            Utils.stderr.println("Failed to load SQL error rules: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
 
     // sql检测核心方法
     public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
@@ -844,7 +758,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     public static void updateUrl(int index, String method, String url, int length, String message, IHttpRequestResponse requestResponse) {
         synchronized (urldata) {
             if (index >= 0 && index < urldata.size()) {
-                urldata.set(index, new UrlEntry(index, method, url, length, message, requestResponse));
+                urldata.set(index, new SqlUIEntry(index, method, url, length, message, requestResponse));
             }
             urltable.updateUI();
             payloadtable.updateUI();
@@ -872,7 +786,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         }
     }
 
-    // 正则判断响应数据包中是否包含报错关键字 @href https://github.com/saoshao/DetSql/blob/master/src/main/java/DetSql/MyHttpHandler.java
+    // 正则判断响应数据包中是否包含报错关键字
     private static boolean errSqlCheck(String responseBody) {
         if (!listErrorKey.isEmpty()) {
             for (String errKey : listErrorKey) {
@@ -881,10 +795,8 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
                 }
             }
         }
-
         String cleanedText = responseBody.replaceAll("\\n|\\r|\\r\\n", "");
-        for (String rule : rules) {
-            Pattern pattern = Pattern.compile(rule, Pattern.CASE_INSENSITIVE);
+        for (Pattern pattern : ERROR_PATTERNS) {
             if (pattern.matcher(cleanedText).find()) {
                 return true;
             }
@@ -907,7 +819,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
     // 添加url数据到表格
     public static int addUrl(String method, String url, int length, IHttpRequestResponse requestResponse) {
         int id = urlIdCounter.getAndIncrement();
-        UrlEntry entry = new UrlEntry(id, method, url, length, "正在检测", requestResponse);
+        SqlUIEntry entry = new SqlUIEntry(id, method, url, length, "正在检测", requestResponse);
         urlPayloadMapping.put(id, Collections.synchronizedList(new ArrayList<>()));
 
         SwingUtilities.invokeLater(() -> {
@@ -925,7 +837,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
     // 添加payload数据到表格
     public static void addPayload(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
-        PayloadEntry entry = new PayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse);
+        SqlPayloadEntry entry = new SqlPayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse);
         urlPayloadMapping.get(selectId).add(entry);
 
         SwingUtilities.invokeLater(() -> {
@@ -1332,7 +1244,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         // 添加到zsSplitPane
         urltablescrollpane = new JScrollPane();
         zsSplitPane.setLeftComponent(urltablescrollpane);
-        UrlModel urlModel = new UrlModel();
+        SqlUrlModel urlModel = new SqlUrlModel(urldata);
         urltable = new URLTable(urlModel);
         urltablescrollpane.setViewportView(urltable);
 
@@ -1356,7 +1268,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         payloadtablescrollpane = new JScrollPane();
         zsSplitPane.setRightComponent(payloadtablescrollpane);
-        PayloadModel payloadModel = new PayloadModel();
+        SqlPayloadModel payloadModel = new SqlPayloadModel(payloaddata);
         payloadtable = new PayloadTable(payloadModel);
         payloadtablescrollpane.setViewportView(payloadtable);
 
@@ -1544,166 +1456,6 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
         return "SqlInject";
     }
 
-    // url 实体类
-    public static class UrlEntry {
-        final int id;
-        final String method;
-        final String url;
-        final int length;
-        final String status;
-        final IHttpRequestResponse requestResponse;
-
-        UrlEntry(int id, String method, String url, int length, String status, IHttpRequestResponse requestResponse) {
-            this.id = id;
-            this.method = method;
-            this.url = url;
-            this.length = length;
-            this.status = status;
-            this.requestResponse = requestResponse;
-        }
-    }
-
-    // payload 实体类
-    public static class PayloadEntry {
-        final int selectId;
-        final String key;
-        final String value;
-        final int length;
-        final String change;
-        final String errkey;
-        final String time;
-        final String status;
-        final IHttpRequestResponse requestResponse;
-
-        PayloadEntry(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
-            this.selectId = selectId;
-            this.key = key;
-            this.value = value;
-            this.length = length;
-            this.change = change;
-            this.errkey = errkey;
-            this.time = time;
-            this.status = status;
-            this.requestResponse = requestResponse;
-        }
-    }
-
-    // url 模型
-    static class UrlModel extends AbstractTableModel {
-
-        @Override
-        public int getRowCount() {
-            return urldata.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 5;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            switch (columnIndex) {
-                case 0:
-                    return urldata.get(rowIndex).id;
-                case 1:
-                    return urldata.get(rowIndex).method;
-                case 2:
-                    return urldata.get(rowIndex).url;
-                case 3:
-                    return urldata.get(rowIndex).length;
-                case 4:
-                    return urldata.get(rowIndex).status;
-                default:
-                    return null;
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "id";
-                case 1:
-                    return "method";
-                case 2:
-                    return "url";
-                case 3:
-                    return "length";
-                case 4:
-                    return "status";
-                default:
-                    return null;
-            }
-        }
-        
-        @Override
-        public Class<?> getColumnClass(int column) {
-            if (column == 0) {
-                return Integer.class;
-            }
-            return super.getColumnClass(column);
-        }
-    }
-
-    // Payload 模型
-    static class PayloadModel extends AbstractTableModel {
-
-        @Override
-        public int getRowCount() {
-            return payloaddata.size();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 7;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            switch (columnIndex) {
-                case 0:
-                    return payloaddata.get(rowIndex).key;
-                case 1:
-                    return payloaddata.get(rowIndex).value;
-                case 2:
-                    return payloaddata.get(rowIndex).length;
-                case 3:
-                    return payloaddata.get(rowIndex).change;
-                case 4:
-                    return payloaddata.get(rowIndex).errkey;
-                case 5:
-                    return payloaddata.get(rowIndex).time;
-                case 6:
-                    return payloaddata.get(rowIndex).status;
-                default:
-                    return null;
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "Parameter";
-                case 1:
-                    return "Value";
-                case 2:
-                    return "Response Length";
-                case 3:
-                    return "Change";
-                case 4:
-                    return "Error";
-                case 5:
-                    return "Time";
-                case 6:
-                    return "Status Code";
-                default:
-                    return null;
-            }
-        }
-    }
-
     // url 表格
     private class URLTable extends JTable {
         public URLTable(AbstractTableModel model) {
@@ -1716,22 +1468,20 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-            // 如果表格已排序，需要将视图索引转换为模型索引
             int modelRow = rowIndex;
             if (getRowSorter() != null) {
                 modelRow = convertRowIndexToModel(rowIndex);
             }
-            
-            UrlEntry logEntry = urldata.get(modelRow);
+
+            SqlUIEntry logEntry = urldata.get(modelRow);
             int select_id = logEntry.id;
             payloaddata.clear();
-            for (PayloadEntry payloadEntry : payloaddata2) {
+            for (SqlPayloadEntry payloadEntry : payloaddata2) {
                 if (payloadEntry.selectId == select_id) {
                     payloaddata.add(payloadEntry);
                 }
             }
             payloadtable.updateUI();
-
 
             model.fireTableRowsInserted(payloaddata.size(), payloaddata.size());
             model.fireTableDataChanged();
@@ -1757,8 +1507,7 @@ public class SqlUI implements UIHandler, IMessageEditorController, IHttpListener
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-
-            PayloadEntry dataEntry = payloaddata.get(rowIndex);
+            SqlPayloadEntry dataEntry = payloaddata.get(rowIndex);
             HRequestTextEditor.setMessage(dataEntry.requestResponse.getRequest(), true);
             if (dataEntry.requestResponse.getResponse() == null) {
                 HResponseTextEditor.setMessage(new byte[0], false);

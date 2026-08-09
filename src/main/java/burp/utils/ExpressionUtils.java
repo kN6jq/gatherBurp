@@ -4,10 +4,7 @@ import burp.IHttpRequestResponse;
 import burp.IRequestInfo;
 import burp.IResponseInfo;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Stack;
@@ -46,28 +43,7 @@ public class ExpressionUtils {
     public byte[] getBody(){
         byte[] responseBytes = this.baseRequestResponse.getResponse();
         int bodyOffset = this.iResponseInfo.getBodyOffset();
-        byte[] responseBody = Arrays.copyOfRange(responseBytes, bodyOffset, responseBytes.length);
-
-        // 将 responseBody 拆分成多个部分
-        List<byte[]> parts = new ArrayList<>();
-        int chunkSize = 1000; // 每个部分的大小
-        for (int i = 0; i < responseBody.length; i += chunkSize) {
-            int end = Math.min(responseBody.length, i + chunkSize);
-            byte[] part = Arrays.copyOfRange(responseBody, i, end);
-            parts.add(part);
-        }
-
-        // 拼接所有部分
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        for (byte[] part : parts) {
-            try {
-                outputStream.write(part);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        return outputStream.toByteArray();
+        return Arrays.copyOfRange(responseBytes, bodyOffset, responseBytes.length);
     }
 
     // 获取title
@@ -91,12 +67,13 @@ public class ExpressionUtils {
         }else if (key.equals("code")) {
             key = String.valueOf(getCode());
         }else if (key.equals("headers")) {
-            // 如果key在getHeaders()里面
+            // 如果value包含在任意响应头中
             for (String header : getHeaders()) {
                 if (header.contains(value)){
                     return true;
                 }
             }
+            return false;
         }else if (key.equals("body")) {
             key = Utils.callbacks.getHelpers().bytesToString(getBody());
         }else {
@@ -120,13 +97,13 @@ public class ExpressionUtils {
         }else if (key.equals("code")) {
             key = String.valueOf(getCode());
         }else if (key.equals("headers")) {
-            // 如果key在getHeaders()里面
+            // 如果value不包含在任意响应头中
             for (String header : getHeaders()) {
                 if (header.contains(value)){
-                    return false;  // 如果找到包含的值，返回false
+                    return false;
                 }
             }
-            return true;  // 没找到包含的值，返回true
+            return true;
         }else if (key.equals("body")) {
             key = Utils.callbacks.getHelpers().bytesToString(getBody());
         }
