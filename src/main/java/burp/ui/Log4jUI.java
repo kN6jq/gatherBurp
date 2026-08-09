@@ -160,11 +160,11 @@ public class Log4jUI extends AbstractScanUI {
         rightSplitPane.setTopComponent(rightTopPanel);
         rightSplitPane.setBottomComponent(payloadPanel);
 
-        // 主体：左边表格+编辑器，右边配置
-        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        leftSplitPane.setLeftComponent(urltablescrollpane);
-        leftSplitPane.setRightComponent(buildEditorSplit());
-        applyWeights(leftSplitPane, WEIGHT_MAIN);
+        // 主体：左边（表格在上、编辑器在下），右边配置
+        JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        leftSplitPane.setTopComponent(urltablescrollpane);
+        leftSplitPane.setBottomComponent(buildEditorSplit());
+        applyWeights(leftSplitPane, WEIGHT_TABLE_EDITOR);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         mainSplit.setLeftComponent(leftSplitPane);
