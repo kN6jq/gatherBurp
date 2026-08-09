@@ -3,7 +3,6 @@ package burp.ui;
 import burp.ui.AuthEntry;
 
 import javax.swing.table.AbstractTableModel;
-import java.util.List;
 
 public class AuthModel extends AbstractTableModel {
     @Override
@@ -41,3 +40,4 @@ public class AuthModel extends AbstractTableModel {
         }
     }
 }
+
