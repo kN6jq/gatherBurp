@@ -6,6 +6,8 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 
 public class RouteTable extends JTable {
+    private static final TableCellRenderer RENDERER = new RouteCustomTableCellRenderer();
+
     public RouteTable(TableModel tableModel) {
         super(tableModel);
         TableColumnModel columnModel = getColumnModel();
@@ -17,6 +19,6 @@ public class RouteTable extends JTable {
 
     @Override
     public TableCellRenderer getCellRenderer(int row, int column) {
-        return new RouteCustomTableCellRenderer();
+        return RENDERER;
     }
 }

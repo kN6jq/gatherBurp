@@ -5,7 +5,6 @@ import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 
 public class TableRenderer extends DefaultTableCellRenderer {
-    private static final Color ALTERNATE_COLOR = new Color(240, 240, 240);
     private static final int MAX_TEXT_LENGTH = 100;
 
     @Override
@@ -14,8 +13,13 @@ public class TableRenderer extends DefaultTableCellRenderer {
         Component c = super.getTableCellRendererComponent(
                 table, value, isSelected, hasFocus, row, column);
 
+        // 隔行底色跟随当前 L&F（适配 Burp 暗色主题），运行时读取以应对主题切换
         if (!isSelected) {
-            c.setBackground(row % 2 == 0 ? Color.WHITE : ALTERNATE_COLOR);
+            Color base = UIManager.getColor("Table.background");
+            Color alt = UIManager.getColor("Table.alternateRowColor");
+            if (base == null) base = Color.WHITE;
+            if (alt == null) alt = base;
+            c.setBackground(row % 2 == 0 ? base : alt);
         }
 
         if (value instanceof String) {
