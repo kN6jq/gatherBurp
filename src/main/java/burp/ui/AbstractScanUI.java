@@ -20,14 +20,14 @@ import java.util.List;
  */
 public abstract class AbstractScanUI implements UIHandler, IMessageEditorController, IHttpListener {
     protected JPanel panel;
-    protected IHttpRequestResponse currentlyDisplayedItem;
+    protected static IHttpRequestResponse currentlyDisplayedItem;
     protected IMessageEditor requestEditor;
     protected IMessageEditor responseEditor;
     protected JTabbedPane requestTabPane;
     protected JTabbedPane responseTabPane;
     protected JCheckBox passiveScanCheckBox;
     protected static JTable resultTable;
-    protected JTable getResultTable() { return resultTable; }
+    protected static JTable getResultTable() { return resultTable; }
 
     protected static final List<String> urlHashList = new ArrayList<>();
     protected static final List<String> parameterList = new ArrayList<>();
