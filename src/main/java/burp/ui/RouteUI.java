@@ -365,15 +365,6 @@ public class RouteUI extends AbstractScanUI {
         }
     }
 
-    private static IHttpRequestResponse sendRequest(IHttpService httpService, byte[] request) {
-        try {
-            return Utils.callbacks.makeHttpRequest(httpService, request);
-        } catch (Exception e) {
-            Utils.stderr.println("Error sending request: " + e.getMessage());
-            return null;
-        }
-    }
-
     private static void processResponse(
             IHttpRequestResponse response,
             RouteBean routeBean,
@@ -403,30 +394,6 @@ public class RouteUI extends AbstractScanUI {
         } catch (Exception e) {
             Utils.stderr.println("Error processing response: " + e.getMessage());
         }
-    }
-
-    public static List<String> append(String basePath, String stringToAppend) {
-        List<String> result = new ArrayList<>();
-        String[] paths = basePath.split("/");
-        StringBuilder currentPath = new StringBuilder();
-
-        for (int i = 0; i < paths.length; i++) {
-            String path = paths[i];
-            if (!path.isEmpty()) {
-                if (i == 0) {
-                    currentPath.append(path);
-                } else {
-                    currentPath.append("/").append(path);
-                }
-                result.add(currentPath.toString() + stringToAppend);
-            }
-        }
-
-        if (!basePath.endsWith("/")) {
-            result.remove(result.size() - 1);
-        }
-        result.add(stringToAppend);
-        return result;
     }
 
     private static String generateIssueKey(String name, String url, String status) {
