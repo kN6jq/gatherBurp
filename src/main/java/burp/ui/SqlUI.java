@@ -714,22 +714,22 @@ public class SqlUI extends AbstractScanUI {
 
     // 盲注响应长度及相似度对比
     private static boolean checkBlindInjection(String originalResponse, String abnormalResponse, String normalResponse, int originalLength, int abnormalLength, int normalLength) {
-        if (isBooleanBlind){
-            // 判断方式1: 基于响应长度变化（考虑动态内容）
-            boolean lengthBasedCheck = checkResponseLength(
-                    originalResponse, abnormalResponse, normalResponse,
-                    originalLength, abnormalLength, normalLength
-            );
+        // 判断方式1: 基于响应长度变化（考虑动态内容），始终执行
+        boolean lengthBasedCheck = checkResponseLength(
+                originalResponse, abnormalResponse, normalResponse,
+                originalLength, abnormalLength, normalLength
+        );
 
-            // 判断方式2: 基于相似度比对
-            boolean similarityBasedCheck = checkResponseSimilarity(
-                    originalResponse, abnormalResponse, normalResponse
-            );
-
-            return lengthBasedCheck || similarityBasedCheck;
-        }else {
-            return false;
+        if (!isBooleanBlind) {
+            return lengthBasedCheck;
         }
+
+        // 判断方式2: 基于相似度比对（仅在启用布尔盲注时执行，计算开销较大）
+        boolean similarityBasedCheck = checkResponseSimilarity(
+                originalResponse, abnormalResponse, normalResponse
+        );
+
+        return lengthBasedCheck || similarityBasedCheck;
     }
 
     // 检查响应长度模式，考虑动态内容
@@ -970,8 +970,22 @@ public class SqlUI extends AbstractScanUI {
                 }
             }
 
+            // 检查延时注入（时间盲注）
+            long responseTime = endTime - startTime;
+            if (responseTime > 6000) {
+                errkey = "存在延时";
+                addToVulStr(logid, "参数" + paraName + "存在延时注入");
+
+                try {
+                    IScanIssue timeIssues = new CustomScanIssue(newRequestResponses.getHttpService(), new URL(url), new IHttpRequestResponse[]{newRequestResponses}, "SqlInject Time", "SqlInject 发现延时注入", "High", "Certain");
+                    Utils.callbacks.addScanIssue(timeIssues);
+                } catch (Exception e) {
+                    Utils.stderr.println("CustomScanIssue " + e);
+                }
+            }
+
             // 记录payload结果
-            addPayload(logid, paraName, payload, length, String.valueOf(length - originalLength), errkey, String.valueOf(endTime - startTime), String.valueOf(statusCode), newRequestResponses);
+            addPayload(logid, paraName, payload, length, String.valueOf(length - originalLength), errkey, String.valueOf(responseTime), String.valueOf(statusCode), newRequestResponses);
         }
 
         return newRequestResponses;
