@@ -233,7 +233,7 @@ public class ConfigUI implements UIHandler {
                 for (int i = selectedRows.length - 1; i >= 0; i--) {
                     int selectedRow = selectedRows[i];
                     String type = (String) configTable.getValueAt(selectedRow, 1);
-                    deleteToolConfig(type);
+                    deleteConfig(type);
                     data.remove(selectedRow);
                     dataModel.fireTableRowsDeleted(selectedRow, selectedRow);
                     dataModel.fireTableDataChanged();

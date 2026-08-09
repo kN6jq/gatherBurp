@@ -40,17 +40,6 @@ public class ConfigDao {
         }
     }
 
-    public static void deleteToolConfig(String type) {
-        String sql = "delete from config where type = ?";
-        try (Connection connection = DbUtils.getConnection();
-             PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, type);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
-        }
-    }
-
     public static void updateConfig(ConfigBean config) {
         String sql = "update config set value = ? where type = ? and module = ?";
         try (Connection connection = DbUtils.getConnection();

@@ -7,7 +7,6 @@ import burp.utils.Utils;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,9 +26,7 @@ public class SimilarDomainConfigDao {
     public static void saveDomainConfigs(int projectId, List<String> domains) {
         String deleteSql = "DELETE FROM domain_configs WHERE project_id = ?";
         String insertSql = "INSERT INTO domain_configs (project_id, domain, create_time) VALUES (?, ?, datetime('now','localtime'))";
-        Connection connection = null;
-        try {
-            connection = DbUtils.getConnection();
+        try (Connection connection = DbUtils.getConnection()) {
             connection.setAutoCommit(false);
             try (PreparedStatement ps = connection.prepareStatement(deleteSql)) {
                 ps.setInt(1, projectId);
@@ -46,21 +43,6 @@ public class SimilarDomainConfigDao {
             connection.commit();
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
-            if (connection != null) {
-                try {
-                    connection.rollback();
-                } catch (SQLException ex) {
-                    Utils.stderr.println(ex.getMessage());
-                }
-            }
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (SQLException e) {
-                    Utils.stderr.println(e.getMessage());
-                }
-            }
         }
     }
 
