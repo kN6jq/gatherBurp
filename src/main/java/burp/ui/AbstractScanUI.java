@@ -36,6 +36,9 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
 
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
+        if (panel == null) {
+            panel = new JPanel(new BorderLayout());
+        }
         return panel;
     }
 
@@ -72,28 +75,37 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected void setupCommonUI() {
         panel = new JPanel(new BorderLayout());
 
+        if (resultTable == null) {
+            resultTable = new JTable();
+        }
         JScrollPane tableScrollPane = new JScrollPane(resultTable);
         tableScrollPane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
 
-        requestEditor = Utils.callbacks.createMessageEditor(this, true);
-        responseEditor = Utils.callbacks.createMessageEditor(this, false);
+        if (Utils.callbacks != null) {
+            requestEditor = Utils.callbacks.createMessageEditor(this, true);
+            responseEditor = Utils.callbacks.createMessageEditor(this, false);
+        }
 
-        requestTabPane = new JTabbedPane();
-        requestTabPane.addTab("Request", requestEditor.getComponent());
-        responseTabPane = new JTabbedPane();
-        responseTabPane.addTab("Response", responseEditor.getComponent());
+        if (requestEditor != null && responseEditor != null) {
+            requestTabPane = new JTabbedPane();
+            requestTabPane.addTab("Request", requestEditor.getComponent());
+            responseTabPane = new JTabbedPane();
+            responseTabPane.addTab("Response", responseEditor.getComponent());
 
-        JSplitPane editorSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        editorSplitPane.setLeftComponent(requestTabPane);
-        editorSplitPane.setRightComponent(responseTabPane);
-        editorSplitPane.setResizeWeight(0.5);
+            JSplitPane editorSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+            editorSplitPane.setLeftComponent(requestTabPane);
+            editorSplitPane.setRightComponent(responseTabPane);
+            editorSplitPane.setResizeWeight(0.5);
 
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainSplitPane.setTopComponent(tableScrollPane);
-        mainSplitPane.setBottomComponent(editorSplitPane);
-        mainSplitPane.setResizeWeight(0.6);
+            JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+            mainSplitPane.setTopComponent(tableScrollPane);
+            mainSplitPane.setBottomComponent(editorSplitPane);
+            mainSplitPane.setResizeWeight(0.6);
 
-        panel.add(mainSplitPane, BorderLayout.CENTER);
+            panel.add(mainSplitPane, BorderLayout.CENTER);
+        } else {
+            panel.add(tableScrollPane, BorderLayout.CENTER);
+        }
     }
 
     /**

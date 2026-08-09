@@ -768,8 +768,8 @@ public class SqlUI extends AbstractScanUI {
             if (index >= 0 && index < urldata.size()) {
                 urldata.set(index, new SqlUIEntry(index, method, url, length, message, requestResponse));
             }
-            resultTable.updateUI();
-            payloadtable.updateUI();
+            if (resultTable != null) resultTable.updateUI();
+            if (payloadtable != null) payloadtable.updateUI();
         }
     }
 
@@ -831,7 +831,7 @@ public class SqlUI extends AbstractScanUI {
 
         SwingUtilities.invokeLater(() -> {
             urldata.add(entry);
-            resultTable.updateUI();
+            if (resultTable != null) resultTable.updateUI();
         });
         return id;
     }
@@ -849,7 +849,7 @@ public class SqlUI extends AbstractScanUI {
 
         SwingUtilities.invokeLater(() -> {
             payloaddata2.add(entry);
-            payloadtable.updateUI();
+            if (payloadtable != null) payloadtable.updateUI();
         });
     }
 

@@ -35,12 +35,18 @@ public class MainUI extends JPanel implements ITab {
         try {
             mainPanel = new JTabbedPane();
             for (Supplier<UIHandler> supplier : UI_SUPPLIERS) {
-                UIHandler uiHandler = supplier.get();
-                uiHandler.init();
-                mainPanel.add(uiHandler.getTabName(), uiHandler.getPanel(callbacks));
+                try {
+                    UIHandler uiHandler = supplier.get();
+                    uiHandler.init();
+                    mainPanel.add(uiHandler.getTabName(), uiHandler.getPanel(callbacks));
+                } catch (Exception e) {
+                    Utils.stderr.println("Module init failed: " + e.getMessage());
+                    e.printStackTrace(Utils.stderr);
+                }
             }
         } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
+            Utils.stderr.println("MainUI init failed: " + e.getMessage());
+            e.printStackTrace(Utils.stderr);
         }
     }
 
