@@ -3,7 +3,6 @@ package burp.ui;
 import burp.utils.I18nUtils;
 
 import javax.swing.table.AbstractTableModel;
-import java.util.List;
 
 public class RedirectModel extends AbstractTableModel {
     private final String[] COLUMNS = {"#", "Method", "URL", I18nUtils.get("redirect.label.parameter"), "Status Code", "Vulnerable"};
@@ -45,3 +44,4 @@ public class RedirectModel extends AbstractTableModel {
         return super.getColumnClass(column);
     }
 }
+
