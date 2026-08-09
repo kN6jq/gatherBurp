@@ -33,19 +33,27 @@ import static burp.dao.FastjsonDao.getFastjsonListsByType;
  */
 public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpListener{
     private JPanel panel; // 主面板
-    private JTabbedPane fastjsonreq; // 请求面板
-    private JTabbedPane fastjsonresp; // 响应面板
+    private JTabbedPane requestTabPane; // 请求面板
+    private JTabbedPane responseTabPane; // 响应面板
     private JButton btnClear; // 清空按钮
     private JButton btnRefresh; // 添加刷新按钮
     private static volatile boolean autoRefresh = true; // 控制是否自动刷新
     private static final Object refreshLock = new Object();
     private JCheckBox autoRefreshCheckBox; // 自动刷新开关
-    private static JTable fastjsonTable; // fastjson表格
-    private IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
+    private static JTable resultTable; // fastjson表格
+    private static IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
     private JCheckBox passiveScanCheckBox; // 添加被动扫描复选框
-    private IMessageEditor HRequestTextEditor; // 请求编辑器
-    private IMessageEditor HResponseTextEditor; // 响应编辑器
+    private IMessageEditor requestEditor; // 请求编辑器
+    private IMessageEditor responseEditor; // 响应编辑器
     private static final List<FastjsonEntry> fastjsonlog = new ArrayList<>(); // fastjson日志
+
+    static List<FastjsonEntry> getFastjsonlog() {
+        return fastjsonlog;
+    }
+
+    static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
+        currentlyDisplayedItem = item;
+    }
     public static String dnslog; // dnslog地址
     public static String ip; // ip地址
     private static List<FastjsonBean> jndiPayloads = new ArrayList<>(); // jndi payloads
@@ -97,8 +105,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             public void actionPerformed(ActionEvent e) {
                 fastjsonlog.clear();
                 UrlCacheUtil.resetCache("fastjson");  // 清空URL缓存
-                HRequestTextEditor.setMessage(new byte[0], true);
-                HResponseTextEditor.setMessage(new byte[0], false);
+                requestEditor.setMessage(new byte[0], true);
+                responseEditor.setMessage(new byte[0], false);
                 refreshTable();
             }
         });
@@ -127,8 +135,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     // 刷新表格方法
     private static void refreshTable() {
         SwingUtilities.invokeLater(() -> {
-            if(fastjsonTable != null) {
-                ((AbstractTableModel)fastjsonTable.getModel()).fireTableDataChanged();
+            if(resultTable != null) {
+                ((AbstractTableModel)resultTable.getModel()).fireTableDataChanged();
             }
         });
     }
@@ -156,8 +164,8 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         mainsplitPane.setDividerLocation(0.7);
 
         // 添加URLTable到mainsplitPane的上边
-        fastjsonTable = new URLTable(new FastjsonModel());
-        JScrollPane scrollPane = new JScrollPane(fastjsonTable);
+        resultTable = new FastjsonTable(new FastjsonModel(), requestEditor, responseEditor);
+        JScrollPane scrollPane = new JScrollPane(resultTable);
         mainsplitPane.setTopComponent(scrollPane);
 
         // 创建一个自定义的单元格渲染器
@@ -174,22 +182,22 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             }
         };
 
-        fastjsonTable.getColumnModel().getColumn(5).setCellRenderer(renderer);
+        resultTable.getColumnModel().getColumn(5).setCellRenderer(renderer);
 
         // 左右分割面板,对称分割
         JSplitPane splitPaneDown = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         splitPaneDown.setResizeWeight(0.5);
         splitPaneDown.setDividerLocation(0.5);
         // 添加请求响应到左右分割面板
-        fastjsonreq = new JTabbedPane();
-        HRequestTextEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, true);
-        fastjsonreq.addTab("Request", HRequestTextEditor.getComponent());
+        requestTabPane = new JTabbedPane();
+        requestEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, true);
+        requestTabPane.addTab("Request", requestEditor.getComponent());
 
-        fastjsonresp = new JTabbedPane();
-        HResponseTextEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, false);
-        fastjsonresp.addTab("Response", HResponseTextEditor.getComponent());
-        splitPaneDown.setLeftComponent(fastjsonreq);
-        splitPaneDown.setRightComponent(fastjsonresp);
+        responseTabPane = new JTabbedPane();
+        responseEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, false);
+        responseTabPane.addTab("Response", responseEditor.getComponent());
+        splitPaneDown.setLeftComponent(requestTabPane);
+        splitPaneDown.setRightComponent(responseTabPane);
 
         // 添加splitPaneDown到mainsplitPane的下边
         mainsplitPane.setBottomComponent(splitPaneDown);
@@ -458,103 +466,5 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
         }
     }
 
-    private static class FastjsonModel extends AbstractTableModel {
 
-        @Override
-        public int getRowCount() {
-            synchronized (fastjsonlog) {
-                return fastjsonlog.size();
-            }
-        }
-
-        @Override
-        public int getColumnCount() {
-            return 6;
-        }
-
-        @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            synchronized (fastjsonlog) {
-                if (rowIndex >= 0 && rowIndex < fastjsonlog.size()) {
-                    FastjsonEntry logEntry = fastjsonlog.get(rowIndex);
-                    switch (columnIndex) {
-                        case 0: return logEntry.id;
-                        case 1: return logEntry.extensionMethod;
-                        case 2: return logEntry.url;
-                        case 3: return logEntry.status;
-                        case 4: return logEntry.res;
-                        case 5: return logEntry.req;
-                        default: return "";
-                    }
-                }
-                return "";
-            }
-        }
-
-        @Override
-        public String getColumnName(int column) {
-            switch (column) {
-                case 0:
-                    return "id";
-                case 1:
-                    return "method";
-                case 2:
-                    return "url";
-                case 3:
-                    return "status";
-                case 4:
-                    return "res";
-                case 5:
-                    return "req";
-                default:
-                    return "";
-            }
-
-        }
-
-    }
-
-    private static class FastjsonEntry {
-        final int id;
-        final String extensionMethod;
-        final String url;
-        final String status;
-        final String res;
-        final String req;
-
-        final IHttpRequestResponse requestResponse;
-
-
-        private FastjsonEntry(int id, String extensionMethod, String url, String status, String res,String req, IHttpRequestResponse requestResponse) {
-            this.id = id;
-            this.extensionMethod = extensionMethod;
-            this.url = url;
-            this.status = status;
-            this.res = res;
-            this.req = req;
-            this.requestResponse = requestResponse;
-        }
-    }
-
-    private class URLTable extends JTable {
-        public URLTable(TableModel tableModel) {
-            super(tableModel);
-            TableColumnModel columnModel = getColumnModel();
-            columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(5).setMaxWidth(250);
-        }
-
-        @Override
-        public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            FastjsonEntry logEntry = fastjsonlog.get(row);
-            HRequestTextEditor.setMessage(logEntry.requestResponse.getRequest(), true);
-            if (logEntry.requestResponse.getResponse() == null) {
-                HResponseTextEditor.setMessage(new byte[0], false);
-            } else {
-                HResponseTextEditor.setMessage(logEntry.requestResponse.getResponse(), false);
-            }
-            currentlyDisplayedItem = logEntry.requestResponse;
-            super.changeSelection(row, col, toggle, extend);
-        }
-    }
 }
