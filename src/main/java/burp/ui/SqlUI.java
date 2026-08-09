@@ -201,79 +201,64 @@ public class SqlUI extends AbstractScanUI {
     }
     // sql检测核心方法
     public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
-        // 常规初始化流程代码
-        IHttpRequestResponse baseRequestResponse = requestResponses[0]; // 获取第一个请求
-        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse); // 获取请求
-        List<String> reqheaders = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders(); // 获取请求头
-        String host = baseRequestResponse.getHttpService().getHost(); // 获取域名
-        String method = analyzeRequest.getMethod(); // 获取请求方法
-        URL rdurlURL = analyzeRequest.getUrl(); // 获取请求url
-        String url = analyzeRequest.getUrl().toString(); // 获取请求url
-        List<IParameter> paraLists = analyzeRequest.getParameters(); // 获取参数列表
+        IHttpRequestResponse baseRequestResponse = requestResponses[0];
+        IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+        List<String> reqheaders = analyzeRequest.getHeaders();
+        String host = baseRequestResponse.getHttpService().getHost();
+        String method = analyzeRequest.getMethod();
+        URL rdurlURL = analyzeRequest.getUrl();
+        String url = rdurlURL.toString();
+        List<IParameter> paraLists = analyzeRequest.getParameters();
 
-        // 如果method不是get或者post方式直接返回
         if (!method.equals("GET") && !method.equals("POST")) {
             return;
         }
-        // url 中匹配为静态资源
         if (Utils.isUrlBlackListSuffix(url)) {
             return;
         }
 
-        // 判断参数类型，不符合的直接跳过检测
-        boolean ruleHit = true; // 默认设置为true，表示命中规则
+        // 检查是否存在可检测的参数类型
+        boolean hasDetectableParam = false;
         for (IParameter para : paraLists) {
-            if ((para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_JSON)
-                    || isCheckCookie || isCheckHeader) {
-                ruleHit = false; // 如果有 URL、BODY、JSON 参数或者开启了 cookie 或 header 检测，则不命中规则
+            if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY ||
+                    para.getType() == PARAM_JSON || isCheckCookie || isCheckHeader) {
+                hasDetectableParam = true;
                 break;
             }
         }
-        if (ruleHit) {
-            return; // 如果命中规则，则直接返回
+        if (!hasDetectableParam) {
+            return;
         }
 
-
-        // 如果不是手动发送的请求，检测url是否重复及域名是否匹配
         if (!isSend) {
             if (!UrlCacheUtil.checkUrlUnique("sqli", method, rdurlURL, paraLists)) {
                 return;
             }
-            if (isWhiteDomain) {
-                // 如果未匹配到 直接返回
-                if (!Utils.isMatchDomainName(host, domainList)) {
-                    return;
-                }
+            if (isWhiteDomain && !Utils.isMatchDomainName(host, domainList)) {
+                return;
             }
         }
 
-
-        // 将原始流量数据包发送一次,用来做后面的对比
+        // 发送原始请求用于对比
         byte[] request = baseRequestResponse.getRequest();
         int bodyOffset = analyzeRequest.getBodyOffset();
         byte[] body = Arrays.copyOfRange(request, bodyOffset, request.length);
-        byte[] postMessage = Utils.helpers.buildHttpMessage(reqheaders, body);
-        IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-        byte[] responseBody = originalRequestResponse.getResponse();
-        IResponseInfo originalReqResponse = null;
-        // 如果有返回,尝试拿到Content-Length
-        int originalLength = 0;
-        if (responseBody != null) {
-            originalReqResponse = Utils.helpers.analyzeResponse(responseBody);
-            List<String> sqlHeaders = originalReqResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-            if (contentLength != null) {
-                originalLength = Integer.parseInt(contentLength);
-            } else {
-                originalLength = Integer.parseInt(String.valueOf(responseBody.length));
-            }
+        IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(
+                baseRequestResponse.getHttpService(),
+                Utils.helpers.buildHttpMessage(reqheaders, body)
+        );
+
+        byte[] origResponseBody = originalRequestResponse.getResponse();
+        if (origResponseBody == null) {
+            return;
         }
-        // 如果原始包没有返回数据或者响应状态为404 直接return
-        if (originalLength == 0 || originalReqResponse.getStatusCode() == 404) {
+        IResponseInfo originalResponseInfo = Utils.helpers.analyzeResponse(origResponseBody);
+        String contentLength = HelperPlus.getHeaderValueOf(originalResponseInfo.getHeaders(), "Content-Length");
+        int originalLength = (contentLength != null) ? Integer.parseInt(contentLength) : origResponseBody.length;
+        if (originalLength == 0 || originalResponseInfo.getStatusCode() == 404) {
             return;
         }
 
-        // 尝试添加一个url到url表格
         int logid = addUrl(method, url, originalLength, baseRequestResponse);
 
         try {
