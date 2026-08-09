@@ -59,6 +59,7 @@ public class SqlUI extends AbstractScanUI {
     private static ConcurrentHashMap<Integer, StringBuilder> vul = new ConcurrentHashMap<>();// 防止插入重复
     private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
     private static boolean isBooleanBlind;  // 是否进行布尔盲注
+    private static int timeBlindThreshold = 6000; // 延时注入阈值(ms)
     private static final ConcurrentHashMap<Integer, List<SqlPayloadEntry>> urlPayloadMapping = new ConcurrentHashMap<>();
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
 
@@ -363,29 +364,14 @@ public class SqlUI extends AbstractScanUI {
                         // 为单引号payload添加记录
                         String singleQuoteErrKey = "x";
                         // 检查报错
-                        if (errSqlCheck(singleQuoteBody)) {
+                        if (reportSQLError(logid, singleQuoteBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, singleQuoteResponse)) {
                             singleQuoteErrKey = "存在报错";
-                            addToVulStr(logid, jsonParam + " 存在报错");
-                            try {
-                                IScanIssue issues = new CustomScanIssue(
-                                        singleQuoteResponse.getHttpService(),
-                                        new URL(url),
-                                        new IHttpRequestResponse[]{singleQuoteResponse},
-                                        "SqlInject Error",
-                                        "在JSON参数 " + jsonParam + " 发现SQL报错注入",
-                                        "High",
-                                        "Certain"
-                                );
-                                Utils.callbacks.addScanIssue(issues);
-                            } catch (MalformedURLException e) {
-                                throw new RuntimeException("CheckJsonError" + e);
-                            }
                         }
 
                         // 为双单引号payload添加记录
                         String doubleQuoteErrKey = "x";
                         // 检查报错
-                        if (reportSQLError(logid, doubleQuoteBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", doubleQuoteResponse)) {
+                        if (reportSQLError(logid, doubleQuoteBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, doubleQuoteResponse)) {
                             doubleQuoteErrKey = "存在报错";
                         }
 
@@ -436,12 +422,12 @@ public class SqlUI extends AbstractScanUI {
                             String errkey = "x";
 
                             // 检查报错注入
-                            if (reportSQLError(logid, payloadBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", payloadResponse)) {
+                            if (reportSQLError(logid, payloadBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, payloadResponse)) {
                                 errkey = "存在报错";
                             }
 
                             // 检查延时注入
-                            if (reportTimeBlind(logid, responseTime, jsonParam + " 存在延时注入", "在JSON参数 " + jsonParam + " 发现延时注入", payloadResponse)) {
+                            if (reportTimeBlind(logid, responseTime, jsonParam + " 存在延时注入", "在JSON参数 " + jsonParam + " 发现延时注入", url, payloadResponse)) {
                                 errkey = "存在延时";
                             }
 
@@ -489,14 +475,13 @@ public class SqlUI extends AbstractScanUI {
                         String responseTime = String.valueOf(endTime - startTime);
                         byte[] sqlresponseBody = newRequestResponse.getResponse();
                         int sqlLength = sqlresponseBody != null ? getResponseLength(newRequestResponse) : 0;
-                            String sqlResponseBody = new String(sqlresponseBody);
-                            if (reportSQLError(logid, sqlResponseBody, "参数" + paraName + "cookie存在报错", "SqlInject 发现报错", newRequestResponse)) {
-                                errkey = "存在报错";
-                            }
-                            long cookieResponseTime = Long.parseLong(responseTime);
-                            if (reportTimeBlind(logid, cookieResponseTime, "参数" + paraName + "cookie存在延时", "SqlInject 发现延时注入", newRequestResponse)) {
-                                errkey = "cookie存在延时";
-                            }
+                        String sqlResponseBody = new String(sqlresponseBody);
+                        if (reportSQLError(logid, sqlResponseBody, "参数" + paraName + "cookie存在报错", "SqlInject 发现报错", url, newRequestResponse)) {
+                            errkey = "存在报错";
+                        }
+                        long cookieResponseTime = Long.parseLong(responseTime);
+                        if (reportTimeBlind(logid, cookieResponseTime, "参数" + paraName + "cookie存在延时", "SqlInject 发现延时注入", url, newRequestResponse)) {
+                            errkey = "cookie存在延时";
                         }
                         addPayload(logid, paraName, payload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
                     }
@@ -543,15 +528,16 @@ public class SqlUI extends AbstractScanUI {
                             String responseTime = String.valueOf(endTime - startTime);
                             int statusCode = analyzeResponse.getStatusCode();
                             byte[] sqlresponseBody = newRequestResponse.getResponse();
+                            int sqlLength = 0;
                             if (sqlresponseBody != null) {
-                                int sqlLength = getResponseLength(newRequestResponse);
+                                sqlLength = getResponseLength(newRequestResponse);
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                if (reportSQLError(logid, sqlResponseBody, "header存在报错", "SqlInject 发现报错", newRequestResponse)) {
+                                if (reportSQLError(logid, sqlResponseBody, "header存在报错", "SqlInject 发现报错", url, newRequestResponse)) {
                                     errkey = "存在报错";
                                 }
                                 long headerResponseTime = Long.parseLong(responseTime);
-                                if (reportTimeBlind(logid, headerResponseTime, "header存在延时", "SqlInject 发现延时注入", newRequestResponse)) {
+                                if (reportTimeBlind(logid, headerResponseTime, "header存在延时", "SqlInject 发现延时注入", url, newRequestResponse)) {
                                     errkey = "存在延时";
                                 }
                             }
@@ -719,6 +705,52 @@ public class SqlUI extends AbstractScanUI {
                 normalVsAbnormalDifferent;
     }
 
+    // 检测并报告SQL报错注入
+    private static boolean reportSQLError(int logid, String responseBody, String vulnDetail, String issueDetail, String url, IHttpRequestResponse requestResponse) {
+        if (errSqlCheck(responseBody)) {
+            addToVulStr(logid, vulnDetail);
+            try {
+                IScanIssue issues = new CustomScanIssue(
+                        requestResponse.getHttpService(),
+                        new URL(url),
+                        new IHttpRequestResponse[]{requestResponse},
+                        "SqlInject Error",
+                        issueDetail,
+                        "High",
+                        "Certain"
+                );
+                Utils.callbacks.addScanIssue(issues);
+            } catch (Exception e) {
+                Utils.stderr.println("reportSQLError: " + e.getMessage());
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // 检测并报告延时注入
+    private static boolean reportTimeBlind(int logid, long responseTime, String vulnDetail, String issueDetail, String url, IHttpRequestResponse requestResponse) {
+        if (responseTime > timeBlindThreshold) {
+            addToVulStr(logid, vulnDetail);
+            try {
+                IScanIssue issues = new CustomScanIssue(
+                        requestResponse.getHttpService(),
+                        new URL(url),
+                        new IHttpRequestResponse[]{requestResponse},
+                        "SqlInject Time",
+                        issueDetail,
+                        "High",
+                        "Certain"
+                );
+                Utils.callbacks.addScanIssue(issues);
+            } catch (Exception e) {
+                Utils.stderr.println("reportTimeBlind: " + e.getMessage());
+            }
+            return true;
+        }
+        return false;
+    }
+
     // 存在盲注漏洞
     private static void reportBlindInjection(int logid, String paraName, String url, IHttpRequestResponse requestResponse, String type) {
         addToVulStr(logid, "参数" + paraName + "可能存在" + type + "盲注");
@@ -847,6 +879,7 @@ public class SqlUI extends AbstractScanUI {
         IHttpRequestResponse newRequestResponses = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), paramByte);
 
         long endTime = System.currentTimeMillis();
+        long responseTime = endTime - startTime;
 
         // 获取响应数据
         byte[] responseBody = newRequestResponses.getResponse();
@@ -858,12 +891,12 @@ public class SqlUI extends AbstractScanUI {
 
             // 检查SQL错误
             String responseBodyStr = new String(responseBody);
-            if (reportSQLError(logid, responseBodyStr, "参数" + paraName + "存在报错", "SqlInject 发现报错", newRequestResponses)) {
+            if (reportSQLError(logid, responseBodyStr, "参数" + paraName + "存在报错", "SqlInject 发现报错", url, newRequestResponses)) {
                 errkey = "存在报错";
             }
 
             // 检查延时注入（时间盲注）
-            if (reportTimeBlind(logid, responseTime, "参数" + paraName + "存在延时注入", "SqlInject 发现延时注入", newRequestResponses)) {
+            if (reportTimeBlind(logid, responseTime, "参数" + paraName + "存在延时注入", "SqlInject 发现延时注入", url, newRequestResponses)) {
                 errkey = "存在延时";
             }
 
