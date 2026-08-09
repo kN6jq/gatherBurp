@@ -71,6 +71,24 @@ public class SqlUI extends AbstractScanUI {
 
     private static final List<Pattern> rules = new ArrayList<>();
 
+    // Pre-compiled patterns for response cleaning
+    private static final Pattern CLEAN_LONG_TOKEN = Pattern.compile("[a-zA-Z0-9]{32,}");
+    private static final Pattern CLEAN_TOKEN_PARAM = Pattern.compile("token=([^&\\s\"']+)");
+    private static final Pattern CLEAN_TIMESTAMP = Pattern.compile("\\d{10,13}");
+    private static final Pattern CLEAN_DATETIME = Pattern.compile("\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}");
+    private static final Pattern CLEAN_ID = Pattern.compile("id=\"?\\d+\"?");
+    private static final Pattern CLEAN_CSRF = Pattern.compile("csrf[^=]+=([^&\\s\"']+)");
+    private static final Pattern CLEAN_JSESSIONID = Pattern.compile("JSESSIONID=([^;\\s\"']+)");
+    private static final Pattern CLEAN_SESSION = Pattern.compile("session[^=]+=([^&\\s\"']+)");
+    private static final Pattern CLEAN_TMP_PATH = Pattern.compile("/tmp/[^\\s\"']+");
+    private static final Pattern CLEAN_FILENAME = Pattern.compile("filename=\"[^\"]+\"");
+    private static final Pattern CLEAN_HTML_COMMENT = Pattern.compile("<!--[\\s\\S]*?-->");
+    private static final Pattern CLEAN_VERSION = Pattern.compile("v\\d+\\.\\d+\\.\\d+");
+    private static final Pattern CLEAN_UUID = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
+    private static final Pattern CLEAN_NEWLINE = Pattern.compile("\\n|\\r|\\r\\n");
+    private static final Pattern CLEAN_WHITESPACE = Pattern.compile("\\s+");
+    private static final Pattern CLEAN_HTML_TAGS = Pattern.compile("<[^>]+>");
+
     static {
         String[] rulePatterns = {
                 "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
@@ -718,9 +736,9 @@ public class SqlUI extends AbstractScanUI {
     private static boolean checkResponseLength(String originalResponse, String abnormalResponse, String normalResponse, int originalLength, int abnormalLength, int normalLength) {
 
         // 获取处理后的响应长度
-        int cleanOriginalLength = getCleanResponseLength(originalResponse);
-        int cleanAbnormalLength = getCleanResponseLength(abnormalResponse);
-        int cleanNormalLength = getCleanResponseLength(normalResponse);
+        int cleanOriginalLength = cleanResponse(originalResponse).length();
+        int cleanAbnormalLength = cleanResponse(abnormalResponse).length();
+        int cleanNormalLength = cleanResponse(normalResponse).length();
 
         // 计算长度差异
         int diffOriginalAbnormal = Math.abs(cleanOriginalLength - cleanAbnormalLength);
@@ -736,53 +754,44 @@ public class SqlUI extends AbstractScanUI {
                 diffNormalAbnormal > LENGTH_THRESHOLD;     // 正常响应和异常响应长度差异明显
     }
 
-    // 获取清理后的响应长度
-    private static int getCleanResponseLength(String response) {
+    // 清理响应内容（用于长度计算和相似度比对）
+    private static String cleanResponse(String response) {
         if (response == null || response.isEmpty()) {
-            return 0;
+            return "";
         }
 
         String cleanResponse = response;
 
-        // 1. 移除可能的动态令牌
-        cleanResponse = cleanResponse.replaceAll("[a-zA-Z0-9]{32,}", "TOKEN");  // 移除32位以上的随机字符串
-        cleanResponse = cleanResponse.replaceAll("token=([^&\\s\"']+)", "token=TOKEN"); // 移除token参数值
+        // 移除HTML标签（保留内容）
+        cleanResponse = CLEAN_HTML_TAGS.matcher(cleanResponse).replaceAll(" ");
 
-        // 2. 移除时间戳相关内容
-        cleanResponse = cleanResponse.replaceAll("\\d{10,13}", "TIMESTAMP"); // Unix时间戳
-        cleanResponse = cleanResponse.replaceAll("\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}", "DATETIME"); // 日期时间
+        // 移除动态内容
+        cleanResponse = CLEAN_LONG_TOKEN.matcher(cleanResponse).replaceAll("TOKEN");
+        cleanResponse = CLEAN_TOKEN_PARAM.matcher(cleanResponse).replaceAll("token=TOKEN");
+        cleanResponse = CLEAN_TIMESTAMP.matcher(cleanResponse).replaceAll("TIMESTAMP");
+        cleanResponse = CLEAN_DATETIME.matcher(cleanResponse).replaceAll("DATETIME");
+        cleanResponse = CLEAN_ID.matcher(cleanResponse).replaceAll("id=\"ID\"");
+        cleanResponse = CLEAN_CSRF.matcher(cleanResponse).replaceAll("csrf=TOKEN");
+        cleanResponse = CLEAN_JSESSIONID.matcher(cleanResponse).replaceAll("JSESSIONID=TOKEN");
+        cleanResponse = CLEAN_SESSION.matcher(cleanResponse).replaceAll("session=TOKEN");
+        cleanResponse = CLEAN_TMP_PATH.matcher(cleanResponse).replaceAll("/tmp/FILE");
+        cleanResponse = CLEAN_FILENAME.matcher(cleanResponse).replaceAll("filename=\"FILE\"");
+        cleanResponse = CLEAN_HTML_COMMENT.matcher(cleanResponse).replaceAll("");
+        cleanResponse = CLEAN_VERSION.matcher(cleanResponse).replaceAll("VERSION");
+        cleanResponse = CLEAN_UUID.matcher(cleanResponse).replaceAll("UUID");
 
-        // 3. 移除动态ID和数字
-        cleanResponse = cleanResponse.replaceAll("id=\"?\\d+\"?", "id=\"ID\"");
+        // 标准化空白字符并转小写
+        cleanResponse = CLEAN_WHITESPACE.matcher(cleanResponse).replaceAll(" ").trim().toLowerCase();
 
-        // 4. 移除CSRF令牌
-        cleanResponse = cleanResponse.replaceAll("csrf[^=]+=([^&\\s\"']+)", "csrf=TOKEN");
-
-        // 5. 移除Session相关信息
-        cleanResponse = cleanResponse.replaceAll("JSESSIONID=([^;\\s\"']+)", "JSESSIONID=TOKEN");
-        cleanResponse = cleanResponse.replaceAll("session[^=]+=([^&\\s\"']+)", "session=TOKEN");
-
-        // 6. 移除随机生成的文件名或路径
-        cleanResponse = cleanResponse.replaceAll("/tmp/[^\\s\"']+", "/tmp/FILE");
-        cleanResponse = cleanResponse.replaceAll("filename=\"[^\"]+\"", "filename=\"FILE\"");
-
-        // 7. 移除HTML注释中的动态内容
-        cleanResponse = cleanResponse.replaceAll("<!--[\\s\\S]*?-->", "");
-
-        // 8. 移除版本号和随机字符串
-        cleanResponse = cleanResponse.replaceAll("v\\d+\\.\\d+\\.\\d+", "VERSION");
-        cleanResponse = cleanResponse.replaceAll("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "UUID");
-
-        return cleanResponse.length();
+        return cleanResponse;
     }
 
     // 检查响应相似度模式
     private static boolean checkResponseSimilarity(String originalResponse, String abnormalResponse, String normalResponse) {
-
-        // 清理响应内容
-        String cleanOriginal = cleanResponseForComparison(originalResponse);
-        String cleanAbnormal = cleanResponseForComparison(abnormalResponse);
-        String cleanNormal = cleanResponseForComparison(normalResponse);
+        // 使用统一的cleanResponse方法
+        String cleanOriginal = cleanResponse(originalResponse);
+        String cleanAbnormal = cleanResponse(abnormalResponse);
+        String cleanNormal = cleanResponse(normalResponse);
 
         // 相似度比对
         boolean originalVsNormalSimilar = !ResponseSimilarityMatcher.compareTwoResponses(
@@ -795,41 +804,6 @@ public class SqlUI extends AbstractScanUI {
         return originalVsNormalSimilar &&
                 originalVsAbnormalDifferent &&
                 normalVsAbnormalDifferent;
-    }
-
-    // 清理响应内容用于相似度比对
-    private static String cleanResponseForComparison(String response) {
-        if (response == null || response.isEmpty()) {
-            return "";
-        }
-
-        String cleanResponse = response;
-
-        // 1. 移除HTML标签（保留内容）
-        cleanResponse = cleanResponse.replaceAll("<[^>]+>", " ");
-
-        // 2. 移除所有动态内容（与getCleanResponseLength相同的处理）
-        cleanResponse = cleanResponse.replaceAll("[a-zA-Z0-9]{32,}", "TOKEN");
-        cleanResponse = cleanResponse.replaceAll("token=([^&\\s\"']+)", "token=TOKEN");
-        cleanResponse = cleanResponse.replaceAll("\\d{10,13}", "TIMESTAMP");
-        cleanResponse = cleanResponse.replaceAll("\\d{4}-\\d{2}-\\d{2}[T\\s]\\d{2}:\\d{2}:\\d{2}", "DATETIME");
-        cleanResponse = cleanResponse.replaceAll("id=\"?\\d+\"?", "id=\"ID\"");
-        cleanResponse = cleanResponse.replaceAll("csrf[^=]+=([^&\\s\"']+)", "csrf=TOKEN");
-        cleanResponse = cleanResponse.replaceAll("JSESSIONID=([^;\\s\"']+)", "JSESSIONID=TOKEN");
-        cleanResponse = cleanResponse.replaceAll("session[^=]+=([^&\\s\"']+)", "session=TOKEN");
-        cleanResponse = cleanResponse.replaceAll("/tmp/[^\\s\"']+", "/tmp/FILE");
-        cleanResponse = cleanResponse.replaceAll("filename=\"[^\"]+\"", "filename=\"FILE\"");
-        cleanResponse = cleanResponse.replaceAll("<!--[\\s\\S]*?-->", "");
-        cleanResponse = cleanResponse.replaceAll("v\\d+\\.\\d+\\.\\d+", "VERSION");
-        cleanResponse = cleanResponse.replaceAll("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "UUID");
-
-        // 3. 标准化空白字符
-        cleanResponse = cleanResponse.replaceAll("\\s+", " ").trim();
-
-        // 4. 转换为小写以忽略大小写差异
-        cleanResponse = cleanResponse.toLowerCase();
-
-        return cleanResponse;
     }
 
     // 存在盲注漏洞
