@@ -224,7 +224,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
             URL dnsurl = analyzeRequest.getUrl();
             String url = analyzeRequest.getUrl().toString();
             List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
-            String res = "dnslog检测,请查看dnslog服务器";
+            String res = I18nUtils.get("fastjson.detection.dnslog");
             IHttpService iHttpService = baseRequestResponse.getHttpService();
             for (FastjsonBean fastjson : dnsPayloads) {
                 String fastjsonDnslog = fastjson.getValue();
@@ -280,18 +280,18 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                     }
                 }
                 if (containsContentAuth) {
-                    add(extensionMethod, url, statusCode, "echo命令检测完成,发现结果",fastjsonEcho, resp);
+                    add(extensionMethod, url, statusCode, I18nUtils.get("fastjson.detection.echo_found"), fastjsonEcho, resp);
                     IScanIssue issues = null;
                     try {
                         issues = new CustomScanIssue(iHttpService, new URL(url), new IHttpRequestResponse[]{resp},
-                                "Fastjson echo", "Fastjson echo命令检测完成,发现结果",
+                                "Fastjson echo", I18nUtils.get("fastjson.issue.echo"),
                                 "High", "Certain");
                         Utils.callbacks.addScanIssue(issues);
                     } catch (MalformedURLException e) {
                         throw new RuntimeException(e);
                     }
                 } else {
-                    add(extensionMethod, url, statusCode, "echo命令检测完成,未发现结果",fastjsonEcho, resp);
+                    add(extensionMethod, url, statusCode, I18nUtils.get("fastjson.detection.echo_not_found"), fastjsonEcho, resp);
                 }
             }
         }finally {
@@ -339,7 +339,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                     IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                     IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
                     String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-                    add(extensionMethod, url, statusCode, "jndi检测完成,请查看服务器",fuzzPayload, resp);
+                    add(extensionMethod, url, statusCode, I18nUtils.get("fastjson.detection.jndi"), fuzzPayload, resp);
                 }
             } catch (Exception e) {
                 Utils.stderr.println(e.getMessage());
@@ -365,7 +365,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 IResponseInfo iResponseInfo = Utils.callbacks.getHelpers().analyzeResponse(resp.getResponse());
                 String statusCode = String.valueOf(iResponseInfo.getStatusCode());
-                add(extensionMethod, url, statusCode, "version检测完成,请查看返回包",fastjsonVersion, resp);
+                add(extensionMethod, url, statusCode, I18nUtils.get("fastjson.detection.version"), fastjsonVersion, resp);
             }
         }finally {
             lock.unlock();
@@ -458,7 +458,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                 String statusCode = String.valueOf(responseInfo.getStatusCode());
 
                 // 记录扫描结果
-                add(method, url, statusCode, "被动扫描DNS检测", fuzzPayload, resp);
+                add(method, url, statusCode, I18nUtils.get("fastjson.detection.passive_dns"), fuzzPayload, resp);
             }
         } catch (Exception e) {
             Utils.stderr.println("Passive scan error: " + e.getMessage());

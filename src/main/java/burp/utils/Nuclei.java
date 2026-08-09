@@ -42,11 +42,11 @@ public class Nuclei {
         IHttpRequestResponse baseRequestResponse = iContextMenuInvocation[0];
         IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
 
-        String name = JOptionPane.showInputDialog(null, "请输入模板名称");
-        String author = JOptionPane.showInputDialog(null, "请输入作者名称");
-        String severity = (String) JOptionPane.showInputDialog(null, "请选择漏洞等级", "选择框",
+        String name = JOptionPane.showInputDialog(null, I18nUtils.get("nuclei.dialog.input_name"));
+        String author = JOptionPane.showInputDialog(null, I18nUtils.get("nuclei.dialog.input_author"));
+        String severity = (String) JOptionPane.showInputDialog(null, I18nUtils.get("nuclei.dialog.select_severity"), I18nUtils.get("nuclei.dialog.select_box"),
                 JOptionPane.INFORMATION_MESSAGE, null, severitys, severitys[0]);
-        String dsl = (String) JOptionPane.showInputDialog(null, "请选择表达式demo", "选择框",
+        String dsl = (String) JOptionPane.showInputDialog(null, I18nUtils.get("nuclei.dialog.select_dsl"), I18nUtils.get("nuclei.dialog.select_box"),
                 JOptionPane.INFORMATION_MESSAGE, null, dslStr, dslStr[0]);
 
         String template = buildTemplate(name, author, severity, dsl, analyzeRequest, baseRequestResponse);
@@ -54,7 +54,7 @@ public class Nuclei {
         StringSelection stringSelection = new StringSelection(template);
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(stringSelection, stringSelection);
 
-        JOptionPane.showMessageDialog(null, "模板数据已复制到粘贴板,请自行更改其他参数");
+        JOptionPane.showMessageDialog(null, I18nUtils.get("nuclei.message.copied"));
     }
 
     private static String buildTemplate(String name, String author, String severity, String dsl,

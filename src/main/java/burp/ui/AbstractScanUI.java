@@ -6,6 +6,7 @@ import burp.IHttpRequestResponse;
 import burp.IHttpService;
 import burp.IMessageEditor;
 import burp.IMessageEditorController;
+import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
@@ -72,7 +73,7 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         panel = new JPanel(new BorderLayout());
 
         JScrollPane tableScrollPane = new JScrollPane(resultTable);
-        tableScrollPane.setBorder(BorderFactory.createTitledBorder("Results"));
+        tableScrollPane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
 
         requestEditor = Utils.callbacks.createMessageEditor(this, true);
         responseEditor = Utils.callbacks.createMessageEditor(this, false);

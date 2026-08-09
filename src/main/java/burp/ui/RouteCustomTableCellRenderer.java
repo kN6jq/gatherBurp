@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
@@ -10,9 +12,9 @@ public class RouteCustomTableCellRenderer extends DefaultTableCellRenderer {
         super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
         if (value instanceof String) {
             String text = (String) value;
-            if ("开启".equals(text)) {
+            if (I18nUtils.get("route.value.enabled").equals(text)) {
                 setForeground(Color.GREEN);
-            } else if ("关闭".equals(text)) {
+            } else if (I18nUtils.get("route.value.disabled").equals(text)) {
                 setForeground(Color.RED);
             }
         }

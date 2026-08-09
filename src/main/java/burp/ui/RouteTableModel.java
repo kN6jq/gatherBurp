@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
@@ -27,7 +29,7 @@ public class RouteTableModel extends AbstractTableModel {
             case 0:
                 return logEntry.id;
             case 1:
-                return logEntry.enable == 1 ? "开启" : "关闭";
+                return logEntry.enable == 1 ? I18nUtils.get("route.value.enabled") : I18nUtils.get("route.value.disabled");
             case 2:
                 return logEntry.name;
             case 3:

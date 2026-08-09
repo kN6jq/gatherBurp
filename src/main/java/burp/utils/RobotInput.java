@@ -19,7 +19,7 @@ public class RobotInput extends Robot {
         delay(100);
         if (!Utils.isSelect){
             Utils.isSelect = true;
-            JOptionPane.showMessageDialog(null, "请打开cmd终端按下Ctrl+V或者邮件粘贴(只提醒一次)", "提示", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("robot.message.paste_tip"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
         }
     }
 }

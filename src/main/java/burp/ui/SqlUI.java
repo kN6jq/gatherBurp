@@ -343,15 +343,14 @@ public class SqlUI extends AbstractScanUI {
 
                         // 如果存在盲注，添加到漏洞字符串
                         if (isVulnerable) {
-                            addToVulStr(logid, jsonParam + " 可能存在盲注");
+                            addToVulStr(logid, jsonParam + " " + I18nUtils.get("sql.vuln.possible_blind").replace("{0}", ""));
                             try {
                                 IScanIssue issues = new CustomScanIssue(
                                         jsonRequestResponse.getHttpService(),
                                         new URL(url),
                                         new IHttpRequestResponse[]{jsonRequestResponse, singleQuoteResponse, doubleQuoteResponse},
                                         "SqlInject Blind",
-                                        String.format("在JSON参数 %s 中发现SQL盲注\n原始长度: %d\n单引号长度: %d\n双引号长度: %d",
-                                                jsonParam, jsonResponseLength, singleQuoteBody.length(), doubleQuoteBody.length()),
+                                        String.format(I18nUtils.get("sql.issue.json_blind"), jsonParam, jsonResponseLength, singleQuoteBody.length(), doubleQuoteBody.length()),
                                         "High",
                                         "Certain"
                                 );
@@ -364,15 +363,15 @@ public class SqlUI extends AbstractScanUI {
                         // 为单引号payload添加记录
                         String singleQuoteErrKey = "x";
                         // 检查报错
-                        if (reportSQLError(logid, singleQuoteBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, singleQuoteResponse)) {
-                            singleQuoteErrKey = "存在报错";
+                        if (reportSQLError(logid, singleQuoteBody, String.format(I18nUtils.get("sql.vuln.json_error"), jsonParam), I18nUtils.get("sql.issue.json_error"), url, singleQuoteResponse)) {
+                            singleQuoteErrKey = I18nUtils.get("sql.vuln.error");
                         }
 
                         // 为双单引号payload添加记录
                         String doubleQuoteErrKey = "x";
                         // 检查报错
-                        if (reportSQLError(logid, doubleQuoteBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, doubleQuoteResponse)) {
-                            doubleQuoteErrKey = "存在报错";
+                        if (reportSQLError(logid, doubleQuoteBody, String.format(I18nUtils.get("sql.vuln.json_error"), jsonParam), I18nUtils.get("sql.issue.json_error"), url, doubleQuoteResponse)) {
+                            doubleQuoteErrKey = I18nUtils.get("sql.vuln.error");
                         }
 
                         // 记录单引号payload结果
@@ -422,13 +421,13 @@ public class SqlUI extends AbstractScanUI {
                             String errkey = "x";
 
                             // 检查报错注入
-                            if (reportSQLError(logid, payloadBody, jsonParam + " 存在报错", "在JSON参数 " + jsonParam + " 发现SQL报错注入", url, payloadResponse)) {
-                                errkey = "存在报错";
+                            if (reportSQLError(logid, payloadBody, String.format(I18nUtils.get("sql.vuln.json_error"), jsonParam), I18nUtils.get("sql.issue.json_error"), url, payloadResponse)) {
+                                errkey = I18nUtils.get("sql.vuln.error");
                             }
 
                             // 检查延时注入
-                            if (reportTimeBlind(logid, responseTime, jsonParam + " 存在延时注入", "在JSON参数 " + jsonParam + " 发现延时注入", url, payloadResponse)) {
-                                errkey = "存在延时";
+                            if (reportTimeBlind(logid, responseTime, String.format(I18nUtils.get("sql.vuln.json_time"), jsonParam), I18nUtils.get("sql.issue.json_time"), url, payloadResponse)) {
+                                errkey = I18nUtils.get("sql.vuln.time");
                             }
 
                             // 记录payload测试结果
@@ -476,12 +475,12 @@ public class SqlUI extends AbstractScanUI {
                         byte[] sqlresponseBody = newRequestResponse.getResponse();
                         int sqlLength = sqlresponseBody != null ? getResponseLength(newRequestResponse) : 0;
                         String sqlResponseBody = new String(sqlresponseBody);
-                        if (reportSQLError(logid, sqlResponseBody, "参数" + paraName + "cookie存在报错", "SqlInject 发现报错", url, newRequestResponse)) {
-                            errkey = "存在报错";
+                        if (reportSQLError(logid, sqlResponseBody, String.format(I18nUtils.get("sql.vuln.cookie_error"), paraName), I18nUtils.get("sql.issue.error"), url, newRequestResponse)) {
+                            errkey = I18nUtils.get("sql.vuln.error");
                         }
                         long cookieResponseTime = Long.parseLong(responseTime);
-                        if (reportTimeBlind(logid, cookieResponseTime, "参数" + paraName + "cookie存在延时", "SqlInject 发现延时注入", url, newRequestResponse)) {
-                            errkey = "cookie存在延时";
+                        if (reportTimeBlind(logid, cookieResponseTime, String.format(I18nUtils.get("sql.vuln.cookie_time"), paraName), I18nUtils.get("sql.issue.time"), url, newRequestResponse)) {
+                            errkey = I18nUtils.get("sql.vuln.time");
                         }
                         addPayload(logid, paraName, payload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
                     }
@@ -533,12 +532,12 @@ public class SqlUI extends AbstractScanUI {
                                 sqlLength = getResponseLength(newRequestResponse);
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
-                                if (reportSQLError(logid, sqlResponseBody, "header存在报错", "SqlInject 发现报错", url, newRequestResponse)) {
-                                    errkey = "存在报错";
+                                if (reportSQLError(logid, sqlResponseBody, I18nUtils.get("sql.vuln.header_error"), I18nUtils.get("sql.issue.error"), url, newRequestResponse)) {
+                                    errkey = I18nUtils.get("sql.vuln.error");
                                 }
                                 long headerResponseTime = Long.parseLong(responseTime);
-                                if (reportTimeBlind(logid, headerResponseTime, "header存在延时", "SqlInject 发现延时注入", url, newRequestResponse)) {
-                                    errkey = "存在延时";
+                                if (reportTimeBlind(logid, headerResponseTime, I18nUtils.get("sql.vuln.header_time"), I18nUtils.get("sql.issue.time"), url, newRequestResponse)) {
+                                    errkey = I18nUtils.get("sql.vuln.time");
                                 }
                             }
                             addPayload(logid, headerName, sqlPayload, sqlLength, String.valueOf(Math.abs(sqlLength - originalLength)), errkey, responseTime, String.valueOf(statusCode), newRequestResponse);
@@ -552,14 +551,14 @@ public class SqlUI extends AbstractScanUI {
         }
         } catch (Exception e) {
             // 检测过程中出现异常，记录错误信息
-            addToVulStr(logid, "检测异常: " + e.getMessage());
-            Utils.stderr.println("SQL注入检测异常: " + e.getMessage());
+            addToVulStr(logid, I18nUtils.get("sql.detection.error") + " " + e.getMessage());
+            Utils.stderr.println(I18nUtils.get("sql.detection.error_prefix") + e.getMessage());
             e.printStackTrace();
         } finally {
             // 无论是否出现异常，都要更新最终状态
             // 如果没有异常且正常完成，添加检测完成状态
-            if (!vul.containsKey(logid) || !vul.get(logid).toString().contains("检测异常")) {
-                addToVulStr(logid, "检测完成");
+            if (!vul.containsKey(logid) || !vul.get(logid).toString().contains(I18nUtils.get("sql.detection.error"))) {
+                addToVulStr(logid, I18nUtils.get("sql.detection.complete"));
             }
             // 更新数据
             updateUrl(logid, method, url, originalLength, vul.get(logid).toString(), originalRequestResponse);
@@ -753,10 +752,10 @@ public class SqlUI extends AbstractScanUI {
 
     // 存在盲注漏洞
     private static void reportBlindInjection(int logid, String paraName, String url, IHttpRequestResponse requestResponse, String type) {
-        addToVulStr(logid, "参数" + paraName + "可能存在" + type + "盲注");
+        addToVulStr(logid, String.format(I18nUtils.get("sql.vuln.possible_blind"), paraName));
 
         try {
-            IScanIssue issues = new CustomScanIssue(requestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{requestResponse}, "SQL Injection Blind", "发现" + type + "SQL盲注", "High", "Certain");
+            IScanIssue issues = new CustomScanIssue(requestResponse.getHttpService(), new URL(url), new IHttpRequestResponse[]{requestResponse}, "SQL Injection Blind", String.format(I18nUtils.get("sql.issue.blind"), type), "High", "Certain");
             Utils.callbacks.addScanIssue(issues);
         } catch (MalformedURLException e) {
             throw new RuntimeException("CheckBlind: " + e);
@@ -827,7 +826,7 @@ public class SqlUI extends AbstractScanUI {
     // 添加url数据到表格
     public static int addUrl(String method, String url, int length, IHttpRequestResponse requestResponse) {
         int id = urlIdCounter.getAndIncrement();
-        SqlUIEntry entry = new SqlUIEntry(id, method, url, length, "正在检测", requestResponse);
+        SqlUIEntry entry = new SqlUIEntry(id, method, url, length, I18nUtils.get("sql.detection.in_progress"), requestResponse);
         urlPayloadMapping.put(id, Collections.synchronizedList(new ArrayList<>()));
 
         SwingUtilities.invokeLater(() -> {
@@ -891,13 +890,13 @@ public class SqlUI extends AbstractScanUI {
 
             // 检查SQL错误
             String responseBodyStr = new String(responseBody);
-            if (reportSQLError(logid, responseBodyStr, "参数" + paraName + "存在报错", "SqlInject 发现报错", url, newRequestResponses)) {
-                errkey = "存在报错";
+            if (reportSQLError(logid, responseBodyStr, String.format(I18nUtils.get("sql.vuln.param_error"), paraName), I18nUtils.get("sql.issue.error"), url, newRequestResponses)) {
+                errkey = I18nUtils.get("sql.vuln.error");
             }
 
             // 检查延时注入（时间盲注）
-            if (reportTimeBlind(logid, responseTime, "参数" + paraName + "存在延时注入", "SqlInject 发现延时注入", url, newRequestResponses)) {
-                errkey = "存在延时";
+            if (reportTimeBlind(logid, responseTime, String.format(I18nUtils.get("sql.vuln.param_time"), paraName), I18nUtils.get("sql.issue.time"), url, newRequestResponses)) {
+                errkey = I18nUtils.get("sql.vuln.time");
             }
 
             // 记录payload结果
@@ -1249,15 +1248,15 @@ public class SqlUI extends AbstractScanUI {
         public String getColumnName(int column) {
             switch (column) {
                 case 0:
-                    return "id";
+                    return I18nUtils.get("sql.table.id");
                 case 1:
-                    return "method";
+                    return I18nUtils.get("sql.table.method");
                 case 2:
-                    return "url";
+                    return I18nUtils.get("sql.table.url");
                 case 3:
-                    return "length";
+                    return I18nUtils.get("sql.table.length");
                 case 4:
-                    return "status";
+                    return I18nUtils.get("sql.table.status");
                 default:
                     return null;
             }
@@ -1311,19 +1310,19 @@ public class SqlUI extends AbstractScanUI {
         public String getColumnName(int column) {
             switch (column) {
                 case 0:
-                    return "Parameter";
+                    return I18nUtils.get("sql.table.parameter");
                 case 1:
-                    return "Value";
+                    return I18nUtils.get("sql.table.value");
                 case 2:
-                    return "Response Length";
+                    return I18nUtils.get("sql.table.response_length");
                 case 3:
-                    return "Change";
+                    return I18nUtils.get("sql.table.change");
                 case 4:
-                    return "Error";
+                    return I18nUtils.get("sql.table.error");
                 case 5:
-                    return "Time";
+                    return I18nUtils.get("sql.table.time");
                 case 6:
-                    return "Status Code";
+                    return I18nUtils.get("sql.table.status_code");
                 default:
                     return null;
             }

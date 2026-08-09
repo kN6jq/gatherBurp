@@ -1,6 +1,7 @@
 package burp.menu;
 
 import burp.IContextMenuInvocation;
+import burp.utils.I18nUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -24,7 +25,7 @@ public class TextProcessMenu extends JMenu {
     private final SecureRandom secureRandom = new SecureRandom();
 
     public TextProcessMenu(IContextMenuInvocation invocation) {
-        super("Helper");
+        super(I18nUtils.get("common.menu.helper"));
         this.invocation = invocation;
         initMenu();
     }
@@ -34,27 +35,27 @@ public class TextProcessMenu extends JMenu {
      */
     private void initMenu() {
         // Unicode解码菜单项
-        JMenuItem unicodeDecode = new JMenuItem("Unicode Decode");
+        JMenuItem unicodeDecode = new JMenuItem(I18nUtils.get("textprocess.menu.unicode_decode"));
         unicodeDecode.addActionListener(e -> processSelectedText(this::unicodeDecode));
 
         // URL解码菜单项
-        JMenuItem urlDecode = new JMenuItem("URL Decode");
+        JMenuItem urlDecode = new JMenuItem(I18nUtils.get("textprocess.menu.url_decode"));
         urlDecode.addActionListener(e -> processSelectedText(this::urlDecode));
 
         // 关键字拆分菜单项
-        JMenuItem splitKeyword = new JMenuItem("Split Keyword");
+        JMenuItem splitKeyword = new JMenuItem(I18nUtils.get("textprocess.menu.split_keyword"));
         splitKeyword.addActionListener(e -> processSelectedText(this::splitKeyword));
 
         // 随机大小写菜单项
-        JMenuItem randomCase = new JMenuItem("Random Case");
+        JMenuItem randomCase = new JMenuItem(I18nUtils.get("textprocess.menu.random_case"));
         randomCase.addActionListener(e -> processSelectedText(this::randomCase));
 
         // 添加生成脏数据菜单项
-        JMenuItem dirtyData = new JMenuItem("Generate Dirty Data");
+        JMenuItem dirtyData = new JMenuItem(I18nUtils.get("textprocess.menu.dirty_data"));
         dirtyData.addActionListener(e -> dirtyGetRandomString());
 
         // 添加Base64数据标签菜单项
-        JMenuItem base64Tag = new JMenuItem("Insert Base64 Tag");
+        JMenuItem base64Tag = new JMenuItem(I18nUtils.get("textprocess.menu.base64_tag"));
         base64Tag.addActionListener(e -> checkBase64Data());
 
 
@@ -73,14 +74,14 @@ public class TextProcessMenu extends JMenu {
         try {
             // 检查消息选择
             if (invocation.getSelectedMessages() == null || invocation.getSelectedMessages().length == 0) {
-                JOptionPane.showMessageDialog(null, "No message selected!");
+                JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.no_message"));
                 return;
             }
 
             // 获取选择范围
             int[] bounds = invocation.getSelectionBounds();
             if (bounds == null || bounds[0] == bounds[1]) {
-                JOptionPane.showMessageDialog(null, "Please select text first!");
+                JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.no_selection"));
                 return;
             }
 
@@ -95,7 +96,7 @@ public class TextProcessMenu extends JMenu {
             }
 
             if (contextBytes == null) {
-                JOptionPane.showMessageDialog(null, "No content available!");
+                JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.no_content"));
                 return;
             }
 
@@ -111,7 +112,7 @@ public class TextProcessMenu extends JMenu {
 
         } catch (Exception ex) {
             Utils.stderr.println("Error processing text: " + ex.getMessage());
-            JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage());
+            JOptionPane.showMessageDialog(null, String.format(I18nUtils.get("textprocess.message.error"), ex.getMessage()));
         }
     }
 
@@ -127,12 +128,12 @@ public class TextProcessMenu extends JMenu {
         scrollPane.setPreferredSize(new Dimension(400, 300));
 
         // 创建复制按钮
-        JButton copyButton = new JButton("复制到剪贴板");
+        JButton copyButton = new JButton(I18nUtils.get("textprocess.button.copy"));
         copyButton.addActionListener(e -> {
             StringSelection stringSelection = new StringSelection(result);
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(stringSelection, null);
-            JOptionPane.showMessageDialog(null, "复制到粘贴板!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.copied"));
         });
 
         // 创建包含文本区域和按钮的面板
@@ -144,7 +145,7 @@ public class TextProcessMenu extends JMenu {
         JOptionPane.showMessageDialog(
                 null,
                 panel,
-                "Process Result",
+                I18nUtils.get("textprocess.dialog.title"),
                 JOptionPane.INFORMATION_MESSAGE
         );
     }
@@ -158,7 +159,7 @@ public class TextProcessMenu extends JMenu {
             return URLDecoder.decode(text, StandardCharsets.UTF_8.name());
         } catch (Exception e) {
             Utils.stderr.println("Error decoding URL: " + e.getMessage());
-            JOptionPane.showMessageDialog(null, "Error decoding URL: " + e.getMessage());
+            JOptionPane.showMessageDialog(null, String.format(I18nUtils.get("textprocess.message.url_decode_error"), e.getMessage()));
             return text;
         }
     }
@@ -236,7 +237,7 @@ public class TextProcessMenu extends JMenu {
      * 弹窗获取用户输入并生成脏数据
      */
     private void dirtyGetRandomString() {
-        String s = JOptionPane.showInputDialog("Please Input Data Size(n*kb): ");
+        String s = JOptionPane.showInputDialog(I18nUtils.get("textprocess.dialog.input_size"));
         if (s != null && !s.trim().isEmpty()) {
             try {
                 int size = Integer.parseInt(s);
@@ -244,12 +245,12 @@ public class TextProcessMenu extends JMenu {
                 StringSelection stringSelection = new StringSelection(dirtyData);
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                 clipboard.setContents(stringSelection, null);
-                JOptionPane.showMessageDialog(null, "请在需要的位置粘贴", "Tips", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.paste_here"), I18nUtils.get("textprocess.dialog.title"), JOptionPane.INFORMATION_MESSAGE);
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(null, "Please input a valid number", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.invalid_number"), I18nUtils.get("textprocess.dialog.title"), JOptionPane.ERROR_MESSAGE);
             }
         } else {
-            JOptionPane.showMessageDialog(null, "Please Input Data Size", "Tips", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.input_size"), I18nUtils.get("textprocess.dialog.title"), JOptionPane.INFORMATION_MESSAGE);
         }
     }
 
@@ -260,7 +261,7 @@ public class TextProcessMenu extends JMenu {
         StringSelection stringSelection = new StringSelection("<datab64></datab64>");
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(stringSelection, null);
-        JOptionPane.showMessageDialog(null, "请在需要的位置粘贴", "Tips", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(null, I18nUtils.get("textprocess.message.paste_here"), I18nUtils.get("textprocess.dialog.title"), JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**

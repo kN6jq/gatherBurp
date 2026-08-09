@@ -203,7 +203,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     private void handleDomainConfigButtonClick() {
         if (currentProject == null) {
             JOptionPane.showMessageDialog(mainPanel,
-                    "请先选择项目!",
+                    I18nUtils.get("similar.message.select_project"),
                     I18nUtils.get("config.title.info"),
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -681,7 +681,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         SwingUtilities.invokeLater(() -> {
             JOptionPane.showMessageDialog(mainPanel,
                     "该项目还未配置主域名，请先配置主域名！",
-                    "提示",
+                    I18nUtils.get("config.title.info"),
                     JOptionPane.INFORMATION_MESSAGE);
         });
     }
@@ -694,7 +694,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         SwingUtilities.invokeLater(() -> {
             JOptionPane.showMessageDialog(mainPanel,
                     "加载项目失败: " + e.getMessage(),
-                    "错误",
+                    I18nUtils.get("config.title.info"),
                     JOptionPane.ERROR_MESSAGE);
         });
     }
