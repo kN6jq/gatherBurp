@@ -517,16 +517,7 @@ public class SqlUI extends AbstractScanUI {
                         int statusCode = analyzeResponse.getStatusCode();
                         String responseTime = String.valueOf(endTime - startTime);
                         byte[] sqlresponseBody = newRequestResponse.getResponse();
-                        int sqlLength = 0;
-                        if (sqlresponseBody != null) {
-                            // 判断有无Content-Length字段
-                            List<String> sqlHeaders = analyzeResponse.getHeaders();
-                            String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-                            if (contentLength != null) {
-                                sqlLength = Integer.parseInt(contentLength);
-                            } else {
-                                sqlLength = sqlresponseBody.length;
-                            }
+                        int sqlLength = sqlresponseBody != null ? getResponseLength(newRequestResponse) : 0;
                             // 判断body中是否有errorkey关键字
                             String sqlResponseBody = new String(sqlresponseBody);
                             if (errSqlCheck(sqlResponseBody)) {
@@ -595,16 +586,8 @@ public class SqlUI extends AbstractScanUI {
                             String responseTime = String.valueOf(endTime - startTime);
                             int statusCode = analyzeResponse.getStatusCode();
                             byte[] sqlresponseBody = newRequestResponse.getResponse();
-                            int sqlLength = 0;
                             if (sqlresponseBody != null) {
-                                // 判断有无Content-Length字段
-                                List<String> sqlHeaders = analyzeResponse.getHeaders();
-                                String contentLength = HelperPlus.getHeaderValueOf(sqlHeaders, "Content-Length");
-                                if (contentLength != null) {
-                                    sqlLength = Integer.parseInt(contentLength);
-                                } else {
-                                    sqlLength = sqlresponseBody.length;
-                                }
+                                int sqlLength = getResponseLength(newRequestResponse);
                                 // 判断body中是否有errorkey关键字
                                 String sqlResponseBody = new String(sqlresponseBody);
                                 if (errSqlCheck(sqlResponseBody)) {
@@ -842,7 +825,7 @@ public class SqlUI extends AbstractScanUI {
     }
 
     // 获取响应包的响应体内容
-    private static String getResponseBody(IHttpRequestResponse requestResponse) {
+    public static String getResponseBody(IHttpRequestResponse requestResponse) {
         if (requestResponse == null || requestResponse.getResponse() == null) {
             return "";
         }
@@ -851,6 +834,17 @@ public class SqlUI extends AbstractScanUI {
         int bodyOffset = responseInfo.getBodyOffset();
 
         return new String(Arrays.copyOfRange(response, bodyOffset, response.length));
+    }
+
+    // 获取响应长度（优先使用Content-Length头，否则使用响应体长度）
+    private static int getResponseLength(IHttpRequestResponse requestResponse) {
+        if (requestResponse == null || requestResponse.getResponse() == null) {
+            return 0;
+        }
+        byte[] response = requestResponse.getResponse();
+        IResponseInfo responseInfo = Utils.helpers.analyzeResponse(response);
+        String contentLength = HelperPlus.getHeaderValueOf(responseInfo.getHeaders(), "Content-Length");
+        return (contentLength != null) ? Integer.parseInt(contentLength) : response.length;
     }
 
     // 添加url数据到表格
@@ -908,8 +902,6 @@ public class SqlUI extends AbstractScanUI {
         IHttpRequestResponse newRequestResponses = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), paramByte);
 
         long endTime = System.currentTimeMillis();
-        String responseTimes = String.valueOf(endTime - startTime);
-
 
         // 获取响应数据
         byte[] responseBody = newRequestResponses.getResponse();
@@ -917,16 +909,7 @@ public class SqlUI extends AbstractScanUI {
             // 分析响应
             IResponseInfo analyzeResponse = Utils.helpers.analyzeResponse(responseBody);
             int statusCode = analyzeResponse.getStatusCode();
-
-            // 获取响应长度
-            int length;
-            List<String> headers = analyzeResponse.getHeaders();
-            String contentLength = HelperPlus.getHeaderValueOf(headers, "Content-Length");
-            if (contentLength != null) {
-                length = Integer.parseInt(contentLength);
-            } else {
-                length = responseBody.length;
-            }
+            int length = getResponseLength(newRequestResponses);
 
             // 检查SQL错误
             String responseBodyStr = new String(responseBody);
