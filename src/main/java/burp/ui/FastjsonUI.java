@@ -30,20 +30,16 @@ import static burp.dao.FastjsonDao.getFastjsonListsByType;
  * @Author Xm17
  * @Date 2024-06-22 12:13
  */
-public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpListener{
-    private JPanel panel; // 主面板
-    private JTabbedPane requestTabPane; // 请求面板
-    private JTabbedPane responseTabPane; // 响应面板
+public class FastjsonUI extends AbstractScanUI {
     private JButton btnClear; // 清空按钮
-    private JButton btnRefresh; // 添加刷新按钮
+    private JButton btnRefresh; // 刷新按钮
     private static volatile boolean autoRefresh = true; // 控制是否自动刷新
     private static final Object refreshLock = new Object();
     private JCheckBox autoRefreshCheckBox; // 自动刷新开关
-    private static JTable resultTable; // fastjson表格
-    private static IHttpRequestResponse currentlyDisplayedItem; // 当前显示的请求
-    private JCheckBox passiveScanCheckBox; // 添加被动扫描复选框
-    private IMessageEditor requestEditor; // 请求编辑器
-    private IMessageEditor responseEditor; // 响应编辑器
+    // FastjsonUI 专属表格引用：基类 resultTable 为跨模块共享 static（不可靠），
+    // 此处保留本模块独立引用，确保自动刷新刷新的是本表。
+    private static JTable fastjsonTable;
+    private JCheckBox passiveScanCheckBox; // 被动扫描复选框
     private static final List<FastjsonEntry> fastjsonlog = new ArrayList<>(); // fastjson日志
 
     static List<FastjsonEntry> getFastjsonlog() {
@@ -55,49 +51,39 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     }
     public static String dnslog; // dnslog地址
     public static String ip; // ip地址
-    private static List<FastjsonBean> jndiPayloads = new ArrayList<>(); // jndi payloads
-    private static List<FastjsonBean> versionPayloads = new ArrayList<>(); // jndi payloads
-    private static List<FastjsonBean> dnsPayloads = new ArrayList<>(); // jndi payloads
-    private static List<FastjsonBean> echoPayloads = new ArrayList<>(); // jndi payloads
+    private static List<FastjsonBean> jndiPayloads = new ArrayList<>();
+    private static List<FastjsonBean> versionPayloads = new ArrayList<>();
+    private static List<FastjsonBean> dnsPayloads = new ArrayList<>();
+    private static List<FastjsonBean> echoPayloads = new ArrayList<>();
     private static final Lock lock = new ReentrantLock();
-    private boolean isPassiveScanEnabled = false; // 控制被动扫描状态
-    
+
     public static void resetAllCaches() {
         UrlCacheUtil.resetCache("fastjson");
     }
 
     @Override
-    public IHttpService getHttpService() {
-        return currentlyDisplayedItem.getHttpService();
-    }
-
-    @Override
-    public byte[] getRequest() {
-        return currentlyDisplayedItem.getRequest();
-    }
-
-    @Override
-    public byte[] getResponse() {
-        return currentlyDisplayedItem.getResponse();
-    }
-
-    @Override
-    public void init() {
-
+    protected void setupScanUI() {
+        // 载入 DB 配置与 payload（编辑器已由基类 createEditors() 创建）
         dnslog = getConfig("config", "dnslog").getValue();
         ip = getConfig("config", "ip").getValue();
         jndiPayloads = getFastjsonListsByType("jndi");
         versionPayloads = getFastjsonListsByType("version");
         dnsPayloads = getFastjsonListsByType("dns");
         echoPayloads = getFastjsonListsByType("echo");
-        setupUI();
-        setupData();
-        // 注册HTTP监听器
+
+        fastjsonTable = new FastjsonTable(new FastjsonModel(), requestEditor, responseEditor);
+        btnClear = new JButton(I18nUtils.get("fastjson.button.clear"));
+        btnRefresh = new JButton(I18nUtils.get("fastjson.button.refresh"));
+        passiveScanCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.passive_scan"));
+        autoRefreshCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.auto_refresh"));
+        autoRefreshCheckBox.setSelected(true); // 默认开启自动刷新
+
         Utils.callbacks.registerHttpListener(this);
     }
 
-    // 初始化数据
-    private void setupData() {
+    // 加载按钮事件
+    @Override
+    protected void loadSavedData() {
         // 清空按钮事件
         btnClear.addActionListener(new AbstractAction() {
             @Override
@@ -125,49 +111,33 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                 refreshTable(); // 当开启自动刷新时，立即进行一次刷新
             }
         });
-        // 添加被动扫描复选框事件监听
-        passiveScanCheckBox.addActionListener(e -> {
-            isPassiveScanEnabled = passiveScanCheckBox.isSelected();
-        });
+        // 被动扫描复选框事件（联动基类 passiveScanEnabled）
+        passiveScanCheckBox.addActionListener(e -> passiveScanEnabled = passiveScanCheckBox.isSelected());
     }
 
     // 刷新表格方法
     private static void refreshTable() {
         SwingUtilities.invokeLater(() -> {
-            if(resultTable != null) {
-                ((AbstractTableModel)resultTable.getModel()).fireTableDataChanged();
+            if(fastjsonTable != null) {
+                ((AbstractTableModel)fastjsonTable.getModel()).fireTableDataChanged();
             }
         });
     }
 
-    // 初始化UI
-    private void setupUI() {
-        panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        // 顶部面板添加清空按钮和被动扫描复选框
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        btnClear = new JButton(I18nUtils.get("fastjson.button.clear"));
-        passiveScanCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.passive_scan"));
-        btnRefresh = new JButton(I18nUtils.get("fastjson.button.refresh"));
-        autoRefreshCheckBox = new JCheckBox(I18nUtils.get("fastjson.checkbox.auto_refresh"));
-        autoRefreshCheckBox.setSelected(true); // 默认开启自动刷新
+    // 构建主界面（组件已在 setupScanUI 创建，编辑器由基类 createEditors 创建）
+    @Override
+    protected void setupCommonUI() {
+        panel = new JPanel(new BorderLayout());
+
+        // 顶部面板：清空/刷新/自动刷新/被动扫描
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         topPanel.add(btnClear);
         topPanel.add(btnRefresh);
         topPanel.add(autoRefreshCheckBox);
         topPanel.add(passiveScanCheckBox);
         panel.add(topPanel, BorderLayout.NORTH);
 
-        // 上下分割面板,比例是7：3
-        JSplitPane mainsplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainsplitPane.setResizeWeight(0.7);
-        mainsplitPane.setDividerLocation(0.7);
-
-        // 添加URLTable到mainsplitPane的上边
-        resultTable = new FastjsonTable(new FastjsonModel(), requestEditor, responseEditor);
-        JScrollPane scrollPane = new JScrollPane(resultTable);
-        mainsplitPane.setTopComponent(scrollPane);
-
-        // 创建一个自定义的单元格渲染器
+        // 第 6 列（payload）自定义渲染器：居中 + 悬停提示
         DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -180,47 +150,32 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
                 return label;
             }
         };
+        fastjsonTable.getColumnModel().getColumn(5).setCellRenderer(renderer);
 
-        resultTable.getColumnModel().getColumn(5).setCellRenderer(renderer);
-
-        // 左右分割面板,对称分割
-        JSplitPane splitPaneDown = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPaneDown.setResizeWeight(0.5);
-        splitPaneDown.setDividerLocation(0.5);
-        // 添加请求响应到左右分割面板
-        requestTabPane = new JTabbedPane();
-        requestEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, true);
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-
-        responseTabPane = new JTabbedPane();
-        responseEditor = Utils.callbacks.createMessageEditor(FastjsonUI.this, false);
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-        splitPaneDown.setLeftComponent(requestTabPane);
-        splitPaneDown.setRightComponent(responseTabPane);
-
-        // 添加splitPaneDown到mainsplitPane的下边
-        mainsplitPane.setBottomComponent(splitPaneDown);
+        // 上下分割：结果表 / 请求响应编辑器
+        JSplitPane mainsplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainsplitPane.setTopComponent(wrapResultsTable(fastjsonTable));
+        mainsplitPane.setBottomComponent(buildEditorSplit());
+        applyWeights(mainsplitPane, WEIGHT_TABLE_EDITOR);
 
         panel.add(mainsplitPane, BorderLayout.CENTER);
-
-    }
-
-    @Override
-    public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
-        return panel;
     }
 
     @Override
     public String getTabName() {
         return "Fastjson";
+    }
+
+    @Override
+    protected String getScanName() {
+        return "Fastjson";
+    }
+
+    @Override
+    protected void doPassiveScan(IHttpRequestResponse[] requestResponses, boolean isManual) {
+        for (IHttpRequestResponse rr : requestResponses) {
+            performPassiveScan(rr);
+        }
     }
     // dnslog检测
     public static void CheckDnslog(IHttpRequestResponse[] responses) {
@@ -399,7 +354,7 @@ public class FastjsonUI implements UIHandler, IMessageEditorController , IHttpLi
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
         // 只处理被动扫描启用、响应包、且来自代理或Spider的请求
-        if (!isPassiveScanEnabled || messageIsRequest ||
+        if (!passiveScanEnabled || messageIsRequest ||
                 (toolFlag != IBurpExtenderCallbacks.TOOL_PROXY &&
                         toolFlag != IBurpExtenderCallbacks.TOOL_SPIDER)) {
             return;
