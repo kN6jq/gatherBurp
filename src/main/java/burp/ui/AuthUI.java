@@ -46,7 +46,7 @@ public class AuthUI extends AbstractScanUI {
         panel = new JPanel(new BorderLayout());
 
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton btnClear = new JButton(I18nUtils.get("auth.button.clear"));
+        btnClear = new JButton(I18nUtils.get("auth.button.clear"));
         topPanel.add(btnClear);
 
         topPanel.add(new JLabel(I18nUtils.get("auth.label.ip")));

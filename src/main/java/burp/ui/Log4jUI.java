@@ -164,6 +164,20 @@ public class Log4jUI extends AbstractScanUI {
         leftSplitPane.setResizeWeight(0.65);
         leftSplitPane.setLeftComponent(urltablescrollpane);
 
+        // 编辑器由基类 init() 提前创建，此处仅负责装配到 Tab，并对 null 做保护
+        requestTabPane = new JTabbedPane();
+        if (requestEditor != null) {
+            requestTabPane.addTab("Request", requestEditor.getComponent());
+        } else {
+            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
+        }
+        responseTabPane = new JTabbedPane();
+        if (responseEditor != null) {
+            responseTabPane.addTab("Response", responseEditor.getComponent());
+        } else {
+            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
+        }
+
         JSplitPane editorSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         editorSplit.setResizeWeight(0.5);
         editorSplit.setLeftComponent(requestTabPane);
@@ -176,6 +190,15 @@ public class Log4jUI extends AbstractScanUI {
         mainSplit.setRightComponent(rightSplitPane);
 
         panel.add(mainSplit, BorderLayout.CENTER);
+    }
+
+    /**
+     * Log4jUI 的全部布局已在 setupScanUI() 中完成（含自定义右侧配置区），
+     * 覆盖此方法为空实现，避免基类 setupCommonUI() 重建 panel 丢弃已构建的界面。
+     */
+    @Override
+    protected void setupCommonUI() {
+        // 故意为空：布局由 setupScanUI 负责
     }
 
     @Override

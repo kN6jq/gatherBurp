@@ -63,9 +63,26 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         if (panel == null) {
             panel = new JPanel(new BorderLayout());
         }
+        // 提前创建消息编辑器，确保所有子类（无论是否覆盖 setupCommonUI）
+        // 都能拿到非空的 requestEditor/responseEditor，避免 NPE 与编辑器退化为空文本域。
+        createEditors();
         setupScanUI();
         setupCommonUI();
         loadSavedData();
+    }
+
+    /**
+     * 创建请求/响应消息编辑器。
+     * 在 setupScanUI/setupCommonUI 之前调用，作为编辑器的唯一创建点，
+     * 避免子类因覆盖 setupCommonUI（且未调用 super）而拿不到编辑器。
+     * 若 callbacks 尚不可用（如扩展初始化线程早期）则跳过，子类对编辑器做空值保护即可。
+     * 子类如使用自行创建的编辑器（如 PermUI），可覆盖此方法为空实现。
+     */
+    protected void createEditors() {
+        if (Utils.callbacks != null && requestEditor == null && responseEditor == null) {
+            requestEditor = Utils.callbacks.createMessageEditor(this, true);
+            responseEditor = Utils.callbacks.createMessageEditor(this, false);
+        }
     }
 
     /**
@@ -74,7 +91,9 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected abstract void setupScanUI();
 
     /**
-     * 创建通用的消息编辑器面板（表格 + 请求/响应编辑器），依赖子类已初始化resultTable
+     * 构建默认的消息编辑器面板（表格 + 请求/响应编辑器），依赖子类已初始化resultTable。
+     * 编辑器由 createEditors() 在 init() 阶段提前创建，此处不再负责创建，仅负责装配。
+     * 子类如需自定义布局应覆盖此方法（例如 Log4jUI 在 setupScanUI 中完成布局，覆盖此方法为空）。
      */
     protected void setupCommonUI() {
         panel = new JPanel(new BorderLayout());
@@ -85,31 +104,30 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         JScrollPane tableScrollPane = new JScrollPane(resultTable);
         tableScrollPane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
 
-        if (Utils.callbacks != null) {
-            requestEditor = Utils.callbacks.createMessageEditor(this, true);
-            responseEditor = Utils.callbacks.createMessageEditor(this, false);
-        }
-
-        if (requestEditor != null && responseEditor != null) {
-            requestTabPane = new JTabbedPane();
+        requestTabPane = new JTabbedPane();
+        if (requestEditor != null) {
             requestTabPane.addTab("Request", requestEditor.getComponent());
-            responseTabPane = new JTabbedPane();
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-
-            JSplitPane editorSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-            editorSplitPane.setLeftComponent(requestTabPane);
-            editorSplitPane.setRightComponent(responseTabPane);
-            editorSplitPane.setResizeWeight(0.5);
-
-            JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-            mainSplitPane.setTopComponent(tableScrollPane);
-            mainSplitPane.setBottomComponent(editorSplitPane);
-            mainSplitPane.setResizeWeight(0.6);
-
-            panel.add(mainSplitPane, BorderLayout.CENTER);
         } else {
-            panel.add(tableScrollPane, BorderLayout.CENTER);
+            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
         }
+        responseTabPane = new JTabbedPane();
+        if (responseEditor != null) {
+            responseTabPane.addTab("Response", responseEditor.getComponent());
+        } else {
+            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
+        }
+
+        JSplitPane editorSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        editorSplitPane.setLeftComponent(requestTabPane);
+        editorSplitPane.setRightComponent(responseTabPane);
+        editorSplitPane.setResizeWeight(0.5);
+
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainSplitPane.setTopComponent(tableScrollPane);
+        mainSplitPane.setBottomComponent(editorSplitPane);
+        mainSplitPane.setResizeWeight(0.6);
+
+        panel.add(mainSplitPane, BorderLayout.CENTER);
     }
 
     /**

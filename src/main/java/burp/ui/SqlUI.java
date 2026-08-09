@@ -956,9 +956,7 @@ public class SqlUI extends AbstractScanUI {
         tablesSplit.setRightComponent(payloadScrollPane);
         leftSplitPane.setTopComponent(tablesSplit);
 
-        // 下方：请求/响应编辑器
-        requestEditor = Utils.callbacks.createMessageEditor(SqlUI.this, true);
-        responseEditor = Utils.callbacks.createMessageEditor(SqlUI.this, false);
+        // 下方：请求/响应编辑器（编辑器已由基类 init() 的 createEditors() 创建）
         requestTabPane = new JTabbedPane();
         if (requestEditor != null) {
             requestTabPane.addTab("Request", requestEditor.getComponent());
