@@ -831,23 +831,10 @@ public class SqlUI extends AbstractScanUI {
 
     // 检查参数是否为整数类型
     private static boolean isIntegerParameter(String value) {
-        // 空值检查
         if (value == null || value.trim().isEmpty()) {
             return false;
         }
-
-        // 检查是否为纯数字
-        if (!value.matches("^-?\\d+$")) {
-            return false;
-        }
-
-        try {
-            // 尝试转换为整数
-            Integer.parseInt(value);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        return value.matches("^-?\\d+$");
     }
 
     // 正则判断响应数据包中是否包含报错关键字
@@ -860,7 +847,7 @@ public class SqlUI extends AbstractScanUI {
             }
         }
 
-        String cleanedText = responseBody.replaceAll("\\n|\\r|\\r\\n", "");
+        String cleanedText = CLEAN_NEWLINE.matcher(responseBody).replaceAll("");
         for (Pattern rule : rules) {
             if (rule.matcher(cleanedText).find()) {
                 return true;
