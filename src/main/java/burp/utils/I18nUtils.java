@@ -4,7 +4,6 @@ import burp.bean.ConfigBean;
 import burp.dao.ConfigDao;
 
 import java.util.Locale;
-import java.util.Map;
 import java.util.ResourceBundle;
 
 /**
@@ -74,3 +73,4 @@ public class I18nUtils {
         currentLanguage = isChinese ? Language.CHINESE : Language.ENGLISH;
     }
 }
+

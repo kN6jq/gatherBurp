@@ -12,7 +12,6 @@ import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.ActionEvent;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -421,3 +420,4 @@ public class PermUI extends AbstractScanUI {
         }
     }
 }
+

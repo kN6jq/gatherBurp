@@ -4,7 +4,6 @@ import burp.IHttpRequestResponse;
 import burp.utils.Utils;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
 
 public abstract class AbstractScanMenu extends JMenuItem {
     protected final IHttpRequestResponse[] requestResponses;
@@ -27,3 +26,4 @@ public abstract class AbstractScanMenu extends JMenuItem {
         return getClass().getSimpleName().replace("Menu", "");
     }
 }
+

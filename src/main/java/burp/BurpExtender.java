@@ -1,7 +1,6 @@
 package burp;
 
 import burp.bean.ConfigBean;
-import burp.dao.ConfigDao;
 import burp.menu.*;
 import burp.ui.MainUI;
 import burp.utils.DbUtils;
@@ -157,3 +156,4 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
     }
 
 }
+
