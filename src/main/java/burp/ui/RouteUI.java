@@ -23,8 +23,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import static burp.dao.RouteDao.*;
 
 public class RouteUI extends AbstractScanUI {
-    private JTabbedPane tabbedPanereq;
-    private JTabbedPane tabbedPaneresp;
     private RouteIssueTable issusTable;
     private RouteTable ruleTable;
     private JScrollPane issustablescrollpane;
@@ -66,6 +64,7 @@ public class RouteUI extends AbstractScanUI {
         Utils.callbacks.registerHttpListener(this);
         issusTable = new RouteIssueTable(new RouteIssueTableModel(issuslog), requestEditor, responseEditor);
         issustablescrollpane = new JScrollPane(issusTable);
+        issustablescrollpane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
         ruleTable = new RouteTable(new RouteTableModel(routelog));
         ruleTableScrollPane = new JScrollPane(ruleTable);
     }
@@ -74,7 +73,7 @@ public class RouteUI extends AbstractScanUI {
     protected void setupCommonUI() {
         panel = new JPanel(new BorderLayout());
 
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         refreshButton = new JButton(I18nUtils.get("route.button.refresh"));
         topPanel.add(refreshButton);
         clearButton = new JButton(I18nUtils.get("route.button.clear"));
@@ -99,36 +98,17 @@ public class RouteUI extends AbstractScanUI {
         topPanel.add(enableButton);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.5);
-        splitPane.setDividerLocation(0.5);
 
         JSplitPane topSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        topSplitPane.setResizeWeight(0.5);
-        topSplitPane.setDividerLocation(0.5);
+        applyWeights(topSplitPane, WEIGHT_EDITORS);
         topSplitPane.setLeftComponent(issustablescrollpane);
         topSplitPane.setRightComponent(ruleTableScrollPane);
 
-        tabbedPanereq = new JTabbedPane();
-        if (requestEditor != null) {
-            tabbedPanereq.addTab("Request", requestEditor.getComponent());
-        } else {
-            tabbedPanereq.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-        tabbedPaneresp = new JTabbedPane();
-        if (responseEditor != null) {
-            tabbedPaneresp.addTab("Response", responseEditor.getComponent());
-        } else {
-            tabbedPaneresp.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-
-        JSplitPane bottomSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        bottomSplitPane.setResizeWeight(0.5);
-        bottomSplitPane.setDividerLocation(0.5);
-        bottomSplitPane.setLeftComponent(tabbedPanereq);
-        bottomSplitPane.setRightComponent(tabbedPaneresp);
+        JSplitPane bottomSplitPane = buildEditorSplit();
 
         splitPane.setTopComponent(topSplitPane);
         splitPane.setBottomComponent(bottomSplitPane);
+        applyWeights(splitPane, WEIGHT_TABLE_EDITOR);
 
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(splitPane, BorderLayout.CENTER);

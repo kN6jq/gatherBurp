@@ -945,43 +945,25 @@ public class SqlUI extends AbstractScanUI {
 
         // 左半部分：上下分割
         JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.6);
 
         // 上方：URL表格 + Payload表格水平分割
         JSplitPane tablesSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        tablesSplit.setResizeWeight(0.5);
-        JScrollPane urlScrollPane = new JScrollPane(resultTable);
-        JScrollPane payloadScrollPane = new JScrollPane(payloadtable);
-        tablesSplit.setLeftComponent(urlScrollPane);
-        tablesSplit.setRightComponent(payloadScrollPane);
+        applyWeights(tablesSplit, WEIGHT_EDITORS);
+        tablesSplit.setLeftComponent(wrapResultsTable(resultTable));
+        tablesSplit.setRightComponent(new JScrollPane(payloadtable));
         leftSplitPane.setTopComponent(tablesSplit);
 
-        // 下方：请求/响应编辑器（编辑器已由基类 init() 的 createEditors() 创建）
-        requestTabPane = new JTabbedPane();
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-        responseTabPane = new JTabbedPane();
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-        JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        editorSplit.setResizeWeight(0.5);
-        editorSplit.setLeftComponent(requestTabPane);
-        editorSplit.setRightComponent(responseTabPane);
-        leftSplitPane.setBottomComponent(editorSplit);
+        // 下方：请求/响应编辑器（编辑器由基类 createEditors() 创建）
+        leftSplitPane.setBottomComponent(buildEditorSplit());
+        applyWeights(leftSplitPane, WEIGHT_TABLE_EDITOR);
 
         // 右半部分：配置面板
         JPanel rightPanel = buildRightPanel();
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setResizeWeight(0.65);
         mainSplit.setLeftComponent(leftSplitPane);
         mainSplit.setRightComponent(rightPanel);
+        applyWeights(mainSplit, WEIGHT_MAIN);
 
         panel.add(mainSplit, BorderLayout.CENTER);
     }

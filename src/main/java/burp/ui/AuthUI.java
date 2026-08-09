@@ -45,7 +45,7 @@ public class AuthUI extends AbstractScanUI {
     protected void setupCommonUI() {
         panel = new JPanel(new BorderLayout());
 
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         btnClear = new JButton(I18nUtils.get("auth.button.clear"));
         topPanel.add(btnClear);
 
@@ -58,35 +58,13 @@ public class AuthUI extends AbstractScanUI {
 
         panel.add(topPanel, BorderLayout.NORTH);
 
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainSplitPane.setResizeWeight(0.7);
-        mainSplitPane.setDividerLocation(0.7);
-
-        JScrollPane scrollPane = new JScrollPane(getResultTable());
         getResultTable().setAutoCreateRowSorter(true);
-        mainSplitPane.setTopComponent(scrollPane);
 
-        JSplitPane splitPaneDown = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPaneDown.setResizeWeight(0.5);
-        splitPaneDown.setDividerLocation(0.5);
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        mainSplitPane.setTopComponent(wrapResultsTable(getResultTable()));
+        mainSplitPane.setBottomComponent(buildEditorSplit());
+        applyWeights(mainSplitPane, WEIGHT_TABLE_EDITOR);
 
-        requestTabPane = new JTabbedPane();
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-
-        responseTabPane = new JTabbedPane();
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-        splitPaneDown.setLeftComponent(requestTabPane);
-        splitPaneDown.setRightComponent(responseTabPane);
-
-        mainSplitPane.setBottomComponent(splitPaneDown);
         panel.add(mainSplitPane, BorderLayout.CENTER);
     }
 

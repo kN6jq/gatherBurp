@@ -46,11 +46,10 @@ public class UrlRedirectUI extends AbstractScanUI {
         panel = new JPanel(new BorderLayout());
 
         JSplitPane horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        horizontalSplitPane.setResizeWeight(0.8);
 
         JPanel leftPanel = new JPanel(new BorderLayout());
 
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         chkPassiveScan = new JCheckBox(I18nUtils.get("redirect.checkbox.passive"), false);
         btnClear = new JButton(I18nUtils.get("redirect.button.clear"));
         topPanel.add(chkPassiveScan);
@@ -58,27 +57,9 @@ public class UrlRedirectUI extends AbstractScanUI {
         leftPanel.add(topPanel, BorderLayout.NORTH);
 
         JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.5);
-
-        leftSplitPane.setTopComponent(new JScrollPane(getResultTable()));
-
-        JSplitPane viewerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        viewerSplitPane.setResizeWeight(0.5);
-        requestTabPane = new JTabbedPane();
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-        responseTabPane = new JTabbedPane();
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-        viewerSplitPane.setLeftComponent(requestTabPane);
-        viewerSplitPane.setRightComponent(responseTabPane);
-        leftSplitPane.setBottomComponent(viewerSplitPane);
+        leftSplitPane.setTopComponent(wrapResultsTable(getResultTable()));
+        leftSplitPane.setBottomComponent(buildEditorSplit());
+        applyWeights(leftSplitPane, WEIGHT_TABLE_EDITOR);
 
         leftPanel.add(leftSplitPane, BorderLayout.CENTER);
 
@@ -88,10 +69,9 @@ public class UrlRedirectUI extends AbstractScanUI {
 
         horizontalSplitPane.setLeftComponent(leftPanel);
         horizontalSplitPane.setRightComponent(rightPanel);
-        horizontalSplitPane.setDividerLocation(0.8);
+        applyWeights(horizontalSplitPane, WEIGHT_MAIN);
 
         panel.add(horizontalSplitPane, BorderLayout.CENTER);
-        panel.setPreferredSize(new Dimension(1200, 800));
     }
 
     @Override
@@ -109,7 +89,9 @@ public class UrlRedirectUI extends AbstractScanUI {
     private JPanel setupSettingsPanel() {
         JPanel settingsPanel = new JPanel();
         settingsPanel.setLayout(new BoxLayout(settingsPanel, BoxLayout.Y_AXIS));
-        settingsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("redirect.border.settings")));
+        settingsPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(I18nUtils.get("redirect.border.settings")),
+                PADDING_BORDER));
 
         paramModel = new DefaultTableModel(new String[]{I18nUtils.get("redirect.label.parameter")}, 0);
         payloadModel = new DefaultTableModel(new String[]{I18nUtils.get("redirect.label.payloads")}, 0);
@@ -119,8 +101,8 @@ public class UrlRedirectUI extends AbstractScanUI {
         };
         String[] defaultPayloads = {};
 
-        settingsPanel.add(createInputPanel("Parameters", paramModel, defaultParams));
-        settingsPanel.add(createInputPanel("Payloads", payloadModel, defaultPayloads));
+        settingsPanel.add(createInputPanel(I18nUtils.get("redirect.label.parameter"), paramModel, defaultParams));
+        settingsPanel.add(createInputPanel(I18nUtils.get("redirect.label.payloads"), payloadModel, defaultPayloads));
 
         settingsPanel.setMinimumSize(new Dimension(250, 400));
         settingsPanel.setPreferredSize(new Dimension(250, 400));

@@ -84,10 +84,7 @@ public class PermUI extends AbstractScanUI {
 
         // 左边：表格 + 请求/响应编辑器
         JSplitPane leftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.7);
-
-        JScrollPane tableScrollPane = new JScrollPane(resultTable);
-        leftSplitPane.setTopComponent(tableScrollPane);
+        leftSplitPane.setTopComponent(wrapResultsTable(resultTable));
 
         // 下方：三个面板（原始/低权限/无权限）
         tabbedPanereqresp = new JTabbedPane();
@@ -138,6 +135,7 @@ public class PermUI extends AbstractScanUI {
         tabbedPanereqresp.addTab(I18nUtils.get("perm.tab.no"), nopermPane);
 
         leftSplitPane.setBottomComponent(tabbedPanereqresp);
+        applyWeights(leftSplitPane, WEIGHT_TABLE_EDITOR);
 
         // 右边配置面板
         JPanel rightSplitPane = new JPanel(new BorderLayout());
@@ -190,18 +188,18 @@ public class PermUI extends AbstractScanUI {
         actionButtonsPanel.add(clearButton);
 
         JSplitPane mainRightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainRightSplit.setResizeWeight(0.2);
         mainRightSplit.setTopComponent(scanOptionsPanel);
         JPanel cfgAct = new JPanel(new BorderLayout(5, 5));
         cfgAct.add(configPanel, BorderLayout.CENTER);
         cfgAct.add(actionButtonsPanel, BorderLayout.SOUTH);
         mainRightSplit.setBottomComponent(cfgAct);
+        applyWeights(mainRightSplit, WEIGHT_RIGHT_CONFIG);
         rightSplitPane.add(mainRightSplit, BorderLayout.CENTER);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setResizeWeight(0.65);
         mainSplit.setLeftComponent(leftSplitPane);
         mainSplit.setRightComponent(rightSplitPane);
+        applyWeights(mainSplit, WEIGHT_MAIN);
 
         panel.add(mainSplit, BorderLayout.CENTER);
     }

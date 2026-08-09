@@ -66,6 +66,7 @@ public class Log4jUI extends AbstractScanUI {
 
         resultTable = new URLTable(new Log4jTableModel(log4jlog));
         urltablescrollpane = new JScrollPane(resultTable);
+        urltablescrollpane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
 
         // 被动扫描选择框
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.passive"));
@@ -161,33 +162,14 @@ public class Log4jUI extends AbstractScanUI {
 
         // 主体：左边表格+编辑器，右边配置
         JSplitPane leftSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        leftSplitPane.setResizeWeight(0.65);
         leftSplitPane.setLeftComponent(urltablescrollpane);
-
-        // 编辑器由基类 init() 提前创建，此处仅负责装配到 Tab，并对 null 做保护
-        requestTabPane = new JTabbedPane();
-        if (requestEditor != null) {
-            requestTabPane.addTab("Request", requestEditor.getComponent());
-        } else {
-            requestTabPane.addTab("Request", new JScrollPane(new JTextArea()));
-        }
-        responseTabPane = new JTabbedPane();
-        if (responseEditor != null) {
-            responseTabPane.addTab("Response", responseEditor.getComponent());
-        } else {
-            responseTabPane.addTab("Response", new JScrollPane(new JTextArea()));
-        }
-
-        JSplitPane editorSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        editorSplit.setResizeWeight(0.5);
-        editorSplit.setLeftComponent(requestTabPane);
-        editorSplit.setRightComponent(responseTabPane);
-        leftSplitPane.setRightComponent(editorSplit);
+        leftSplitPane.setRightComponent(buildEditorSplit());
+        applyWeights(leftSplitPane, WEIGHT_MAIN);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setResizeWeight(0.65);
         mainSplit.setLeftComponent(leftSplitPane);
         mainSplit.setRightComponent(rightSplitPane);
+        applyWeights(mainSplit, WEIGHT_MAIN);
 
         panel.add(mainSplit, BorderLayout.CENTER);
     }
