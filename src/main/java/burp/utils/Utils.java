@@ -298,41 +298,36 @@ public final class Utils {
      * @return 如果匹配返回true，否则返回false
      */
     public static boolean isMatchDomainName(String targetDomain, List<String> allowedDomains) {
-        // 参数验证
         if (targetDomain == null || targetDomain.trim().isEmpty() ||
                 allowedDomains == null || allowedDomains.isEmpty()) {
             return false;
         }
 
-        // 处理输入域名
         targetDomain = cleanDomainName(targetDomain);
         if (targetDomain.isEmpty()) {
             return false;
         }
 
-        // 反转目标域名，便于从右到左匹配
-        String reversedTarget = new StringBuilder(targetDomain).reverse().toString();
+        String[] targetParts = targetDomain.split("\\.");
 
-        // 遍历允许的域名列表进行匹配
         for (String allowedDomain : allowedDomains) {
-            // 清理和反转待匹配的域名
             allowedDomain = cleanDomainName(allowedDomain);
             if (allowedDomain.isEmpty()) {
                 continue;
             }
 
-            // 如果完全匹配，直接返回true
             if (targetDomain.equals(allowedDomain)) {
                 return true;
             }
 
-            String reversedAllowed = new StringBuilder(allowedDomain).reverse().toString();
+            if (!allowedDomain.contains("*")) {
+                continue;
+            }
 
-            // 如果两个域名都包含点号，进行通配符匹配
-            if (reversedTarget.contains(".") && reversedAllowed.contains(".")) {
-                if (isWildcardMatch(reversedTarget, reversedAllowed)) {
-                    return true;
-                }
+            String[] patternParts = allowedDomain.split("\\.");
+
+            if (matchWildcard(targetParts, patternParts)) {
+                return true;
             }
         }
 
@@ -340,56 +335,44 @@ public final class Utils {
     }
 
     /**
-     * 清理域名字符串，移除端口号和空白字符
+     * 从右到左通配符匹配域名
      */
-    private static String cleanDomainName(String domain) {
-        domain = domain.trim();
-        // 移除端口号
-        int portIndex = domain.indexOf(':');
-        if (portIndex > 0) {
-            domain = domain.substring(0, portIndex);
-        }
-        return domain;
-    }
+    private static boolean matchWildcard(String[] targetParts, String[] patternParts) {
+        int ti = targetParts.length - 1;
+        int pi = patternParts.length - 1;
 
-    /**
-     * 通配符匹配两个反转的域名
-     */
-    private static boolean isWildcardMatch(String reversedTarget, String reversedPattern) {
-        String[] targetParts = reversedTarget.split("\\.");
-        String[] patternParts = reversedPattern.split("\\.");
-
-        // 调整两个数组长度一致
-        int maxLength = Math.max(targetParts.length, patternParts.length);
-        targetParts = adjustArray(targetParts, maxLength);
-        patternParts = adjustArray(patternParts, maxLength);
-
-        // 逐级比较
-        for (int i = 0; i < maxLength; i++) {
-            String targetPart = targetParts[i];
-            String patternPart = patternParts[i];
-
-            // 如果模式中有通配符或者两部分相等，继续比较
-            if (!patternPart.equals("*") && !patternPart.equals(targetPart)) {
+        while (ti >= 0 && pi >= 0) {
+            if ("*".equals(patternParts[pi])) {
+                return true;
+            }
+            if (!targetParts[ti].equals(patternParts[pi])) {
                 return false;
             }
+            ti--;
+            pi--;
+        }
+
+        // pattern用完了，如果target还有剩余部分，需全部为*才能匹配
+        while (ti >= 0) {
+            if (!"*".equals(patternParts[0])) {
+                return false;
+            }
+            ti--;
         }
 
         return true;
     }
 
     /**
-     * 调整数组长度，使用通配符填充
+     * 清理域名字符串，移除端口号和空白字符
      */
-    private static String[] adjustArray(String[] array, int targetLength) {
-        if (array.length >= targetLength) {
-            return array;
+    private static String cleanDomainName(String domain) {
+        domain = domain.trim();
+        int portIndex = domain.indexOf(':');
+        if (portIndex > 0) {
+            domain = domain.substring(0, portIndex);
         }
-
-        String[] newArray = new String[targetLength];
-        System.arraycopy(array, 0, newArray, 0, array.length);
-        Arrays.fill(newArray, array.length, targetLength, "*");
-        return newArray;
+        return domain;
     }
 
     /**
