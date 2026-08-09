@@ -43,6 +43,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     // UI组件
     private JPanel mainPanel;
     private JLabel currentProjectLabel;
+    private static Timer statsTimer; // 持有统计定时器引用，重新初始化时停止旧的，避免叠加泄漏
     private JToggleButton scanButton;
     private JButton projectManageButton;
     private JButton domainConfigButton;
@@ -162,8 +163,9 @@ public class SimilarUI implements UIHandler, IHttpListener {
         JLabel statsLabel = new JLabel(I18nUtils.get("similar.label.stats"));
         statsPanel.add(statsLabel);
 
-        // 定时更新统计信息
-        Timer statsTimer = new Timer(5000, e -> {
+        // 定时更新统计信息（重新初始化时先停止旧定时器，避免同一进程内多实例叠加）
+        if (statsTimer != null) statsTimer.stop();
+        statsTimer = new Timer(5000, e -> {
             // 获取缓存统计
             Map<String, Integer> stats = CacheManager.getCacheStats();
             statsLabel.setText(String.format(I18nUtils.get("similar.label.stats") + " %s | %s",
@@ -668,7 +670,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     private void updateProjectUI(Project project) {
         SwingUtilities.invokeLater(() -> {
-            currentProjectLabel.setText("当前项目: " + project.getName());
+            currentProjectLabel.setText(I18nUtils.get("similar.label.current_project") + " " + project.getName());
             scanButton.setEnabled(true);
             domainConfigButton.setEnabled(true);
         });
@@ -680,7 +682,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     private void showDomainConfigWarning() {
         SwingUtilities.invokeLater(() -> {
             JOptionPane.showMessageDialog(mainPanel,
-                    "该项目还未配置主域名，请先配置主域名！",
+                    I18nUtils.get("similar.message.no_domain"),
                     I18nUtils.get("config.title.info"),
                     JOptionPane.INFORMATION_MESSAGE);
         });
@@ -693,7 +695,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
         Utils.stderr.println("切换项目失败: " + e.getMessage());
         SwingUtilities.invokeLater(() -> {
             JOptionPane.showMessageDialog(mainPanel,
-                    "加载项目失败: " + e.getMessage(),
+                    I18nUtils.get("similar.message.load_failed") + " " + e.getMessage(),
                     I18nUtils.get("config.title.info"),
                     JOptionPane.ERROR_MESSAGE);
         });
