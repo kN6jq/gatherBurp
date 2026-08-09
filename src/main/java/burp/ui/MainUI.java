@@ -8,14 +8,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 
 public class MainUI extends JPanel implements ITab {
     private static JTabbedPane mainPanel;
     IBurpExtenderCallbacks callbacks;
-    public static Map<String, Boolean> moduleStatus;
 
     private static final List<Supplier<UIHandler>> UI_SUPPLIERS = Arrays.asList(
         AuthUI::new,

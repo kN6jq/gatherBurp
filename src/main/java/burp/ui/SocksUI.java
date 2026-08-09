@@ -54,6 +54,94 @@ public class SocksUI implements UIHandler {
     public void init() {
         setupUI();
         setupData();
+        setupListeners();
+    }
+
+    /**
+     * 挂载按钮监听器（从 getPanel 迁出，避免 getter 产生副作用与重复挂载）。
+     */
+    private void setupListeners() {
+        // 保存配置
+        saveButton.addActionListener(new AbstractAction() {
+            public void actionPerformed(ActionEvent evt) {
+                String ipTextFieldText = ipTextField.getText();
+                // 将所有的\r\n和\r都统一转换为\n
+                ipTextFieldText = ipTextFieldText.replaceAll("\r\n|\r", "\n");
+                String[] ipTextFieldTextSplit = ipTextFieldText.split("\n");
+                proxyConfigs = new ArrayList<>();
+
+                for (String line : ipTextFieldTextSplit) {
+                    // 跳过空行
+                    if (line.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    String[] parts = line.split(":");
+                    if (parts.length >= 2) {
+                        ProxyConfig config;
+                        if (parts.length >= 4) {
+                            // IP:PORT:USERNAME:PASSWORD 格式
+                            config = new ProxyConfig(parts[0], parts[1], parts[2], parts[3]);
+                        } else {
+                            // IP:PORT 格式
+                            config = new ProxyConfig(parts[0], parts[1], "", "");
+                        }
+                        proxyConfigs.add(config);
+                    }
+                }
+
+                if (proxyConfigs.size() > 0) {
+                    JOptionPane.showMessageDialog(null, String.format(I18nUtils.get("socks.message.save_success"), proxyConfigs.size()), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.invalid_format"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        });
+
+        // 切换代理
+        nextButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (proxyConfigs == null || proxyConfigs.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.save_first"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+
+                if (currentIndex >= 0 && currentIndex < proxyConfigs.size()) {
+                    proxyConfigs.remove(currentIndex);
+                }
+
+                if (proxyConfigs.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.all_used"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+
+                currentIndex = (currentIndex + 1) % proxyConfigs.size();
+                ProxyConfig currentConfig = proxyConfigs.get(currentIndex);
+
+                String message;
+                if (!currentConfig.username.isEmpty()) {
+                    message = String.format(I18nUtils.get("socks.message.current_proxy_with_user"), currentConfig.ip, currentConfig.port, currentConfig.username);
+                } else {
+                    message = String.format(I18nUtils.get("socks.message.current_proxy"), currentConfig.ip, currentConfig.port);
+                }
+
+                JOptionPane.showMessageDialog(null, message, I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                writeIpPortSettings(Utils.callbacks, currentConfig, enableCheckBox.isSelected());
+            }
+        });
+
+        // 启用/禁用代理
+        enableCheckBox.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                boolean enabled = enableCheckBox.isSelected();
+                isEnableSettings(Utils.callbacks, enabled);
+                String currentText = logTextField.getText();
+                String newText = currentText + (enabled ? "Socks Enable\n" : "Socks Disable\n");
+                logTextField.setText(newText);
+            }
+        });
     }
 
     private void setupData() {
@@ -212,88 +300,6 @@ public class SocksUI implements UIHandler {
 
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
-        // 保存配置
-        saveButton.addActionListener(new AbstractAction() {
-            public void actionPerformed(ActionEvent evt) {
-                String ipTextFieldText = ipTextField.getText();
-                // 将所有的\r\n和\r都统一转换为\n
-                ipTextFieldText = ipTextFieldText.replaceAll("\r\n|\r", "\n");
-                String[] ipTextFieldTextSplit = ipTextFieldText.split("\n");
-                proxyConfigs = new ArrayList<>();
-
-                for (String line : ipTextFieldTextSplit) {
-                    // 跳过空行
-                    if (line.trim().isEmpty()) {
-                        continue;
-                    }
-
-                    String[] parts = line.split(":");
-                    if (parts.length >= 2) {
-                        ProxyConfig config;
-                        if (parts.length >= 4) {
-                            // IP:PORT:USERNAME:PASSWORD 格式
-                            config = new ProxyConfig(parts[0], parts[1], parts[2], parts[3]);
-                        } else {
-                            // IP:PORT 格式
-                            config = new ProxyConfig(parts[0], parts[1], "", "");
-                        }
-                        proxyConfigs.add(config);
-                    }
-                }
-
-                if (proxyConfigs.size() > 0) {
-                    JOptionPane.showMessageDialog(null, String.format(I18nUtils.get("socks.message.save_success"), proxyConfigs.size()), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.invalid_format"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-                }
-            }
-        });
-
-        // 切换代理
-        nextButton.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (proxyConfigs == null || proxyConfigs.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.save_first"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-                    return;
-                }
-
-                if (currentIndex >= 0 && currentIndex < proxyConfigs.size()) {
-                    proxyConfigs.remove(currentIndex);
-                }
-
-                if (proxyConfigs.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.all_used"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-                    return;
-                }
-
-                currentIndex = (currentIndex + 1) % proxyConfigs.size();
-                ProxyConfig currentConfig = proxyConfigs.get(currentIndex);
-
-                String message;
-                if (!currentConfig.username.isEmpty()) {
-                    message = String.format(I18nUtils.get("socks.message.current_proxy_with_user"), currentConfig.ip, currentConfig.port, currentConfig.username);
-                } else {
-                    message = String.format(I18nUtils.get("socks.message.current_proxy"), currentConfig.ip, currentConfig.port);
-                }
-
-                JOptionPane.showMessageDialog(null, message, I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
-                writeIpPortSettings(callbacks, currentConfig, enableCheckBox.isSelected());
-            }
-        });
-
-        // 启用/禁用代理
-        enableCheckBox.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                boolean enabled = enableCheckBox.isSelected();
-                isEnableSettings(callbacks, enabled);
-                String currentText = logTextField.getText();
-                String newText = currentText + (enabled ? "Socks Enable\n" : "Socks Disable\n");
-                logTextField.setText(newText);
-            }
-        });
-
         return panel;
     }
 
