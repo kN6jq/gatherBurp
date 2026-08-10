@@ -92,21 +92,27 @@ public class RouteDao {
 
     /**
      * 精选 Java 框架路由泄露默认规则：{name, path, express}。
-     * 聚焦 Spring Boot Actuator、Swagger/OpenAPI、Druid、Eureka、Nacos、JBoss 等高频端点，
-     * 每条均以「状态码 + 响应特征」组合降低误报，精选而非堆量。
+     * 聚焦实战常见的 Spring Boot Actuator、Swagger/OpenAPI、Druid、Nacos、XXL-JOB、JeecgBoot，
+     * 每条均以「状态码 + 响应特征」组合降低误报。去掉 heapdump(响应过大易卡死)等冷门项。
      */
     private static final String[][] DEFAULT_RULES = {
+            // Spring Boot Actuator
             {"Actuator", "/actuator", "code=\"200\" && body=\"_links\""},
             {"Actuator Env", "/actuator/env", "code=\"200\" && body=\"propertySources\""},
-            {"Actuator Heapdump", "/actuator/heapdump", "code=\"200\" && headers=\"heapdump\""},
             {"Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
-            {"Swagger UI", "/swagger-ui.html", "code=\"302\" || (code=\"200\" && body=\"swagger-ui\")"},
+            // Druid 连接池监控未授权
+            {"Druid Monitor", "/druid/index.html", "code=\"200\" && body=\"Druid Stat Index\""},
+            // Swagger / OpenAPI
             {"Swagger v2", "/v2/api-docs", "code=\"200\" && body=\"swagger\""},
             {"OpenAPI v3", "/v3/api-docs", "code=\"200\" && body=\"openapi\""},
-            {"Druid Monitor", "/druid/index.html", "code=\"200\" && (body=\"Druid Stat Index\" || title=\"Druid Stat Index\")"},
-            {"Eureka Apps", "/eureka/apps", "code=\"200\" && body=\"<applications>\""},
-            {"Nacos Console", "/nacos/", "code=\"200\" && (title=\"Nacos\" || body=\"Nacos\")"},
-            {"JBoss JMX Console", "/jmx-console", "code=\"200\" && body=\"JBoss\""},
+            // Nacos 未授权：列用户 / 读配置
+            {"Nacos Users", "/nacos/v1/auth/users?pageNo=1&pageSize=10", "code=\"200\" && body=\"username\""},
+            {"Nacos Configs", "/nacos/v1/cs/configs?search=accurate&pageNo=1&pageSize=10", "code=\"200\" && body=\"dataId\""},
+            // XXL-JOB 后台（默认 admin/123456，空 token 可 RCE）
+            {"XXL-JOB Admin", "/xxl-job-admin/toLogin", "code=\"200\" && (title=\"XXL-JOB\" || body=\"XXL-JOB\")"},
+            // JeecgBoot 标识接口 / 积木报表 SQL 注入点(405=端点存在但需 POST)
+            {"JeecgBoot", "/sys/getCheckCode", "code=\"200\" && body=\"checkKey\""},
+            {"JeecgBoot JMReport", "/jmreport/queryFieldBySql", "code=\"405\""},
     };
 
     /**
