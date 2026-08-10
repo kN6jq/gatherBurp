@@ -89,4 +89,53 @@ public class RouteDao {
             Utils.stderr.println(e.getMessage());
         }
     }
+
+    /**
+     * 精选 Java 框架路由泄露默认规则：{name, path, express}。
+     * 聚焦 Spring Boot Actuator、Swagger/OpenAPI、Druid、Eureka、Nacos、JBoss 等高频端点，
+     * 每条均以「状态码 + 响应特征」组合降低误报，精选而非堆量。
+     */
+    private static final String[][] DEFAULT_RULES = {
+            {"Actuator", "/actuator", "code=\"200\" && body=\"_links\""},
+            {"Actuator Env", "/actuator/env", "code=\"200\" && body=\"propertySources\""},
+            {"Actuator Heapdump", "/actuator/heapdump", "code=\"200\" && headers=\"heapdump\""},
+            {"Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
+            {"Swagger UI", "/swagger-ui.html", "code=\"302\" || (code=\"200\" && body=\"swagger-ui\")"},
+            {"Swagger v2", "/v2/api-docs", "code=\"200\" && body=\"swagger\""},
+            {"OpenAPI v3", "/v3/api-docs", "code=\"200\" && body=\"openapi\""},
+            {"Druid Monitor", "/druid/index.html", "code=\"200\" && (body=\"Druid Stat Index\" || title=\"Druid Stat Index\")"},
+            {"Eureka Apps", "/eureka/apps", "code=\"200\" && body=\"<applications>\""},
+            {"Nacos Console", "/nacos/", "code=\"200\" && (title=\"Nacos\" || body=\"Nacos\")"},
+            {"JBoss JMX Console", "/jmx-console", "code=\"200\" && body=\"JBoss\""},
+    };
+
+    /**
+     * 按 path 去重补齐默认规则：某 path 不存在则插入；已存在（含用户自定义）则保留不动。
+     * 幂等，每次加载规则前调用安全；init.sql 不再内置 route 数据，新老用户均由此补齐。
+     */
+    public static void ensureDefaultRules() {
+        String checkSql = "SELECT COUNT(*) FROM route WHERE path = ?";
+        String insertSql = "INSERT INTO route (enable, name, path, express) VALUES (?, ?, ?, ?)";
+        try (Connection connection = DbUtils.getConnection()) {
+            for (String[] r : DEFAULT_RULES) {
+                boolean exists = false;
+                try (PreparedStatement ps = connection.prepareStatement(checkSql)) {
+                    ps.setString(1, r[1]);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) exists = rs.getInt(1) > 0;
+                    }
+                }
+                if (exists) continue;
+                try (PreparedStatement ps = connection.prepareStatement(insertSql)) {
+                    ps.setInt(1, 1);
+                    ps.setString(2, r[0]);
+                    ps.setString(3, r[1]);
+                    ps.setString(4, r[2]);
+                    ps.executeUpdate();
+                }
+            }
+        } catch (Exception e) {
+            Utils.stderr.println("seed route rules failed: " + e.getMessage());
+        }
+    }
 }

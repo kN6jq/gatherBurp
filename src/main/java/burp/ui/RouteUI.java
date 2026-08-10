@@ -183,6 +183,7 @@ public class RouteUI extends AbstractScanUI {
     }
 
     private void loadRouteRules() {
+        ensureDefaultRules();   // 按需补齐精选 Java 路由规则（按 path 去重，幂等）
         routelog.clear();
         List<RouteBean> routeLists = getRouteLists();
         for (int i = 0; i < routeLists.size(); i++) {
