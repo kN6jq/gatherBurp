@@ -36,3 +36,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### Local runtime/test residue ###
+/data.db
+/nul

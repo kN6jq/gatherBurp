@@ -13,7 +13,9 @@ public class PermTableModel extends AbstractTableModel {
 
     @Override
     public int getRowCount() {
-        return permlog.size();
+        synchronized (permlog) {
+            return permlog.size();
+        }
     }
 
     @Override
@@ -23,23 +25,28 @@ public class PermTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        switch (columnIndex) {
-            case 0:
-                return permlog.get(rowIndex).id;
-            case 1:
-                return permlog.get(rowIndex).method;
-            case 2:
-                return permlog.get(rowIndex).url;
-            case 3:
-                return permlog.get(rowIndex).originalength;
-            case 4:
-                return permlog.get(rowIndex).lowlength;
-            case 5:
-                return permlog.get(rowIndex).nolength;
-            case 6:
-                return permlog.get(rowIndex).isSuccess;
-            default:
+        synchronized (permlog) {
+            if (rowIndex < 0 || rowIndex >= permlog.size()) {
                 return null;
+            }
+            switch (columnIndex) {
+                case 0:
+                    return permlog.get(rowIndex).id;
+                case 1:
+                    return permlog.get(rowIndex).method;
+                case 2:
+                    return permlog.get(rowIndex).url;
+                case 3:
+                    return permlog.get(rowIndex).originalength;
+                case 4:
+                    return permlog.get(rowIndex).lowlength;
+                case 5:
+                    return permlog.get(rowIndex).nolength;
+                case 6:
+                    return permlog.get(rowIndex).isSuccess;
+                default:
+                    return null;
+            }
         }
     }
 

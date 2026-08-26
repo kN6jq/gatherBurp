@@ -14,7 +14,9 @@ public class RouteTableModel extends AbstractTableModel {
 
     @Override
     public int getRowCount() {
-        return routelog.size();
+        synchronized (routelog) {
+            return routelog.size();
+        }
     }
 
     @Override
@@ -24,8 +26,12 @@ public class RouteTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        RouteUIEntry logEntry = routelog.get(rowIndex);
-        switch (columnIndex) {
+        synchronized (routelog) {
+            if (rowIndex < 0 || rowIndex >= routelog.size()) {
+                return null;
+            }
+            RouteUIEntry logEntry = routelog.get(rowIndex);
+            switch (columnIndex) {
             case 0:
                 return logEntry.id;
             case 1:
@@ -36,8 +42,9 @@ public class RouteTableModel extends AbstractTableModel {
                 return logEntry.path;
             case 4:
                 return logEntry.express;
-            default:
-                return "";
+                default:
+                    return "";
+            }
         }
     }
 

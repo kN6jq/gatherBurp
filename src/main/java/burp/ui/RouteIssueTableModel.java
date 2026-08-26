@@ -12,7 +12,9 @@ public class RouteIssueTableModel extends AbstractTableModel {
 
     @Override
     public int getRowCount() {
-        return issuslog.size();
+        synchronized (issuslog) {
+            return issuslog.size();
+        }
     }
 
     @Override
@@ -22,18 +24,23 @@ public class RouteIssueTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        RouteIssueEntry logEntry = issuslog.get(rowIndex);
-        switch (columnIndex) {
-            case 0:
-                return logEntry.id;
-            case 1:
-                return logEntry.issueName;
-            case 2:
-                return logEntry.url;
-            case 3:
-                return logEntry.status;
-            default:
-                return "";
+        synchronized (issuslog) {
+            if (rowIndex < 0 || rowIndex >= issuslog.size()) {
+                return null;
+            }
+            RouteIssueEntry logEntry = issuslog.get(rowIndex);
+            switch (columnIndex) {
+                case 0:
+                    return logEntry.id;
+                case 1:
+                    return logEntry.issueName;
+                case 2:
+                    return logEntry.url;
+                case 3:
+                    return logEntry.status;
+                default:
+                    return "";
+            }
         }
     }
 

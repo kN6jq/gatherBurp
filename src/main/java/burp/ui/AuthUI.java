@@ -27,9 +27,13 @@ public class AuthUI extends AbstractScanUI {
     private static final List<AuthEntry> authlog = new ArrayList<>();
     private static String LOCAL_IP = "127.0.0.1";
     private static final Lock lock = new ReentrantLock();
+    private static volatile AuthUI instance;
 
     static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
-        currentlyDisplayedItem = item;
+        AuthUI ui = instance;
+        if (ui != null) {
+            ui.currentlyDisplayedItem = item;
+        }
     }
 
     static List<AuthEntry> getAuthlog() {
@@ -38,6 +42,7 @@ public class AuthUI extends AbstractScanUI {
 
     @Override
     protected void setupScanUI() {
+        instance = this;
         resultTable = new AuthTable(new AuthModel(), requestEditor, responseEditor);
     }
 
@@ -74,9 +79,8 @@ public class AuthUI extends AbstractScanUI {
             authlog.clear();
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
-            urlHashList.clear();
             UrlCacheUtil.resetCache("auth");
-            getResultTable().updateUI();
+            refreshTableModel(getResultTable());
         });
 
         saveBtn.addActionListener(e -> {
@@ -179,7 +183,10 @@ public class AuthUI extends AbstractScanUI {
         synchronized (authlog) {
             int id = authlog.size();
             authlog.add(new AuthEntry(id, method, url, statuscode, length, baseRequestResponse));
-            SwingUtilities.invokeLater(() -> getResultTable().updateUI());
+            SwingUtilities.invokeLater(() -> {
+                AuthUI ui = instance;
+                if (ui != null) refreshTableModel(ui.resultTable);
+            });
         }
     }
 
@@ -267,4 +274,3 @@ public class AuthUI extends AbstractScanUI {
         add(method, url, statusCode, length, response);
     }
 }
-

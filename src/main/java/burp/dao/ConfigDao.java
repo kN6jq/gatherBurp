@@ -30,10 +30,21 @@ public class ConfigDao {
     }
 
     public static void deleteConfig(String type) {
-        String sql = "delete from config where type = ?";
+        deleteConfig(null, type);
+    }
+
+    public static void deleteConfig(String module, String type) {
+        String sql = module == null
+                ? "delete from config where type = ?"
+                : "delete from config where module = ? and type = ?";
         try (Connection connection = DbUtils.getConnection();
              PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, type);
+            if (module == null) {
+                ps.setString(1, type);
+            } else {
+                ps.setString(1, module);
+                ps.setString(2, type);
+            }
             ps.executeUpdate();
         } catch (Exception e) {
             Utils.stderr.println(e.getMessage());
@@ -54,7 +65,8 @@ public class ConfigDao {
     }
 
     public static void saveConfig(ConfigBean config) {
-        String sql = "INSERT OR REPLACE INTO config (module, type, value) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO config (module, type, value) VALUES (?, ?, ?) " +
+                "ON CONFLICT(module, type) DO UPDATE SET value = excluded.value";
         try (Connection connection = DbUtils.getConnection();
              PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, config.getModule());

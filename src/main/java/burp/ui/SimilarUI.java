@@ -44,6 +44,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     private JPanel mainPanel;
     private JLabel currentProjectLabel;
     private static Timer statsTimer; // 持有统计定时器引用，重新初始化时停止旧的，避免叠加泄漏
+    private static Timer cleanupTimer;
     private JToggleButton scanButton;
     private JButton projectManageButton;
     private JButton domainConfigButton;
@@ -68,6 +69,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     @Override
     public void init() {
+        ThreadManager.start();
         setupUI();
         setupData();
         loadProjects();
@@ -746,11 +748,24 @@ public class SimilarUI implements UIHandler, IHttpListener {
         ));
     }
 
+
+    public static void shutdown() {
+        if (statsTimer != null) {
+            statsTimer.stop();
+            statsTimer = null;
+        }
+        if (cleanupTimer != null) {
+            cleanupTimer.stop();
+            cleanupTimer = null;
+        }
+    }
+
     /**
      * 设置定时清理任务
      */
     private void setupCleanupTask() {
-        Timer cleanupTimer = new Timer(60 * 60 * 1000, e -> { // 每小时执行一次
+        if (cleanupTimer != null) cleanupTimer.stop();
+        cleanupTimer = new Timer(60 * 60 * 1000, e -> { // 每小时执行一次
             ThreadManager.execute(() -> {
                 try {
                     // 清理过期的IP缓存

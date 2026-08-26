@@ -7,8 +7,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class DbUtils {
@@ -22,56 +28,145 @@ public class DbUtils {
         try {
             Class.forName(DB_DRIVER);
         } catch (ClassNotFoundException e) {
-            System.err.println("Failed to load SQLite driver: " + e.getMessage());
+            logError("Failed to load SQLite driver: " + e.getMessage());
         }
     }
 
     /**
-     * Initialize database — must be called AFTER Utils.stdout/stderr are set up.
-     * Creates the data directory and database tables if they don't exist.
+     * Creates the data directory, applies the idempotent schema and migrates old databases.
+     * This intentionally runs on every extension load so a deleted/corrupt database file or a
+     * newly introduced table/index is repaired even when the .gather directory already exists.
      */
     public static synchronized void init() {
-        Path path = Paths.get(PROJECT_PATH);
-        if (!Files.exists(path)) {
-            try {
-                Files.createDirectories(path);
-                Utils.stdout.println("init filepath success");
-            } catch (Exception e) {
-                Utils.stderr.println("创建文件夹失败");
-            }
+        try {
+            Files.createDirectories(Paths.get(PROJECT_PATH));
             create();
+        } catch (Exception e) {
+            logError("数据库初始化失败: " + e.getMessage());
         }
     }
 
     public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(DB_URL);
+        Connection connection = DriverManager.getConnection(DB_URL);
+        configureConnection(connection);
+        return connection;
     }
 
-    // 如果数据库不存在，创建数据库
-    public static void create() {
-        // 判断数据库是否存在
-        try {
-            Connection connection = DriverManager.getConnection(DB_URL);
-            List<String> sqls = readSqlFromResource();
+    public static synchronized void create() {
+        try (Connection connection = getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                boolean freshDatabase = !tableExists(connection, "config");
+                List<String> sqlStatements = readSqlFromResource();
 
-            for (String sql : sqls) {
-                if (sql == null || sql.trim().isEmpty()) continue;
-                Statement statement = connection.createStatement();
-                statement.execute(sql);
-                statement.close();
+                // Always apply schema/index changes, but only seed a newly-created database.
+                // Re-seeding on every startup would silently restore rows deliberately deleted
+                // by the user from the configuration UI.
+                for (String sql : sqlStatements) {
+                    if (sql == null || sql.trim().isEmpty() || isSeedStatement(sql)) {
+                        continue;
+                    }
+                    try (Statement statement = connection.createStatement()) {
+                        statement.execute(sql);
+                    }
+                }
+                migrateConfigTable(connection);
+
+                if (freshDatabase) {
+                    for (String sql : sqlStatements) {
+                        if (!isSeedStatement(sql)) {
+                            continue;
+                        }
+                        try (Statement statement = connection.createStatement()) {
+                            statement.execute(sql);
+                        }
+                    }
+                }
+                connection.commit();
+                logInfo("init db success");
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
             }
-            Utils.stdout.println("init db success");
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-            Utils.stderr.println(e.getMessage());
+        } catch (Exception e) {
+            logError("初始化数据库结构失败: " + e.getMessage());
         }
+    }
+
+    private static void configureConnection(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys = ON");
+            statement.execute("PRAGMA busy_timeout = 5000");
+        }
+    }
+
+    private static boolean isSeedStatement(String sql) {
+        return sql != null && sql.trim().toUpperCase(java.util.Locale.ROOT).startsWith("INSERT ");
+    }
+
+    /** Rebuild legacy config(type UNIQUE) as config(module,type UNIQUE). */
+    static void migrateConfigTable(Connection connection) throws SQLException {
+        if (!tableExists(connection, "config") || hasCompositeConfigUniqueIndex(connection)) {
+            return;
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("DROP TABLE IF EXISTS config_migration_new");
+            statement.execute("CREATE TABLE config_migration_new (" +
+                    "id INTEGER PRIMARY KEY, " +
+                    "module TEXT NOT NULL, " +
+                    "type TEXT NOT NULL, " +
+                    "value TEXT, " +
+                    "UNIQUE(module, type))");
+            statement.execute("INSERT OR REPLACE INTO config_migration_new (id, module, type, value) " +
+                    "SELECT id, COALESCE(module, ''), type, value FROM config WHERE type IS NOT NULL ORDER BY id");
+            statement.execute("DROP TABLE config");
+            statement.execute("ALTER TABLE config_migration_new RENAME TO config");
+        }
+        logInfo("migrated config unique key to (module, type)");
+    }
+
+    private static boolean tableExists(Connection connection, String tableName) throws SQLException {
+        String sql = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, tableName);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean hasCompositeConfigUniqueIndex(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement();
+             ResultSet indexes = statement.executeQuery("PRAGMA index_list('config')")) {
+            while (indexes.next()) {
+                if (indexes.getInt("unique") != 1) {
+                    continue;
+                }
+                String indexName = indexes.getString("name");
+                List<String> columns = new ArrayList<>();
+                String escapedName = indexName.replace("'", "''");
+                try (Statement indexStatement = connection.createStatement();
+                     ResultSet indexInfo = indexStatement.executeQuery("PRAGMA index_info('" + escapedName + "')")) {
+                    while (indexInfo.next()) {
+                        columns.add(indexInfo.getString("name"));
+                    }
+                }
+                if (columns.equals(Arrays.asList("module", "type"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static List<String> readSqlFromResource() {
         List<String> sqls = new ArrayList<>();
         try (InputStream is = DbUtils.class.getClassLoader().getResourceAsStream("sql/init.sql")) {
             if (is == null) {
-                throw new RuntimeException("Could not find sql/init.sql resource");
+                throw new IllegalStateException("Could not find sql/init.sql resource");
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
                 String line;
@@ -84,34 +179,34 @@ public class DbUtils {
                         sqls.add(sb.toString());
                         sb.setLength(0);
                     } else {
-                        sb.append(" ");
+                        sb.append(' ');
                     }
                 }
-                if (sb.length() > 0) {
-                    sqls.add(sb.toString());
-                }
+                if (sb.length() > 0) sqls.add(sb.toString());
             }
         } catch (Exception e) {
-            Utils.stderr.println("Error reading SQL resource: " + e.getMessage());
+            throw new IllegalStateException("Error reading SQL resource", e);
         }
         return sqls;
     }
 
     public static void close(Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
         try {
-            if (connection != null) {
-                connection.close();
-            }
-            if (preparedStatement != null) {
-                preparedStatement.close();
-            }
-            if (resultSet != null) {
-                resultSet.close();
-            }
+            if (resultSet != null) resultSet.close();
+            if (preparedStatement != null) preparedStatement.close();
+            if (connection != null) connection.close();
         } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
+            logError(e.getMessage());
         }
     }
 
-}
+    private static void logInfo(String message) {
+        if (Utils.stdout != null) Utils.stdout.println(message);
+        else System.out.println(message);
+    }
 
+    private static void logError(String message) {
+        if (Utils.stderr != null) Utils.stderr.println(message);
+        else System.err.println(message);
+    }
+}

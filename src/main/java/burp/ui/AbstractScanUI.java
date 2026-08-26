@@ -7,13 +7,16 @@ import burp.IHttpService;
 import burp.IMessageEditor;
 import burp.IMessageEditorController;
 import burp.utils.I18nUtils;
+import burp.utils.ScanTaskExecutor;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
+import javax.swing.table.AbstractTableModel;
 import javax.swing.border.Border;
 import java.awt.*;
-import java.util.ArrayList;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.List;
 
 /**
@@ -22,18 +25,17 @@ import java.util.List;
  */
 public abstract class AbstractScanUI implements UIHandler, IMessageEditorController, IHttpListener {
     protected JPanel panel;
-    protected static IHttpRequestResponse currentlyDisplayedItem;
+    protected volatile IHttpRequestResponse currentlyDisplayedItem;
     protected IMessageEditor requestEditor;
     protected IMessageEditor responseEditor;
     protected JTabbedPane requestTabPane;
     protected JTabbedPane responseTabPane;
     protected JCheckBox passiveScanCheckBox;
-    protected static JTable resultTable;
-    protected static JTable getResultTable() { return resultTable; }
+    protected JTable resultTable;
+    protected JTable getResultTable() { return resultTable; }
 
-    protected static final List<String> urlHashList = new ArrayList<>();
-    protected static final List<String> parameterList = new ArrayList<>();
-    protected boolean passiveScanEnabled;
+    protected volatile boolean passiveScanEnabled;
+
 
     // ===== 主推样式常量（Canonical house style）=====
     /** 结果表 / 编辑器 纵向分割权重 */
@@ -46,28 +48,37 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected static final double WEIGHT_RIGHT_CONFIG = 0.3;
     /** 配置面板标准内边距 */
     protected static final Border PADDING_BORDER = BorderFactory.createEmptyBorder(5, 5, 5, 5);
+    /** JSplitPane 在 UI 尚未显示时无法正确应用比例位置，保存比例供显示后恢复。 */
+    private static final String INITIAL_DIVIDER_WEIGHT = "gather.initialDividerWeight";
+    private static final String LAYOUT_REPAIR_INSTALLED = "gather.layoutRepairInstalled";
 
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
         if (panel == null) {
             panel = new JPanel(new BorderLayout());
         }
+        // Burp 2024.x 在主标签切换时可能先完成子面板布局、后完成 JSplitPane
+        // 尺寸计算，导致之前保存的比例位置失效。首次返回面板时先挂上延迟修复。
+        installLayoutRepair(panel);
         return panel;
     }
 
     @Override
     public IHttpService getHttpService() {
-        return currentlyDisplayedItem.getHttpService();
+        IHttpRequestResponse item = currentlyDisplayedItem;
+        return item == null ? null : item.getHttpService();
     }
 
     @Override
     public byte[] getRequest() {
-        return currentlyDisplayedItem.getRequest();
+        IHttpRequestResponse item = currentlyDisplayedItem;
+        return item == null ? null : item.getRequest();
     }
 
     @Override
     public byte[] getResponse() {
-        return currentlyDisplayedItem.getResponse();
+        IHttpRequestResponse item = currentlyDisplayedItem;
+        return item == null ? null : item.getResponse();
     }
 
     @Override
@@ -161,9 +172,132 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
      * 同时设置分割面板的 resizeWeight 与初始 dividerLocation，使初始布局确定。
      */
     protected JSplitPane applyWeights(JSplitPane split, double weight) {
+        split.putClientProperty(INITIAL_DIVIDER_WEIGHT, weight);
         split.setResizeWeight(weight);
-        split.setDividerLocation(weight);
+        // 组件还没有加入 Burp 的可见层级时，setDividerLocation(double) 可能
+        // 只能记录无效位置。只有在已有尺寸时立即设置，显示后由修复逻辑再设置一次。
+        if (split.getWidth() > 0 || split.getHeight() > 0) {
+            split.setDividerLocation(weight);
+        }
         return split;
+    }
+
+    /**
+     * 在容器真正加入 Burp 的标签页并完成布局后，递归恢复所有带比例标记的分割线。
+     * 该方法同时供 MainUI 的顶层标签切换监听调用。
+     */
+    public static void restoreInitialSplitLayout(Component root) {
+        if (root == null) {
+            return;
+        }
+        if (root instanceof JSplitPane) {
+            JSplitPane split = (JSplitPane) root;
+            Object weight = split.getClientProperty(INITIAL_DIVIDER_WEIGHT);
+            if (weight instanceof Number) {
+                int size = split.getOrientation() == JSplitPane.HORIZONTAL_SPLIT
+                        ? split.getWidth() : split.getHeight();
+                if (size > 0) {
+                    split.setDividerLocation(((Number) weight).doubleValue());
+                }
+            }
+            restoreInitialSplitLayout(split.getLeftComponent());
+            restoreInitialSplitLayout(split.getRightComponent());
+        } else if (root instanceof Container) {
+            for (Component child : ((Container) root).getComponents()) {
+                restoreInitialSplitLayout(child);
+            }
+        }
+    }
+
+    /** 安装一次性尺寸监听，兼容第一次打开和后续切换主标签两种时序。 */
+    private static void installLayoutRepair(final JComponent root) {
+        if (Boolean.TRUE.equals(root.getClientProperty(LAYOUT_REPAIR_INSTALLED))) {
+            return;
+        }
+        root.putClientProperty(LAYOUT_REPAIR_INSTALLED, Boolean.TRUE);
+        final ComponentAdapter repairListener = new ComponentAdapter() {
+            private boolean repaired;
+
+            private void repair() {
+                if (repaired || (root.getWidth() <= 0 && root.getHeight() <= 0)) {
+                    return;
+                }
+                repaired = true;
+                restoreInitialSplitLayout(root);
+                root.revalidate();
+                root.repaint();
+                root.removeComponentListener(this);
+            }
+
+            @Override
+            public void componentShown(ComponentEvent e) { repair(); }
+
+            @Override
+            public void componentResized(ComponentEvent e) { repair(); }
+        };
+        root.addComponentListener(repairListener);
+        SwingUtilities.invokeLater(() -> {
+            restoreInitialSplitLayout(root);
+            root.revalidate();
+        });
+    }
+
+    /**
+     * 构造统一的紧凑扫描选项区。
+     *
+     * <p>旧实现普遍使用 GridLayout + 多层 JSplitPane。GridLayout 会把最后一行
+     * 的空白也均分出来，多层分割器又会扩大空白区域，导致右侧配置栏显得松散。
+     * 这里使用 GridBagLayout，只保留必要的行高，并让最后一个奇数项横跨两列。</p>
+     */
+    protected JPanel createCompactOptionsPanel(String title, JComponent... components) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(title),
+                BorderFactory.createEmptyBorder(1, 4, 2, 4)));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.weightx = 1.0;
+        constraints.insets = new Insets(1, 2, 1, 8);
+
+        if (components != null) {
+            for (int i = 0; i < components.length; i++) {
+                JComponent component = components[i];
+                if (component == null) continue;
+                if (component instanceof AbstractButton) {
+                    component.setOpaque(false);
+                    ((AbstractButton) component).setBorderPainted(false);
+                }
+                constraints.gridx = i % 2;
+                constraints.gridy = i / 2;
+                constraints.gridwidth = (i == components.length - 1 && components.length % 2 == 1) ? 2 : 1;
+                panel.add(component, constraints);
+            }
+        }
+        return panel;
+    }
+
+    /** 统一右侧按钮区的间距，避免 FlowLayout 默认边距造成视觉空洞。 */
+    protected JPanel createCompactButtonPanel(Component... components) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 2));
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+        if (components != null) {
+            for (Component component : components) {
+                if (component != null) panel.add(component);
+            }
+        }
+        return panel;
+    }
+
+    /** 右侧内部使用的紧凑分割器：去掉默认边框和过宽拖拽条。 */
+    protected JSplitPane applyCompactSplit(JSplitPane split, double weight) {
+        split.setBorder(null);
+        split.setDividerSize(3);
+        split.setOneTouchExpandable(false);
+        split.setContinuousLayout(true);
+        return applyWeights(split, weight);
     }
 
     /**
@@ -173,24 +307,63 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
-        if (passiveScanEnabled && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
-            startPassiveScan(new IHttpRequestResponse[]{messageInfo}, false);
+        // 被动扫描只消费真实响应。旧实现只接受 TOOL_PROXY，导致从 Target、Scanner、
+        // Repeater、Intruder 等工具产生的响应完全不会进入模块。
+        // TOOL_EXTENDER 明确排除，避免插件自己的 makeHttpRequest 触发递归扫描。
+        if (!passiveScanEnabled || messageIsRequest || !isPassiveScanSource(toolFlag)) {
+            return;
         }
+        if (messageInfo == null || messageInfo.getRequest() == null
+                || messageInfo.getHttpService() == null || messageInfo.getResponse() == null) {
+            return;
+        }
+
+        // 正常被动流量不写扩展输出，避免大量代理流量刷屏。
+        startPassiveScan(new IHttpRequestResponse[]{messageInfo}, false);
     }
 
     /**
-     * 被动扫描线程启动模板方法
+     * 被动扫描允许处理的 Burp 工具来源。
+     * EXTENDER 不在此处列出：扫描模块通过 callbacks 发出的探测请求不应再次进入被动扫描。
+     */
+    protected boolean isPassiveScanSource(int toolFlag) {
+        return toolFlag == IBurpExtenderCallbacks.TOOL_PROXY
+                || toolFlag == IBurpExtenderCallbacks.TOOL_TARGET
+                || toolFlag == IBurpExtenderCallbacks.TOOL_SCANNER
+                || toolFlag == IBurpExtenderCallbacks.TOOL_INTRUDER
+                || toolFlag == IBurpExtenderCallbacks.TOOL_REPEATER
+                || toolFlag == IBurpExtenderCallbacks.TOOL_SPIDER;
+    }
+
+    private String toolName(int toolFlag) {
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_PROXY) return "PROXY";
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_TARGET) return "TARGET";
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_SCANNER) return "SCANNER";
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_INTRUDER) return "INTRUDER";
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_REPEATER) return "REPEATER";
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_SPIDER) return "SPIDER";
+        return String.valueOf(toolFlag);
+    }
+
+    /**
+     * 被动扫描线程启动模板方法。任务拒绝和执行异常都明确写入扩展输出，避免“点击后无反应”。
      */
     protected void startPassiveScan(final IHttpRequestResponse[] requestResponses, final boolean isManual) {
-        if (!passiveScanEnabled) return;
-        Thread thread = new Thread(() -> {
-            try {
-                doPassiveScan(requestResponses, isManual);
-            } catch (Exception ex) {
-                Utils.stderr.println(getScanName() + " scan error: " + ex.getMessage());
-            }
-        });
-        thread.start();
+        if (!passiveScanEnabled || requestResponses == null || requestResponses.length == 0
+                || requestResponses[0] == null) {
+            return;
+        }
+        boolean accepted = ScanTaskExecutor.execute(getScanName() + " passive scan", () ->
+                doPassiveScan(requestResponses, isManual));
+        if (!accepted) {
+            logPassiveEvent("not queued: executor unavailable or queue full");
+        }
+    }
+
+    protected void logPassiveEvent(String message) {
+        if (Utils.stderr != null) {
+            Utils.stderr.println("[" + getScanName() + "][passive] " + message);
+        }
     }
 
     /**
@@ -214,8 +387,6 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
      * 重置缓存
      */
     protected void resetCaches(String moduleName) {
-        urlHashList.clear();
-        parameterList.clear();
         UrlCacheUtil.resetCache(moduleName);
     }
 
@@ -228,12 +399,37 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     }
 
     /**
-     * 清空结果表格和编辑器
+     * 在 EDT 上通知表格模型数据已刷新。不要使用 JTable.updateUI() 刷新业务数据，
+     * updateUI 会重新安装 UI delegate，代价高且可能丢失排序/选择状态。
+     */
+    protected static void refreshTableModel(JTable table) {
+        if (table == null) {
+            return;
+        }
+        Runnable refresh = () -> {
+            if (table.getModel() instanceof AbstractTableModel) {
+                ((AbstractTableModel) table.getModel()).fireTableDataChanged();
+            } else {
+                table.revalidate();
+                table.repaint();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            refresh.run();
+        } else {
+            SwingUtilities.invokeLater(refresh);
+        }
+    }
+
+    /**
+     * 清空结果表格和编辑器。
      */
     protected void clearResults() {
-        JTable table = getResultTable();
-        if (table != null) table.updateUI();
+        refreshTableModel(getResultTable());
         if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
         if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
     }
+
 }
+
+

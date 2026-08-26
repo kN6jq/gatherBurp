@@ -3,8 +3,12 @@ package burp;
 import burp.bean.ConfigBean;
 import burp.menu.*;
 import burp.ui.MainUI;
+import burp.ui.SimilarUI;
+import burp.ui.SqlUI;
+import burp.ui.SimilarHelper.ThreadManager;
 import burp.utils.DbUtils;
 import burp.utils.RobotInput;
+import burp.utils.ScanTaskExecutor;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -15,9 +19,10 @@ import java.util.*;
 import static burp.dao.ConfigDao.getToolConfig;
 import static burp.utils.Utils.writeReqFile;
 
-public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener {
+public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener, IExtensionStateListener {
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks iBurpExtenderCallbacks) {
+        ScanTaskExecutor.start();
         Utils.callbacks = iBurpExtenderCallbacks;
         Utils.helpers = iBurpExtenderCallbacks.getHelpers();
         Utils.stdout = new PrintWriter(iBurpExtenderCallbacks.getStdout(), true);
@@ -25,6 +30,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         Utils.callbacks.setExtensionName(Utils.NAME);
         Utils.callbacks.registerContextMenuFactory(this);
         Utils.callbacks.registerHttpListener(this);
+        Utils.callbacks.registerExtensionStateListener(this);
         DbUtils.init();
         MainUI mainUI = new MainUI(Utils.callbacks);
         Utils.callbacks.addSuiteTab(mainUI);
@@ -43,9 +49,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
     @Override
     public List<JMenuItem> createMenuItems(IContextMenuInvocation iContextMenuInvocation) {
         List<JMenuItem> listMenuItems = new ArrayList<JMenuItem>(1);
+        if (iContextMenuInvocation == null) {
+            return null;
+        }
         IHttpRequestResponse[] requestResponses = iContextMenuInvocation.getSelectedMessages();
-        IHttpRequestResponse baseRequestResponse = iContextMenuInvocation.getSelectedMessages()[0];
-        // 如果是个空的, 则返回null
+        if (requestResponses == null || requestResponses.length == 0 || requestResponses[0] == null) {
+            return null;
+        }
+        IHttpRequestResponse baseRequestResponse = requestResponses[0];
         if (baseRequestResponse.getHttpService() == null) {
             return null;
         }
@@ -110,8 +121,20 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         return listMenuItems;
     }
 
+
+    @Override
+    public void extensionUnloaded() {
+        SimilarUI.shutdown();
+        ScanTaskExecutor.shutdown();
+        ThreadManager.shutdown();
+    }
+
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
+        // 统一入口：SQL 模块不再单独注册 IHttpListener，避免被动扫描依赖 UI 初始化/注册时序。
+        // 该调用内部会过滤开关、请求/响应方向以及 Burp 工具来源。
+        SqlUI.dispatchPassiveHttpMessage(toolFlag, messageIsRequest, messageInfo);
+
         if (toolFlag == IBurpExtenderCallbacks.TOOL_REPEATER && messageIsRequest) {
             byte[] request = messageInfo.getRequest();
             String requestStr = Utils.helpers.bytesToString(request);
@@ -156,4 +179,3 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
     }
 
 }
-

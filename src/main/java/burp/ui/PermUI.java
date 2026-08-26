@@ -46,15 +46,15 @@ public class PermUI extends AbstractScanUI {
     private static boolean ispassiveScan;
     private static boolean isWhiteDomainList;
     private static final Lock lock = new ReentrantLock();
+    private static volatile PermUI instance;
 
     public static void resetAllCaches() {
-        urlHashList.clear();
-        parameterList.clear();
         UrlCacheUtil.resetCache("perm");
     }
 
     @Override
     protected void setupScanUI() {
+        instance = this;
         // 注册被动扫描监听器
         Utils.callbacks.registerHttpListener(this);
 
@@ -139,33 +139,28 @@ public class PermUI extends AbstractScanUI {
 
         // 右边配置面板
         JPanel rightSplitPane = new JPanel(new BorderLayout());
-        rightSplitPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        rightSplitPane.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
 
-        JPanel scanOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.scan_options")));
-        scanOptionsPanel.add(passiveScanCheckBox);
-        scanOptionsPanel.add(whiteDomainListCheckBox);
+        JPanel scanOptionsPanel = createCompactOptionsPanel(
+                I18nUtils.get("perm.border.scan_options"),
+                passiveScanCheckBox, whiteDomainListCheckBox);
 
-        JPanel configPanel = new JPanel(new BorderLayout(5, 5));
+        JPanel configPanel = new JPanel(new BorderLayout(3, 3));
         configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.configuration")));
 
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
         whitelistPanel.add(new JLabel(I18nUtils.get("perm.label.whitelist")), BorderLayout.NORTH);
         whitelistPanel.add(new JScrollPane(whiteDomainListTextArea), BorderLayout.CENTER);
-        JPanel wlBtn = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        wlBtn.add(saveWhiteDomainButton);
+        JPanel wlBtn = createCompactButtonPanel(saveWhiteDomainButton);
         whitelistPanel.add(wlBtn, BorderLayout.SOUTH);
 
-        JPanel authDataPanel = new JPanel(new BorderLayout(5, 5));
-        JPanel authBtnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        authBtnPanel.add(saveAuthDataButton);
-        authBtnPanel.add(exportButton);
+        JPanel authDataPanel = new JPanel(new BorderLayout(3, 3));
+        JPanel authBtnPanel = createCompactButtonPanel(saveAuthDataButton, exportButton);
         authDataPanel.add(authBtnPanel, BorderLayout.NORTH);
 
         JLabel lowPermAuthLabel = new JLabel(I18nUtils.get("perm.label.low_auth"));
         JLabel noPermAuthLabel = new JLabel(I18nUtils.get("perm.label.no_auth"));
-        JSplitPane authSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        authSplit.setResizeWeight(0.5);
+        JSplitPane authSplit = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.5);
         JPanel lp = new JPanel(new BorderLayout(5, 5));
         lp.add(lowPermAuthLabel, BorderLayout.NORTH);
         lp.add(new JScrollPane(lowPermAuthTextArea), BorderLayout.CENTER);
@@ -176,24 +171,22 @@ public class PermUI extends AbstractScanUI {
         authSplit.setBottomComponent(np);
         authDataPanel.add(authSplit, BorderLayout.CENTER);
 
-        JSplitPane configSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        configSplit.setResizeWeight(0.3);
+        JSplitPane configSplit = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.3);
         configSplit.setTopComponent(whitelistPanel);
         configSplit.setBottomComponent(authDataPanel);
         configPanel.add(configSplit, BorderLayout.CENTER);
 
-        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        JPanel actionButtonsPanel = createCompactButtonPanel(refreshButton, clearButton);
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.actions")));
-        actionButtonsPanel.add(refreshButton);
-        actionButtonsPanel.add(clearButton);
 
-        JSplitPane mainRightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        Dimension scanOptionsSize = scanOptionsPanel.getPreferredSize();
+        scanOptionsPanel.setMinimumSize(new Dimension(0, Math.max(52, scanOptionsSize.height)));
+        JSplitPane mainRightSplit = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.24);
         mainRightSplit.setTopComponent(scanOptionsPanel);
-        JPanel cfgAct = new JPanel(new BorderLayout(5, 5));
+        JPanel cfgAct = new JPanel(new BorderLayout(3, 3));
         cfgAct.add(configPanel, BorderLayout.CENTER);
         cfgAct.add(actionButtonsPanel, BorderLayout.SOUTH);
         mainRightSplit.setBottomComponent(cfgAct);
-        applyWeights(mainRightSplit, WEIGHT_RIGHT_CONFIG);
         rightSplitPane.add(mainRightSplit, BorderLayout.CENTER);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
@@ -221,7 +214,10 @@ public class PermUI extends AbstractScanUI {
             noPermAuthTextArea.setText(noPermAuthTextArea.getText() + bean.getValue() + "\n");
         }
 
-        passiveScanCheckBox.addActionListener(e -> ispassiveScan = passiveScanCheckBox.isSelected());
+        passiveScanCheckBox.addActionListener(e -> {
+            ispassiveScan = passiveScanCheckBox.isSelected();
+            passiveScanEnabled = ispassiveScan;
+        });
         whiteDomainListCheckBox.addActionListener(e -> isWhiteDomainList = whiteDomainListCheckBox.isSelected());
 
         saveWhiteDomainButton.addActionListener(e -> {
@@ -245,7 +241,7 @@ public class PermUI extends AbstractScanUI {
             }
             showSaveSuccess();
         });
-        refreshButton.addActionListener(e -> resultTable.updateUI());
+        refreshButton.addActionListener(e -> refreshTableModel(resultTable));
         clearButton.addActionListener(e -> {
             permlog.clear();
             originarequest.setMessage(new byte[0], true);
@@ -254,9 +250,8 @@ public class PermUI extends AbstractScanUI {
             lowpermresponse.setMessage(new byte[0], false);
             nopermrequest.setMessage(new byte[0], false);
             nopermresponse.setMessage(new byte[0], false);
-            urlHashList.clear();
             UrlCacheUtil.resetCache("perm");
-            resultTable.updateUI();
+            refreshTableModel(resultTable);
         });
         exportButton.addActionListener(e -> exportTableToClipboard());
     }
@@ -396,7 +391,10 @@ public class PermUI extends AbstractScanUI {
             int id = permlog.size();
             permlog.add(new PermUIEntry(id, method, url, origLen, lowLen, noLen, isSuccess, orig, low, no));
         }
-        SwingUtilities.invokeLater(() -> resultTable.updateUI());
+        SwingUtilities.invokeLater(() -> {
+            PermUI ui = instance;
+            if (ui != null) refreshTableModel(ui.resultTable);
+        });
     }
 
     private void showSaveSuccess() {
@@ -414,23 +412,35 @@ public class PermUI extends AbstractScanUI {
 
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-            PermUIEntry logEntry = permlog.get(row);
-            originarequest.setMessage(logEntry.requestResponse.getRequest(), true);
-            originaresponse.setMessage(logEntry.requestResponse.getResponse(), false);
-            if (logEntry.lowRequestResponse == null || logEntry.noRequestResponse == null) {
-                lowpermrequest.setMessage(null, false);
-                lowpermresponse.setMessage(null, false);
-                nopermrequest.setMessage(null, false);
-                nopermresponse.setMessage(null, false);
+            if (row < 0 || row >= getRowCount()) {
                 return;
             }
-            lowpermrequest.setMessage(logEntry.lowRequestResponse.getRequest(), true);
-            lowpermresponse.setMessage(logEntry.lowRequestResponse.getResponse(), false);
-            nopermrequest.setMessage(logEntry.noRequestResponse.getRequest(), true);
-            nopermresponse.setMessage(logEntry.noRequestResponse.getResponse(), false);
+            int modelRow = getRowSorter() == null ? row : convertRowIndexToModel(row);
+            PermUIEntry logEntry;
+            synchronized (permlog) {
+                if (modelRow < 0 || modelRow >= permlog.size()) {
+                    return;
+                }
+                logEntry = permlog.get(modelRow);
+            }
+            if (logEntry.requestResponse == null) {
+                return;
+            }
+            originarequest.setMessage(logEntry.requestResponse.getRequest(), true);
+            originaresponse.setMessage(logEntry.requestResponse.getResponse() == null ? new byte[0] : logEntry.requestResponse.getResponse(), false);
             currentlyDisplayedItem = logEntry.requestResponse;
+            if (logEntry.lowRequestResponse == null || logEntry.noRequestResponse == null) {
+                lowpermrequest.setMessage(new byte[0], true);
+                lowpermresponse.setMessage(new byte[0], false);
+                nopermrequest.setMessage(new byte[0], true);
+                nopermresponse.setMessage(new byte[0], false);
+            } else {
+                lowpermrequest.setMessage(logEntry.lowRequestResponse.getRequest(), true);
+                lowpermresponse.setMessage(logEntry.lowRequestResponse.getResponse() == null ? new byte[0] : logEntry.lowRequestResponse.getResponse(), false);
+                nopermrequest.setMessage(logEntry.noRequestResponse.getRequest(), true);
+                nopermresponse.setMessage(logEntry.noRequestResponse.getResponse() == null ? new byte[0] : logEntry.noRequestResponse.getResponse(), false);
+            }
             super.changeSelection(row, col, toggle, extend);
         }
     }
 }
-

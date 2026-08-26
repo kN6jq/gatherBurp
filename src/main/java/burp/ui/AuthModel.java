@@ -7,7 +7,9 @@ import javax.swing.table.AbstractTableModel;
 public class AuthModel extends AbstractTableModel {
     @Override
     public int getRowCount() {
-        return AuthUI.getAuthlog().size();
+        synchronized (AuthUI.getAuthlog()) {
+            return AuthUI.getAuthlog().size();
+        }
     }
 
     @Override
@@ -17,14 +19,19 @@ public class AuthModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        AuthEntry entry = AuthUI.getAuthlog().get(rowIndex);
-        switch (columnIndex) {
-            case 0: return entry.id;
-            case 1: return entry.method;
-            case 2: return entry.url;
-            case 3: return entry.status;
-            case 4: return entry.length;
-            default: return null;
+        synchronized (AuthUI.getAuthlog()) {
+            if (rowIndex < 0 || rowIndex >= AuthUI.getAuthlog().size()) {
+                return null;
+            }
+            AuthEntry entry = AuthUI.getAuthlog().get(rowIndex);
+            switch (columnIndex) {
+                case 0: return entry.id;
+                case 1: return entry.method;
+                case 2: return entry.url;
+                case 3: return entry.status;
+                case 4: return entry.length;
+                default: return null;
+            }
         }
     }
 

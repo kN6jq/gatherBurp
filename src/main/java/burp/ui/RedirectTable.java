@@ -1,10 +1,12 @@
 package burp.ui;
 
+import burp.IHttpRequestResponse;
 import burp.IMessageEditor;
 
 import javax.swing.*;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
+import java.util.List;
 
 public class RedirectTable extends JTable {
     private final IMessageEditor requestEditor;
@@ -22,23 +24,29 @@ public class RedirectTable extends JTable {
 
     @Override
     public void changeSelection(int row, int col, boolean toggle, boolean extend) {
-        int modelRow = row;
-        if (getRowSorter() != null) {
-            modelRow = convertRowIndexToModel(row);
+        if (row < 0 || row >= getRowCount()) {
+            return;
         }
-
-        RedirectEntry entry = UrlRedirectUI.getRedirectLog().get(modelRow);
+        int modelRow = getRowSorter() == null ? row : convertRowIndexToModel(row);
+        List<RedirectEntry> entries = UrlRedirectUI.getRedirectLog();
+        RedirectEntry entry;
+        synchronized (entries) {
+            if (modelRow < 0 || modelRow >= entries.size()) {
+                return;
+            }
+            entry = entries.get(modelRow);
+        }
+        IHttpRequestResponse message = entry.requestResponse;
+        if (message == null) {
+            return;
+        }
         if (requestEditor != null) {
-            requestEditor.setMessage(entry.requestResponse.getRequest(), true);
+            requestEditor.setMessage(message.getRequest(), true);
         }
         if (responseEditor != null) {
-            if (entry.requestResponse.getResponse() == null) {
-                responseEditor.setMessage(new byte[0], false);
-            } else {
-                responseEditor.setMessage(entry.requestResponse.getResponse(), false);
-            }
+            responseEditor.setMessage(message.getResponse() == null ? new byte[0] : message.getResponse(), false);
         }
-        UrlRedirectUI.setCurrentlyDisplayedItem(entry.requestResponse);
+        UrlRedirectUI.setCurrentlyDisplayedItem(message);
         super.changeSelection(row, col, toggle, extend);
     }
 }

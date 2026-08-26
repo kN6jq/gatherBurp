@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * JSON字符串处理工具类
@@ -40,6 +41,8 @@ import java.util.List;
  *        jsonInput, Arrays.asList("'", "''"), ProcessMode.APPEND);
  */
 public class JsonProcessorUtil {
+
+    private static final Pattern JSON_NUMBER = Pattern.compile("-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?");
 
     // 结果类
     public static class ProcessResult {
@@ -132,6 +135,14 @@ public class JsonProcessorUtil {
                     targetArray.set(i, mode == 0 ? payload : originalValue + payload);
                     results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
                 }
+            } else if (isJsonPrimitive(item)) {
+                JSONObject newRoot = cloneJsonObject(root);
+                JSONArray targetArray = getArrayByPath(newRoot, path);
+                if (targetArray != null) {
+                    Object replacement = buildPrimitiveReplacement(item, payload, mode);
+                    targetArray.set(i, replacement);
+                    results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
+                }
             } else if (item instanceof JSONObject) {
                 processJsonObjectWithPath(
                         (JSONObject) item,
@@ -157,6 +168,11 @@ public class JsonProcessorUtil {
                 JSONObject newRoot = root == null ?
                         cloneJsonObject(currentObject) : cloneJsonObject(root);
                 updateValueInPath(newRoot, path, key, (String) value, payload, mode);
+                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
+            } else if (isJsonPrimitive(value)) {
+                JSONObject newRoot = root == null ?
+                        cloneJsonObject(currentObject) : cloneJsonObject(root);
+                updateValueInPath(newRoot, path, key, buildPrimitiveReplacement(value, payload, mode));
                 results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
             } else if (value instanceof JSONObject) {
                 processJsonObjectWithPath(
@@ -382,9 +398,53 @@ public class JsonProcessorUtil {
         }
     }
 
+    private static boolean isJsonPrimitive(Object value) {
+        return value instanceof Number || value instanceof Boolean || value == null;
+    }
+
+    /** 保持合法 JSON：数字/布尔/null payload 使用原生类型，其余 payload 作为 JSON 字符串发送。 */
+    private static Object buildPrimitiveReplacement(Object originalValue, String payload, int mode) {
+        String candidate = mode == 0 ? payload : String.valueOf(originalValue) + payload;
+        if (candidate != null && (JSON_NUMBER.matcher(candidate).matches()
+                || "true".equalsIgnoreCase(candidate)
+                || "false".equalsIgnoreCase(candidate)
+                || "null".equalsIgnoreCase(candidate))) {
+            try {
+                return JSON.parse(candidate);
+            } catch (Exception ignored) {
+                // 解析失败时按字符串处理，保证请求仍是合法 JSON。
+            }
+        }
+        return candidate == null ? "" : candidate;
+    }
+
     /**
      * 根据路径更新值
      */
+    private static void updateValueInPath(JSONObject root, String path, String key, Object replacement) {
+        if (path.isEmpty()) {
+            root.put(key, replacement);
+            return;
+        }
+
+        String[] parts = path.split("\\.");
+        JSONObject current = root;
+
+        for (String part : parts) {
+            if (part.contains("[") && part.contains("]")) {
+                String arrayKey = part.substring(0, part.indexOf("["));
+                int index = Integer.parseInt(part.substring(
+                        part.indexOf("[") + 1, part.indexOf("]")));
+                JSONArray array = current.getJSONArray(arrayKey);
+                current = array.getJSONObject(index);
+            } else {
+                current = current.getJSONObject(part);
+            }
+        }
+
+        current.put(key, replacement);
+    }
+
     private static void updateValueInPath(JSONObject root, String path, String key,
                                           String originalValue, String payload, int mode) {
         if (path.isEmpty()) {

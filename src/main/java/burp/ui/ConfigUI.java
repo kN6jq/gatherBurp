@@ -229,13 +229,20 @@ public class ConfigUI implements UIHandler {
             public void actionPerformed(ActionEvent e) {
 
                 int[] selectedRows = configTable.getSelectedRows();
-                for (int i = selectedRows.length - 1; i >= 0; i--) {
-                    int selectedRow = selectedRows[i];
-                    String type = (String) configTable.getValueAt(selectedRow, 1);
-                    deleteConfig(type);
+                int[] modelRows = new int[selectedRows.length];
+                for (int i = 0; i < selectedRows.length; i++) {
+                    modelRows[i] = configTable.convertRowIndexToModel(selectedRows[i]);
+                }
+                java.util.Arrays.sort(modelRows);
+                for (int i = modelRows.length - 1; i >= 0; i--) {
+                    int selectedRow = modelRows[i];
+                    if (selectedRow < 0 || selectedRow >= data.size()) {
+                        continue;
+                    }
+                    String type = data.get(selectedRow).key;
+                    deleteConfig("tool", type);
                     data.remove(selectedRow);
                     dataModel.fireTableRowsDeleted(selectedRow, selectedRow);
-                    dataModel.fireTableDataChanged();
                 }
             }
         });
@@ -260,7 +267,7 @@ public class ConfigUI implements UIHandler {
                 String dns = dnslogTextField.getText();
                 ConfigBean config = new ConfigBean(module, "dnslog", dns);
                 saveConfig(config);
-                FastjsonUI.dnslog = dns;
+                FastjsonUI.setDnslog(dns);
                 Log4jUI.dns = dns;
                 // 弹窗提示
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
@@ -274,7 +281,7 @@ public class ConfigUI implements UIHandler {
                 String ip = ipTextField.getText();
                 ConfigBean config = new ConfigBean(module, "ip", ip);
                 saveConfig(config);
-                FastjsonUI.ip = ip;
+                FastjsonUI.setIp(ip);
                 Log4jUI.ip = ip;
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
@@ -330,9 +337,9 @@ public class ConfigUI implements UIHandler {
     // 添加数据
     public void addData(String key, String value) {
         synchronized (data) {
-            data.add(new LogEntry(data.size() + 1, key, value));
-            dataModel.fireTableDataChanged();
-            dataModel.fireTableRowsInserted(data.size() - 1, data.size() - 1);
+            int row = data.size();
+            data.add(new LogEntry(row + 1, key, value));
+            dataModel.fireTableRowsInserted(row, row);
         }
     }
 
@@ -413,4 +420,3 @@ public class ConfigUI implements UIHandler {
         }
     }
 }
-

@@ -42,6 +42,19 @@ public class MainUI extends JPanel implements ITab {
                     e.printStackTrace(Utils.stderr);
                 }
             }
+            // Burp 2024.x 切换扩展主标签后，子面板的第一次布局可能发生在
+            // JSplitPane 比例位置初始化之前。下一轮 EDT 重新应用各面板的比例。
+            mainPanel.addChangeListener(e -> {
+                Component selected = mainPanel.getSelectedComponent();
+                if (selected == null) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    AbstractScanUI.restoreInitialSplitLayout(selected);
+                    selected.revalidate();
+                    selected.repaint();
+                });
+            });
         } catch (Exception e) {
             Utils.stderr.println("MainUI init failed: " + e.getMessage());
             e.printStackTrace(Utils.stderr);

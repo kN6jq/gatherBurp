@@ -14,7 +14,7 @@ import java.util.List;
 public class SimilarDomainResultDao {
     public static int saveDomainResult(SimilarDomainResultBean result) {
         String checkSql = "SELECT id FROM domain_results WHERE project_id = ? AND domain = ?";
-        String updateSql = "UPDATE domain_results SET ip = ?, create_time = datetime('now','localtime') WHERE id = ?";
+        String updateSql = "UPDATE domain_results SET ip = ? WHERE id = ?";
         String insertSql = "INSERT INTO domain_results (project_id, domain, ip, create_time) VALUES (?, ?, ?, datetime('now','localtime'))";
 
         try (Connection connection = DbUtils.getConnection()) {
@@ -51,6 +51,7 @@ public class SimilarDomainResultDao {
                 }
             }
         } catch (Exception e) {
+            Utils.stderr.println("保存域名结果失败: " + e.getMessage());
             return -1;
         }
         return -1;
@@ -95,7 +96,7 @@ public class SimilarDomainResultDao {
     }
 
     public static void updateDomainResult(SimilarDomainResultBean result) {
-        String sql = "UPDATE domain_results SET ip = ?, update_time = datetime('now','localtime') WHERE id = ?";
+        String sql = "UPDATE domain_results SET ip = ? WHERE id = ?";
         try (Connection connection = DbUtils.getConnection();
              PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, result.getIp());

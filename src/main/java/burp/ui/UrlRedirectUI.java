@@ -2,11 +2,11 @@ package burp.ui;
 
 import burp.*;
 import burp.utils.I18nUtils;
+import burp.utils.RedirectLocationUtils;
 import burp.utils.Utils;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableModel;
 import java.awt.*;
 import java.net.URL;
 import java.util.ArrayList;
@@ -17,18 +17,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class UrlRedirectUI extends AbstractScanUI {
     private JButton btnClear;
-    private JTabbedPane requestTabPane;
-    private JTabbedPane responseTabPane;
     private JCheckBox chkPassiveScan;
 
     private static final List<RedirectEntry> redirectLog = new ArrayList<>();
-    private static final Lock lock = new ReentrantLock();
+    private final Lock scanLock = new ReentrantLock();
+    private static volatile UrlRedirectUI instance;
 
-    private static DefaultTableModel payloadModel;
-    private static DefaultTableModel paramModel;
+    /** 配置只属于当前 UI 实例，避免重复初始化时串用其他实例的配置。 */
+    private DefaultTableModel payloadModel;
+    private DefaultTableModel paramModel;
 
     static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
-        currentlyDisplayedItem = item;
+        UrlRedirectUI ui = instance;
+        if (ui != null) ui.currentlyDisplayedItem = item;
     }
 
     static List<RedirectEntry> getRedirectLog() {
@@ -37,6 +38,7 @@ public class UrlRedirectUI extends AbstractScanUI {
 
     @Override
     protected void setupScanUI() {
+        instance = this;
         Utils.callbacks.registerHttpListener(this);
         resultTable = new RedirectTable(new RedirectModel(), requestEditor, responseEditor);
     }
@@ -77,10 +79,12 @@ public class UrlRedirectUI extends AbstractScanUI {
     @Override
     protected void loadSavedData() {
         btnClear.addActionListener(e -> {
-            redirectLog.clear();
+            synchronized (redirectLog) {
+                redirectLog.clear();
+            }
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
-            getResultTable().updateUI();
+            refreshTableModel(getResultTable());
         });
 
         chkPassiveScan.addActionListener(e -> passiveScanEnabled = chkPassiveScan.isSelected());
@@ -195,7 +199,7 @@ public class UrlRedirectUI extends AbstractScanUI {
     @Override
     protected void doPassiveScan(IHttpRequestResponse[] requestResponses, boolean isManual) {
         for (IHttpRequestResponse rr : requestResponses) {
-            scan(rr);
+            scanRequest(rr);
         }
     }
 
@@ -206,15 +210,29 @@ public class UrlRedirectUI extends AbstractScanUI {
 
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
-        if (toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
-            scan(iHttpRequestResponse);
+        if (passiveScanEnabled && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
+            startPassiveScan(new IHttpRequestResponse[]{iHttpRequestResponse}, false);
         }
     }
 
+    /** 保留静态入口，兼容菜单或旧版本调用方；真正扫描使用当前实例状态。 */
     public static void scan(IHttpRequestResponse baseRequestResponse) {
-        lock.lock();
+        UrlRedirectUI ui = instance;
+        if (ui != null) {
+            ui.scanRequest(baseRequestResponse);
+        }
+    }
+
+    private void scanRequest(IHttpRequestResponse baseRequestResponse) {
+        if (baseRequestResponse == null || Utils.helpers == null || Utils.callbacks == null) {
+            return;
+        }
+        scanLock.lock();
         try {
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
+            if (analyzeRequest == null || analyzeRequest.getUrl() == null) {
+                return;
+            }
             String method = analyzeRequest.getMethod();
             URL url = analyzeRequest.getUrl();
 
@@ -223,20 +241,17 @@ public class UrlRedirectUI extends AbstractScanUI {
             }
 
             List<String> redirectPayloads = generateRedirectPayloads(url.getHost());
+            List<String> testParams = snapshotModel(paramModel);
             for (String payload : redirectPayloads) {
-                testRedirect(baseRequestResponse, payload, method);
+                testRedirect(baseRequestResponse, payload, method, testParams);
             }
         } finally {
-            lock.unlock();
+            scanLock.unlock();
         }
     }
 
-    private static List<String> generateRedirectPayloads(String host) {
-        List<String> payloads = new ArrayList<>();
-
-        for (int i = 0; i < payloadModel.getRowCount(); i++) {
-            payloads.add((String) payloadModel.getValueAt(i, 0));
-        }
+    private List<String> generateRedirectPayloads(String host) {
+        List<String> payloads = snapshotModel(payloadModel);
 
         if (payloads.isEmpty()) {
             payloads.addAll(Arrays.asList(
@@ -255,14 +270,11 @@ public class UrlRedirectUI extends AbstractScanUI {
         return payloads;
     }
 
-    private static void testRedirect(IHttpRequestResponse baseRequestResponse, String payload, String method) {
+
+    private void testRedirect(IHttpRequestResponse baseRequestResponse, String payload, String method,
+                              List<String> testParams) {
         IRequestInfo requestInfo = Utils.helpers.analyzeRequest(baseRequestResponse);
         List<IParameter> parameters = requestInfo.getParameters();
-
-        List<String> testParams = new ArrayList<>();
-        for (int i = 0; i < paramModel.getRowCount(); i++) {
-            testParams.add((String) paramModel.getValueAt(i, 0));
-        }
 
         if (testParams.isEmpty()) {
             testParams.addAll(Arrays.asList(
@@ -285,14 +297,18 @@ public class UrlRedirectUI extends AbstractScanUI {
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(
                         baseRequestResponse.getHttpService(), newRequest
                 );
+                if (response == null || response.getResponse() == null) {
+                    Utils.stderr.println("Redirect scan skipped: target returned no response");
+                    continue;
+                }
                 IResponseInfo responseInfo = Utils.helpers.analyzeResponse(response.getResponse());
 
                 boolean isVulnerable = false;
                 if (responseInfo.getStatusCode() == 302 || responseInfo.getStatusCode() == 301) {
                     for (String header : responseInfo.getHeaders()) {
-                        if (header.toLowerCase().startsWith("location:")) {
+                        if (header != null && header.toLowerCase().startsWith("location:")) {
                             String location = header.substring(9).trim();
-                            if (location.contains("evil.com")) {
+                            if (RedirectLocationUtils.isHostOrSubdomain(location, "evil.com")) {
                                 isVulnerable = true;
                                 break;
                             }
@@ -306,9 +322,41 @@ public class UrlRedirectUI extends AbstractScanUI {
                             parameter.getName(), String.valueOf(responseInfo.getStatusCode()),
                             isVulnerable, Utils.callbacks.saveBuffersToTempFiles(response)
                     ));
-                    SwingUtilities.invokeLater(() -> getResultTable().updateUI());
+                    SwingUtilities.invokeLater(() -> {
+                        UrlRedirectUI ui = instance;
+                        if (ui != null) refreshTableModel(ui.resultTable);
+                    });
                 }
             }
         }
     }
+    /** DefaultTableModel 只在 EDT 上读写，扫描线程使用一次性快照避免并发读写。 */
+    private static List<String> snapshotModel(DefaultTableModel model) {
+        final List<String> values = new ArrayList<>();
+        if (model == null) {
+            return values;
+        }
+        Runnable copy = () -> {
+            for (int i = 0; i < model.getRowCount(); i++) {
+                Object value = model.getValueAt(i, 0);
+                if (value != null) {
+                    String text = String.valueOf(value).trim();
+                    if (!text.isEmpty()) {
+                        values.add(text);
+                    }
+                }
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            copy.run();
+            return values;
+        }
+        try {
+            SwingUtilities.invokeAndWait(copy);
+        } catch (Exception e) {
+            Utils.stderr.println("Redirect configuration snapshot failed: " + e.getMessage());
+        }
+        return values;
+    }
+
 }

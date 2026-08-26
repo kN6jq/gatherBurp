@@ -52,15 +52,15 @@ public class Log4jUI extends AbstractScanUI {
     public static String dns;
     public static String ip;
     private static final Lock lock = new ReentrantLock();
+    private static volatile Log4jUI instance;
 
     public static void resetAllCaches() {
-        urlHashList.clear();
-        parameterList.clear();
         UrlCacheUtil.resetCache("log4j");
     }
 
     @Override
     protected void setupScanUI() {
+        instance = this;
         // 注册被动扫描监听器
         Utils.callbacks.registerHttpListener(this);
 
@@ -93,49 +93,41 @@ public class Log4jUI extends AbstractScanUI {
 
         // 右边的上部分
         JPanel rightTopPanel = new JPanel(new BorderLayout());
-        rightTopPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        rightTopPanel.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
 
-        JPanel scanOptionsPanel = new JPanel(new GridLayout(2, 3, 5, 5));
-        scanOptionsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.scan_options")));
-        scanOptionsPanel.add(passiveScanCheckBox);
-        scanOptionsPanel.add(originalValueCheckBox);
-        scanOptionsPanel.add(checkParmamCheckBox);
-        scanOptionsPanel.add(checkHeaderCheckBox);
-        scanOptionsPanel.add(checkWhiteListCheckBox);
-        scanOptionsPanel.add(isDnsOrIpCheckBox);
+        JPanel scanOptionsPanel = createCompactOptionsPanel(
+                I18nUtils.get("log4j.border.scan_options"),
+                passiveScanCheckBox, originalValueCheckBox, checkParmamCheckBox,
+                checkHeaderCheckBox, checkWhiteListCheckBox, isDnsOrIpCheckBox);
 
-        JPanel configPanel = new JPanel(new BorderLayout(5, 5));
+        JPanel configPanel = new JPanel(new BorderLayout(3, 3));
         configPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.configuration")));
 
         JPanel whitelistPanel = new JPanel(new BorderLayout(5, 5));
         whitelistPanel.add(whiteDomainListLabel, BorderLayout.NORTH);
         whitelistPanel.add(new JScrollPane(whiteListTextArea), BorderLayout.CENTER);
-        JPanel whitelistButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        whitelistButtonPanel.add(saveWhiteListButton);
+        JPanel whitelistButtonPanel = createCompactButtonPanel(saveWhiteListButton);
         whitelistPanel.add(whitelistButtonPanel, BorderLayout.SOUTH);
 
         JPanel headerConfigPanel = new JPanel(new BorderLayout(5, 5));
         headerConfigPanel.add(headerLabel, BorderLayout.NORTH);
         headerConfigPanel.add(new JScrollPane(headerTextArea), BorderLayout.CENTER);
-        JPanel headerButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        headerButtonPanel.add(saveHeaderListButton);
+        JPanel headerButtonPanel = createCompactButtonPanel(saveHeaderListButton);
         headerConfigPanel.add(headerButtonPanel, BorderLayout.SOUTH);
 
-        JSplitPane configSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        configSplitPane.setResizeWeight(0.5);
+        JSplitPane configSplitPane = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.5);
         configSplitPane.setTopComponent(whitelistPanel);
         configSplitPane.setBottomComponent(headerConfigPanel);
         configPanel.add(configSplitPane, BorderLayout.CENTER);
 
-        JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        JPanel actionButtonsPanel = createCompactButtonPanel(refreshTableButton, clearTableButton);
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.actions")));
-        actionButtonsPanel.add(refreshTableButton);
-        actionButtonsPanel.add(clearTableButton);
 
-        JSplitPane mainRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        mainRightSplitPane.setResizeWeight(0.3);
+        Dimension scanOptionsSize = scanOptionsPanel.getPreferredSize();
+        scanOptionsPanel.setMinimumSize(new Dimension(0, Math.max(78, scanOptionsSize.height)));
+        JSplitPane mainRightSplitPane = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.28);
         mainRightSplitPane.setTopComponent(scanOptionsPanel);
-        JPanel configAndActionsPanel = new JPanel(new BorderLayout(5, 5));
+        JPanel configAndActionsPanel = new JPanel(new BorderLayout(3, 3));
         configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
         configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
         mainRightSplitPane.setBottomComponent(configAndActionsPanel);
@@ -147,12 +139,11 @@ public class Log4jUI extends AbstractScanUI {
         payloadTextArea.setLineWrap(false);
         payloadTextArea.setWrapStyleWord(false);
         savePayloadButton = new JButton(I18nUtils.get("log4j.button.save_payload"));
-        JPanel payloadPanel = new JPanel(new BorderLayout(5, 5));
-        payloadPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JPanel payloadPanel = new JPanel(new BorderLayout(3, 3));
+        payloadPanel.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         payloadPanel.add(payloadLabel, BorderLayout.NORTH);
         payloadPanel.add(new JScrollPane(payloadTextArea), BorderLayout.CENTER);
-        JPanel payloadButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        payloadButtonPanel.add(savePayloadButton);
+        JPanel payloadButtonPanel = createCompactButtonPanel(savePayloadButton);
         payloadPanel.add(payloadButtonPanel, BorderLayout.SOUTH);
 
         JSplitPane rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -186,7 +177,10 @@ public class Log4jUI extends AbstractScanUI {
     @Override
     protected void loadSavedData() {
         // 被动扫描选择框
-        passiveScanCheckBox.addActionListener(e -> isPassiveScan = passiveScanCheckBox.isSelected());
+        passiveScanCheckBox.addActionListener(e -> {
+            isPassiveScan = passiveScanCheckBox.isSelected();
+            passiveScanEnabled = isPassiveScan;
+        });
         originalValueCheckBox.addActionListener(e -> isOriginalValue = originalValueCheckBox.isSelected());
         checkHeaderCheckBox.addActionListener(e -> isCheckHeader = checkHeaderCheckBox.isSelected());
         checkParmamCheckBox.addActionListener(e -> isCheckParam = checkParmamCheckBox.isSelected());
@@ -224,7 +218,7 @@ public class Log4jUI extends AbstractScanUI {
             }
             domainList.clear();
             getLog4jListsByType("domain").forEach(b -> domainList.add(b.getValue()));
-            whiteListTextArea.updateUI();
+            whiteListTextArea.repaint();
             showSaveSuccess();
         });
         saveHeaderListButton.addActionListener(e -> {
@@ -235,7 +229,7 @@ public class Log4jUI extends AbstractScanUI {
             }
             headerList.clear();
             getLog4jListsByType("header").forEach(b -> headerList.add(b.getValue()));
-            headerTextArea.updateUI();
+            headerTextArea.repaint();
             showSaveSuccess();
         });
         savePayloadButton.addActionListener(e -> {
@@ -246,16 +240,15 @@ public class Log4jUI extends AbstractScanUI {
             }
             payloadList.clear();
             getLog4jListsByType("payload").forEach(b -> payloadList.add(b.getValue()));
-            payloadTextArea.updateUI();
+            payloadTextArea.repaint();
             showSaveSuccess();
         });
-        refreshTableButton.addActionListener(e -> resultTable.updateUI());
+        refreshTableButton.addActionListener(e -> refreshTableModel(resultTable));
         clearTableButton.addActionListener(e -> {
             log4jlog.clear();
             clearResults();
-            urlHashList.clear();
             UrlCacheUtil.resetCache("log4j");
-            resultTable.updateUI();
+            refreshTableModel(resultTable);
         });
     }
 
@@ -280,7 +273,10 @@ public class Log4jUI extends AbstractScanUI {
             int id = log4jlog.size();
             log4jlog.add(new Log4jUIEntry(id, extensionMethod, url, status, res, baseRequestResponse));
         }
-        SwingUtilities.invokeLater(() -> resultTable.updateUI());
+        SwingUtilities.invokeLater(() -> {
+            Log4jUI ui = instance;
+            if (ui != null) refreshTableModel(ui.resultTable);
+        });
     }
 
     // 获取请求包的tag
@@ -440,11 +436,20 @@ public class Log4jUI extends AbstractScanUI {
 
         @Override
         public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-            int modelRow = rowIndex;
-            if (getRowSorter() != null) {
-                modelRow = convertRowIndexToModel(rowIndex);
+            if (rowIndex < 0 || rowIndex >= getRowCount()) {
+                return;
             }
-            Log4jUIEntry logEntry = log4jlog.get(modelRow);
+            int modelRow = getRowSorter() == null ? rowIndex : convertRowIndexToModel(rowIndex);
+            Log4jUIEntry logEntry;
+            synchronized (log4jlog) {
+                if (modelRow < 0 || modelRow >= log4jlog.size()) {
+                    return;
+                }
+                logEntry = log4jlog.get(modelRow);
+            }
+            if (logEntry.requestResponse == null) {
+                return;
+            }
             if (requestEditor != null) {
                 requestEditor.setMessage(logEntry.requestResponse.getRequest(), true);
             }
@@ -460,4 +465,3 @@ public class Log4jUI extends AbstractScanUI {
         }
     }
 }
-

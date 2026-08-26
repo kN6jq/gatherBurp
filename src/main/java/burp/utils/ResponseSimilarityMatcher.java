@@ -38,7 +38,7 @@ public class ResponseSimilarityMatcher {
         if (response1 == null || response2 == null) {
             return false;
         }
-        double similarity = calculateJaccardSimilarity(response1, response2);
+        double similarity = calculateSimilarity(response1, response2);
         return similarity < threshold;
     }
 
@@ -60,9 +60,9 @@ public class ResponseSimilarityMatcher {
             return false;
         }
 
-        double similarity1_3 = calculateJaccardSimilarity(response1, response3);  // 正常响应相似度
-        double similarity1_2 = calculateJaccardSimilarity(response1, response2);  // 与异常响应相似度
-        double similarity2_3 = calculateJaccardSimilarity(response2, response3);  // 与异常响应相似度
+        double similarity1_3 = calculateSimilarity(response1, response3);  // 正常响应相似度
+        double similarity1_2 = calculateSimilarity(response1, response2);  // 与异常响应相似度
+        double similarity2_3 = calculateSimilarity(response2, response3);  // 与异常响应相似度
 
         return similarity1_3 >= threshold &&
                 similarity1_2 < threshold &&
@@ -72,7 +72,17 @@ public class ResponseSimilarityMatcher {
     /**
      * 计算Jaccard相似度
      */
-    private static double calculateJaccardSimilarity(String str1, String str2) {
+    /** 返回三响应两两相似度，供 SQL 盲注评分使用。 */
+    public static SimilarityResult compareThreeResponsesDetailed(String original, String abnormal, String normal) {
+        if (original == null || abnormal == null || normal == null) {
+            return new SimilarityResult(0.0d, 0.0d, 0.0d);
+        }
+        return new SimilarityResult(
+                calculateSimilarity(original, normal),
+                calculateSimilarity(original, abnormal),
+                calculateSimilarity(normal, abnormal));
+    }
+    public static double calculateSimilarity(String str1, String str2) {
         str1 = preprocessResponse(str1);
         str2 = preprocessResponse(str2);
 

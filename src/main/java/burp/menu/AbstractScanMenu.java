@@ -1,8 +1,7 @@
 package burp.menu;
 
 import burp.IHttpRequestResponse;
-import burp.utils.Utils;
-
+import burp.utils.ScanTaskExecutor;
 import javax.swing.*;
 
 public abstract class AbstractScanMenu extends JMenuItem {
@@ -11,13 +10,8 @@ public abstract class AbstractScanMenu extends JMenuItem {
     public AbstractScanMenu(String name, IHttpRequestResponse[] requestResponses) {
         super(name);
         this.requestResponses = requestResponses;
-        this.addActionListener(e -> new Thread(() -> {
-            try {
-                doScan();
-            } catch (Exception ex) {
-                Utils.stderr.println(getScanName() + " scan error: " + ex.getMessage());
-            }
-        }).start());
+        this.addActionListener(e -> ScanTaskExecutor.execute(
+                getScanName() + " manual scan", this::doScan));
     }
 
     protected abstract void doScan();
@@ -26,4 +20,3 @@ public abstract class AbstractScanMenu extends JMenuItem {
         return getClass().getSimpleName().replace("Menu", "");
     }
 }
-

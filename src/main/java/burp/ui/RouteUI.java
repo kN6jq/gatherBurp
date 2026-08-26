@@ -43,9 +43,11 @@ public class RouteUI extends AbstractScanUI {
     private static final Lock lock = new ReentrantLock();
     private static final Set<String> discoveredIssues = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
     private static  List<RouteBean> routeList = new ArrayList<>();
+    private static volatile RouteUI instance;
 
     static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
-        currentlyDisplayedItem = item;
+        RouteUI ui = instance;
+        if (ui != null) ui.currentlyDisplayedItem = item;
     }
 
     static List<RouteIssueEntry> getIssuslog() {
@@ -54,15 +56,16 @@ public class RouteUI extends AbstractScanUI {
 
     public static void resetAllCaches() {
         uniqueUrl.clear();
-        urlHashList.clear();
         discoveredIssues.clear();
         UrlCacheUtil.resetCache("route");
     }
 
     @Override
     protected void setupScanUI() {
+        instance = this;
         Utils.callbacks.registerHttpListener(this);
         issusTable = new RouteIssueTable(new RouteIssueTableModel(issuslog), requestEditor, responseEditor);
+        resultTable = issusTable;
         issustablescrollpane = new JScrollPane(issusTable);
         issustablescrollpane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
         ruleTable = new RouteTable(new RouteTableModel(routelog));
@@ -123,7 +126,7 @@ public class RouteUI extends AbstractScanUI {
         loadRouteRules();
 
         refreshButton.addActionListener(e -> {
-            issusTable.updateUI();
+            refreshTableModel(issusTable);
             loadRouteRules();
         });
 
@@ -131,7 +134,7 @@ public class RouteUI extends AbstractScanUI {
             issuslog.clear();
             uniqueUrl.clear();
             UrlCacheUtil.resetCache("route");
-            issusTable.updateUI();
+            refreshTableModel(issusTable);
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
         });
@@ -156,7 +159,14 @@ public class RouteUI extends AbstractScanUI {
             if (selectedRow == -1) {
                 return;
             }
-            RouteUIEntry routeEntry = routelog.get(selectedRow);
+            int modelRow = ruleTable.getRowSorter() == null ? selectedRow : ruleTable.convertRowIndexToModel(selectedRow);
+            RouteUIEntry routeEntry;
+            synchronized (routelog) {
+                if (modelRow < 0 || modelRow >= routelog.size()) {
+                    return;
+                }
+                routeEntry = routelog.get(modelRow);
+            }
             RouteBean routeBean = new RouteBean();
             routeBean.setName(routeEntry.name);
             routeBean.setPath(routeEntry.path);
@@ -170,8 +180,15 @@ public class RouteUI extends AbstractScanUI {
             if (selectedRow == -1) {
                 return;
             }
+            int modelRow = ruleTable.getRowSorter() == null ? selectedRow : ruleTable.convertRowIndexToModel(selectedRow);
+            RouteUIEntry routeEntry;
+            synchronized (routelog) {
+                if (modelRow < 0 || modelRow >= routelog.size()) {
+                    return;
+                }
+                routeEntry = routelog.get(modelRow);
+            }
             RouteBean routeBean = new RouteBean();
-            RouteUIEntry routeEntry = routelog.get(selectedRow);
             routeBean.setEnable(routeEntry.enable == 1 ? 0 : 1);
             routeBean.setName(routeEntry.name);
             routeBean.setPath(routeEntry.path);
@@ -191,7 +208,7 @@ public class RouteUI extends AbstractScanUI {
             routelog.add(new RouteUIEntry(i, routeBean.getEnable(), routeBean.getName(), routeBean.getPath(), routeBean.getExpress()));
         }
         routeList = getRouteLists();
-        ruleTable.updateUI();
+        refreshTableModel(ruleTable);
     }
 
     @Override
@@ -212,10 +229,8 @@ public class RouteUI extends AbstractScanUI {
     // RouteUI processes both requests and responses, so override the base class filter
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
-        if (toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && passiveScanEnabled) {
-            synchronized (issuslog) {
-                new Thread(() -> Check(new IHttpRequestResponse[]{iHttpRequestResponse}, false)).start();
-            }
+        if (toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && passiveScanEnabled && !messageIsRequest) {
+            startPassiveScan(new IHttpRequestResponse[]{iHttpRequestResponse}, false);
         }
     }
 
@@ -393,9 +408,11 @@ public class RouteUI extends AbstractScanUI {
         synchronized (issuslog) {
             if (discoveredIssues.add(issueKey)) {
                 issuslog.add(new RouteIssueEntry(issuslog.size(), name, url, Status, requestResponse));
-                SwingUtilities.invokeLater(() -> getResultTable().updateUI());
+                SwingUtilities.invokeLater(() -> {
+                    RouteUI ui = instance;
+                    if (ui != null) refreshTableModel(ui.resultTable);
+                });
             }
         }
     }
 }
-
