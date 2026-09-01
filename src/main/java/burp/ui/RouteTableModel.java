@@ -5,6 +5,8 @@ import burp.utils.I18nUtils;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** 目录探测规则表格模型：读 RouteUI 的 routeList 引用（以其为监视器加锁）；
+ *  JTable 读取发生在 EDT。 */
 public class RouteTableModel extends AbstractTableModel {
     private final List<RouteUIEntry> routelog;
 

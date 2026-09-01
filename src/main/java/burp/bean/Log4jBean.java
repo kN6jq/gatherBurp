@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Log4j 模块配置行：type 取值 domain（白名单）/ header（注入位置）/ payload（探测载荷）。 */
 public class Log4jBean {
     private Integer id;
     private String type;

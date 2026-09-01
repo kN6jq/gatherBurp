@@ -18,6 +18,9 @@ import java.util.List;
 
 import static burp.dao.ConfigDao.*;
 
+/** 设置面板：dnslog/ip 公共配置、tool 右键命令列表、语言切换与各模块 URL 缓存重置；
+ *  全部交互在 EDT，配置持久化到 config 表。dnslog/ip 保存后同步运行时生效
+ *  （FastjsonUI.setDnslog / Log4jUI.dns 等）。 */
 public class ConfigUI implements UIHandler {
     private static final List<LogEntry> data = new ArrayList<>();
     public AbstractTableModel dataModel = new ConfigModel();
@@ -45,6 +48,7 @@ public class ConfigUI implements UIHandler {
     private JLabel languageLabel;
     private JComboBox<String> languageComboBox;
 
+    /** 构建设置面板组件（EDT，由 init 调用）。 */
     private void setupUI() {
         // 创建主面板
         panel = new JPanel();
@@ -197,6 +201,7 @@ public class ConfigUI implements UIHandler {
         configPanelDownJscrollPanel.setViewportView(configTable);
     }
 
+    /** 从 config 表加载现有配置并挂载全部按钮监听器（EDT，由 init 调用）。 */
     private void setupData() {
         ConfigBean dnsconfig = getConfig("config", "dnslog");
         dnslogTextField.setText(dnsconfig.getValue());
@@ -249,8 +254,7 @@ public class ConfigUI implements UIHandler {
         clearCacheButton.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                // mark
-                // 弹出提示框
+                // 清除 .gather 下写出的请求临时文件（{request} 占位符产物）
                 boolean deleteReqFile = Utils.deleteReqFile();
                 if (deleteReqFile){
                     JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.delete_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
@@ -299,6 +303,7 @@ public class ConfigUI implements UIHandler {
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
+        // 重置全部模块的 URL 去重缓存与 WAF 慢速标记（EDT，可安全同步调用）
         resetUrl.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -334,7 +339,7 @@ public class ConfigUI implements UIHandler {
 
     }
 
-    // 添加数据
+    /** 向 tool 命令表格追加一行（锁 data 后触发模型插入事件）。 */
     public void addData(String key, String value) {
         synchronized (data) {
             int row = data.size();
@@ -359,7 +364,7 @@ public class ConfigUI implements UIHandler {
         return "Setting";
     }
 
-    // 表格模型
+    /** tool 命令表格模型：读静态 data 列表，读写均发生在 EDT（与 addData/删除监听器同线程）。 */
     static class ConfigModel extends AbstractTableModel {
 
         @Override
@@ -402,7 +407,7 @@ public class ConfigUI implements UIHandler {
         }
     }
 
-    // 表格实体类
+    /** tool 命令表格行数据（id 为 1 基展示序号）。 */
     public static class LogEntry {
         private final String key;
         private final String value;

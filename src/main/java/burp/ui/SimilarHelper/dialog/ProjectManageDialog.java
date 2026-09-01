@@ -12,6 +12,8 @@ import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.function.Consumer;
 
+/** 项目选择/管理对话框（APPLICATION_MODAL，EDT 显示）：双击或"选择"按钮回调 onProjectSelected 并关闭；
+ *  增/删项目直接写库并刷新列表。 */
 public class ProjectManageDialog extends JDialog {
     private List<Project> projects;
     private JList<Project> projectList;
@@ -66,6 +68,8 @@ public class ProjectManageDialog extends JDialog {
         selectButton.addActionListener(e -> selectProject());
     }
 
+    /** 选择当前选中项目：先 dispose 再回调（避免回调中访问已关闭组件）。 */
+    /** 选择当前选中项目：先 dispose 再回调（避免回调中访问已关闭组件）。 */
     private void selectProject() {
         if (isProcessingSelection) {
             return;  // 防止重复处理
@@ -102,6 +106,7 @@ public class ProjectManageDialog extends JDialog {
         }
     }
 
+    /** 确认后删除选中项目（写库 + 移除本地列表）。 */
     private void deleteSelectedProject() {
         Project selected = projectList.getSelectedValue();
         if (selected != null) {
@@ -127,6 +132,7 @@ public class ProjectManageDialog extends JDialog {
         }
     }
 
+    /** 从库重新加载项目列表（整体替换传入的 projects 列表与 listModel）。 */
     private void refreshProjectList() {
         try {
             // 清空列表

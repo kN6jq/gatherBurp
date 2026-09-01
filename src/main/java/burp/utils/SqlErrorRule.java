@@ -2,6 +2,7 @@ package burp.utils;
 
 import java.util.regex.Pattern;
 
+/** SQL 错误特征规则（正则 + 置信分级 + 数据库类型 + 分值），不可变。 */
 public final class SqlErrorRule {
     public enum Confidence { HIGH, MEDIUM, LOW }
 

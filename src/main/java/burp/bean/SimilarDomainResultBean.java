@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Similar 模块域名解析结果：ip 可能为多 IP 逗号分隔字符串。 */
 public class SimilarDomainResultBean {
     private int id;
     private int projectId;

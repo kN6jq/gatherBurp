@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** 目录探测规则配置：path 为探测路径，express 为 ExpressionUtils 判定表达式，enable 为启用开关（0/1）。 */
 public class RouteBean {
     private int id;
     private int enable;

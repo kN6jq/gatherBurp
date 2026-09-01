@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.AuthBean;
+import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -17,6 +18,12 @@ import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * 目录穿越/鉴权绕过（BypassAuth）检测面板：对 GET/POST 请求生成前缀/后缀路径变异
+ * （;/.、%2e、..;/ 等）与伪造 IP 头、Accept 头替换请求，按响应状态/长度记录结果。
+ * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
+ * 结果入静态有界 ScanResultsStore；不支持被动扫描（doPassiveScan 为空实现）。
+ */
 public class AuthUI extends AbstractScanUI {
     private JButton btnClear;
     private JTextField ipInputField;
@@ -24,10 +31,20 @@ public class AuthUI extends AbstractScanUI {
     private JTabbedPane requestTabPane;
     private JTabbedPane responseTabPane;
 
-    private static final List<AuthEntry> authlog = new ArrayList<>();
-    private static String LOCAL_IP = "127.0.0.1";
+    /** 由 EDT（保存按钮）写、扫描线程（prefix/suffix）读，需 volatile 保证可见性。 */
+    private static volatile String LOCAL_IP = "127.0.0.1";
+    // 主动检测串行锁
     private static final Lock lock = new ReentrantLock();
+    // 当前面板实例：静态 Check 入口经此定位到实例
     private static volatile AuthUI instance;
+    /** 结果列表容量上限，超限淘汰最旧条目，防长时间会话内存增长。 */
+    private static final int MAX_LOG_ENTRIES = 2000;
+    private static final ScanResultsStore<AuthEntry> authlog = new ScanResultsStore<>(MAX_LOG_ENTRIES, () -> {
+        AuthUI ui = instance;
+        if (ui != null) {
+            ui.refreshTableModel(ui.resultTable);
+        }
+    });
 
     static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
         AuthUI ui = instance;
@@ -37,7 +54,7 @@ public class AuthUI extends AbstractScanUI {
     }
 
     static List<AuthEntry> getAuthlog() {
-        return authlog;
+        return authlog.list();
     }
 
     @Override
@@ -76,6 +93,7 @@ public class AuthUI extends AbstractScanUI {
     @Override
     protected void loadSavedData() {
         btnClear.addActionListener(e -> {
+            // store.clear 内部加锁，与扫描线程的 add 互斥
             authlog.clear();
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
@@ -107,7 +125,8 @@ public class AuthUI extends AbstractScanUI {
         // AuthUI doesn't support passive scanning
     }
 
-    // auth核心检测方法
+    /** Auth 主动检测核心（ScanTaskExecutor 池线程，经右键菜单调用）：
+     *  依次执行前缀/后缀路径变异、伪造 IP 头、Accept 头替换三类探测。 */
     public static void Check(IHttpRequestResponse[] requestResponses) {
         lock.lock();
         try {
@@ -126,7 +145,8 @@ public class AuthUI extends AbstractScanUI {
                 return;
             }
 
-            List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+            // 复用方法入口处的解析结果，避免重复 analyzeRequest
+            List<String> headers = analyzeRequest.getHeaders();
             String urlWithoutQuery = "";
             try {
                 URL url1 = new URL(url);
@@ -144,21 +164,19 @@ public class AuthUI extends AbstractScanUI {
 
             if (Objects.equals(method, "GET") || Objects.equals(method, "POST")) {
                 for (AuthBean value : authRequests) {
-                    if (Objects.equals(value.getMethod(), "GET")) {
-                        String new_request = request.replaceFirst(path, value.getPath());
-                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                        String requrl = urlWithoutQuery + value.getPath();
-                        String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                        String length = String.valueOf(response.getResponse().length);
-                        add(method, requrl, statusCode, length, response);
-                    } else if (Objects.equals(value.getMethod(), "POST")) {
-                        String new_request = request.replaceFirst(path, value.getPath());
-                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                        String requrl = urlWithoutQuery + value.getPath();
-                        String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                        String length = String.valueOf(response.getResponse().length);
-                        add(method, requrl, statusCode, length, response);
+                    // 字面量替换第一次出现的 path：replaceFirst 第一参数是正则，
+                    // 路径中的 ? . + 等元字符会导致替换错位或失配
+                    String new_request = Utils.replaceFirstLiteral(request, path, value.getPath());
+                    HostThrottle.throttle(serviceKey(baseRequestResponse));
+                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                    if (response == null || response.getResponse() == null) {
+                        Utils.stderr.println("Auth scan skipped: target returned no response");
+                        continue;
                     }
+                    String requrl = urlWithoutQuery + value.getPath();
+                    String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                    String length = String.valueOf(response.getResponse().length);
+                    add(method, requrl, statusCode, length, response);
                 }
                 List<AuthBean> testHeaders = forgeHeaders(method, url);
                 for (AuthBean header : testHeaders) {
@@ -166,9 +184,11 @@ public class AuthUI extends AbstractScanUI {
                 }
                 byte[] message = Utils.helpers.buildHttpMessage(headers, body);
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
-                String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                String length = String.valueOf(response.getResponse().length);
-                add(method, url, statusCode, length, response);
+                if (response != null && response.getResponse() != null) {
+                    String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                    String length = String.valueOf(response.getResponse().length);
+                    add(method, url, statusCode, length, response);
+                }
                 for (AuthBean header : testHeaders) {
                     headers.remove(header.getHeaders());
                 }
@@ -179,17 +199,12 @@ public class AuthUI extends AbstractScanUI {
         }
     }
 
+    /** 追加一条探测结果到有界 store（自动刷新表格）。 */
     private static void add(String method, String url, String statuscode, String length, IHttpRequestResponse baseRequestResponse) {
-        synchronized (authlog) {
-            int id = authlog.size();
-            authlog.add(new AuthEntry(id, method, url, statuscode, length, baseRequestResponse));
-            SwingUtilities.invokeLater(() -> {
-                AuthUI ui = instance;
-                if (ui != null) refreshTableModel(ui.resultTable);
-            });
-        }
+        authlog.add(id -> new AuthEntry(id, method, url, statuscode, length, baseRequestResponse));
     }
 
+    /** 生成后缀路径变异 payload（%2e/、/.、..;/、%20/ 等）；双斜杠开头先归一。 */
     public static List<AuthBean> suffix(String method, String path) {
         if (path.startsWith("//")) {
             path = "/" + path.substring(2).replaceAll("/+", "/");
@@ -220,6 +235,7 @@ public class AuthUI extends AbstractScanUI {
         return authRequests;
     }
 
+    /** 生成前缀路径变异 payload（;/、.;/、images/..;/ 等注入到路径各段之间）。 */
     public static List<AuthBean> prefix(String method, String path) {
         if (path.startsWith("//")) {
             path = "/" + path.substring(2).replaceAll("/+", "/");
@@ -244,6 +260,7 @@ public class AuthUI extends AbstractScanUI {
         return authRequests;
     }
 
+    /** 生成伪造 IP 头探测（X-Forwarded-For 等 4 个头，IP 取 LOCAL_IP）。 */
     public static List<AuthBean> forgeHeaders(String method, String url) {
         List<AuthBean> authRequests = new ArrayList<>();
         List<String> payloads = Arrays.asList(
@@ -264,13 +281,25 @@ public class AuthUI extends AbstractScanUI {
         return authRequests;
     }
 
+    /** Accept 头替换探测：移除原 Accept 后加标准 JSON Accept 重放请求（池线程内调用）。 */
     public static void changeAccept(List<String> headers, byte[] body, String method, String url, IHttpRequestResponse baseRequestResponse) {
         headers.removeIf(header -> header.startsWith("Accept:"));
-        headers.add("Accept: application/json, text/javascript, /; q=0.01");
+        // 修复：原值 "text/javascript, /; q=0.01" 丢失了 */*（历史转义问题），是非法 Accept 头
+        headers.add("Accept: application/json, text/javascript, */*; q=0.01");
+        HostThrottle.throttle(serviceKey(baseRequestResponse));
         byte[] message = Utils.helpers.buildHttpMessage(headers, body);
         IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
+        if (response == null || response.getResponse() == null) {
+            Utils.stderr.println("Auth scan skipped: target returned no response");
+            return;
+        }
         String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
         String length = String.valueOf(response.getResponse().length);
         add(method, url, statusCode, length, response);
+    }
+
+    private static String serviceKey(IHttpRequestResponse requestResponse) {
+        IHttpService service = requestResponse.getHttpService();
+        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
 }

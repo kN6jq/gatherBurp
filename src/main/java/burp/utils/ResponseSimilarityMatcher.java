@@ -4,12 +4,13 @@ import java.util.*;
 
 import java.util.regex.Pattern;
 
+/** 响应相似度匹配器：预处理（去 HTML/时间戳/哈希/ID 等动态内容）后按 token 比较相似度。 */
 public class ResponseSimilarityMatcher {
-    // 相似度阈值，可以根据实际测试调整
+    /** 相似度阈值，可以根据实际测试调整 */
     private static final double SIMILARITY_THRESHOLD = 0.85;
     private static final int MIN_TOKEN_LENGTH = 4;
 
-    // Pre-compiled patterns for response preprocessing
+    /** 预编译的响应预处理正则模式集 */
     private static final Pattern HTML_TAG_PATTERN = Pattern.compile("<[^>]+>");
     private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("\\d{10,}");
     private static final Pattern MD5_PATTERN = Pattern.compile("[0-9a-f]{32}");
@@ -69,9 +70,6 @@ public class ResponseSimilarityMatcher {
                 similarity2_3 < threshold;
     }
 
-    /**
-     * 计算Jaccard相似度
-     */
     /** 返回三响应两两相似度，供 SQL 盲注评分使用。 */
     public static SimilarityResult compareThreeResponsesDetailed(String original, String abnormal, String normal) {
         if (original == null || abnormal == null || normal == null) {
@@ -82,6 +80,7 @@ public class ResponseSimilarityMatcher {
                 calculateSimilarity(original, abnormal),
                 calculateSimilarity(normal, abnormal));
     }
+    /** 计算两响应的 Jaccard 相似度（预处理 + token 集合交集/并集）。 */
     public static double calculateSimilarity(String str1, String str2) {
         str1 = preprocessResponse(str1);
         str2 = preprocessResponse(str2);
@@ -102,9 +101,7 @@ public class ResponseSimilarityMatcher {
         return (double) intersection.size() / union.size();
     }
 
-    /**
-     * 预处理响应内容
-     */
+    /** 预处理响应内容（去 HTML 标签/动态内容/标点，转小写合并空白）。 */
     private static String preprocessResponse(String response) {
         if (response == null) {
             return "";
@@ -133,9 +130,7 @@ public class ResponseSimilarityMatcher {
         return result;
     }
 
-    /**
-     * 分词处理
-     */
+    /** 分词处理：提取长度 >= 4 的词及滑动窗口子串。 */
     private static Set<String> tokenize(String str) {
         Set<String> tokens = new HashSet<>();
         String[] words = str.split("\\s+");

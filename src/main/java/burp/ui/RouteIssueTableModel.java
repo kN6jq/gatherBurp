@@ -3,17 +3,19 @@ package burp.ui;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** 目录探测命中问题表格模型：读 RouteUI store 的内部列表引用（以其为监视器加锁）；
+ *  JTable 读取发生在 EDT。 */
 public class RouteIssueTableModel extends AbstractTableModel {
-    private final List<RouteIssueEntry> issuslog;
+    private final List<RouteIssueEntry> issuesLog;
 
-    public RouteIssueTableModel(List<RouteIssueEntry> issuslog) {
-        this.issuslog = issuslog;
+    public RouteIssueTableModel(List<RouteIssueEntry> issuesLog) {
+        this.issuesLog = issuesLog;
     }
 
     @Override
     public int getRowCount() {
-        synchronized (issuslog) {
-            return issuslog.size();
+        synchronized (issuesLog) {
+            return issuesLog.size();
         }
     }
 
@@ -24,11 +26,11 @@ public class RouteIssueTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        synchronized (issuslog) {
-            if (rowIndex < 0 || rowIndex >= issuslog.size()) {
+        synchronized (issuesLog) {
+            if (rowIndex < 0 || rowIndex >= issuesLog.size()) {
                 return null;
             }
-            RouteIssueEntry logEntry = issuslog.get(rowIndex);
+            RouteIssueEntry logEntry = issuesLog.get(rowIndex);
             switch (columnIndex) {
                 case 0:
                     return logEntry.id;
@@ -50,7 +52,7 @@ public class RouteIssueTableModel extends AbstractTableModel {
             case 0:
                 return "id";
             case 1:
-                return "Issus name";
+                return "Issue name";
             case 2:
                 return "url";
             case 3:

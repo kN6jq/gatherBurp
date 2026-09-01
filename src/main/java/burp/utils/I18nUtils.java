@@ -14,8 +14,8 @@ import java.util.PropertyResourceBundle;
 import java.util.ResourceBundle;
 
 /**
- * 国际化工具类
- * 用于管理插件的中英文切换功能
+ * 国际化工具类：管理插件中英文切换。资源为 UTF-8 properties（messages_zh/messages_en），
+ * 当前语言持久化在 config 表；get(key) 未命中时回退 key 本身。
  */
 public class I18nUtils {
     public enum Language {
@@ -35,7 +35,7 @@ public class I18nUtils {
 
     private static Language currentLanguage = Language.ENGLISH;
 
-    /** Resource bundles in this project are stored as UTF-8 properties files. */
+    /** UTF-8 properties ResourceBundle 控制：解决 Java 默认 ISO-8859-1 读取 properties 的中文乱码问题。 */
     private static final ResourceBundle.Control UTF8_CONTROL = new ResourceBundle.Control() {
         @Override
         public ResourceBundle newBundle(String baseName, Locale locale, String format,
@@ -66,6 +66,7 @@ public class I18nUtils {
         loadLanguageFromConfig();
     }
 
+    /** 从 config 表加载持久化的语言设置，失败默认英文。 */
     private static void loadLanguageFromConfig() {
         try {
             ConfigBean config = ConfigDao.getConfig("config", "language");
@@ -77,14 +78,17 @@ public class I18nUtils {
         }
     }
 
+    /** 返回当前语言。 */
     public static Language getCurrentLanguage() {
         return currentLanguage;
     }
 
+    /** 设置当前语言（内存态，不持久化）。 */
     public static void setLanguage(Language language) {
         currentLanguage = language;
     }
 
+    /** 按 key 获取当前语言对应的资源串；未命中回退 key 本身。 */
     public static String get(String key) {
         try {
             Locale locale = currentLanguage == Language.CHINESE ? Locale.CHINESE : Locale.ENGLISH;
@@ -96,21 +100,24 @@ public class I18nUtils {
     }
 
     /**
-     * Formats a localized message that uses MessageFormat placeholders such as {0} and {1}.
+     * 格式化带 {0} {1} 占位的本地化消息。
      */
     public static String format(String key, Object... arguments) {
         Locale locale = currentLanguage == Language.CHINESE ? Locale.CHINESE : Locale.ENGLISH;
         return new MessageFormat(get(key), locale).format(arguments == null ? new Object[0] : arguments);
     }
 
+    /** 切换语言（英文↔中文）。 */
     public static void toggleLanguage() {
         currentLanguage = currentLanguage == Language.ENGLISH ? Language.CHINESE : Language.ENGLISH;
     }
 
+    /** 判断当前是否中文。 */
     public static boolean isChinese() {
         return currentLanguage == Language.CHINESE;
     }
 
+    /** 设置中文/英文。 */
     public static void setChinese(boolean isChinese) {
         currentLanguage = isChinese ? Language.CHINESE : Language.ENGLISH;
     }

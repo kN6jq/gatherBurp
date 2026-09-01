@@ -29,6 +29,13 @@ public final class SqlInjectionDetector {
             "(?i)(sleep|pg_sleep)(\\s*(?:\\(|%28)\\s*)(\\d+)(?:\\.0+)?(\\s*(?:\\)|%29))");
     private static final Pattern WAITFOR_DELAY_PATTERN = Pattern.compile(
             "(?i)(waitfor\\s+delay\\s+(?:\\'|%27)?0:0:)(\\d+)((?:\\'|%27)?)");
+    private static final Pattern DBMS_PIPE_PATTERN = Pattern.compile(
+            "(?i)(dbms_pipe\\.receive_message\\s*\\(\\s*(?:'|%27)?[^,')]*(?:'|%27)?\\s*,\\s*)(\\d+)(\\s*\\))");
+
+    /** 布尔盲注长度差异的最小绝对阈值：基线波动极小的动态页面不再被 10 字节级别差异触发。 */
+    public static final int MIN_BOOLEAN_LENGTH_THRESHOLD = 20;
+    /** 布尔盲注长度差异相对基线长度的最小比例约束。 */
+    public static final double BOOLEAN_LENGTH_RATIO = 0.02d;
 
     private static final Pattern[] WAF_HEADER_PATTERNS = new Pattern[]{
             Pattern.compile("(?:^|:)\\s*cloudflare", Pattern.CASE_INSENSITIVE),
@@ -40,10 +47,7 @@ public final class SqlInjectionDetector {
 
     private SqlInjectionDetector() { }
 
-    /**
-     * Formats the signed response-body length delta shown in the SQL payload table.
-     * The value is candidate length minus baseline length; unavailable lengths are N/A.
-     */
+    /** 格式化 SQL payload 表格中的响应体长度差值（候选 - 基线），不可用时显示 N/A。 */
     public static String formatSignedLengthChange(int originalLength, int candidateLength) {
         if (originalLength < 0 || candidateLength < 0) {
             return "N/A";
@@ -52,13 +56,14 @@ public final class SqlInjectionDetector {
         return delta > 0 ? "+" + delta : String.valueOf(delta);
     }
 
-    /** Returns true when a configured payload contains a supported time-delay primitive. */
+    /** 判断 payload 是否包含支持的延时原语（sleep/waitfor/dbms_pipe）。 */
     public static boolean containsDelayPayload(String payload) {
         return payload != null && (DELAY_FUNCTION_PATTERN.matcher(payload).find()
-                || WAITFOR_DELAY_PATTERN.matcher(payload).find());
+                || WAITFOR_DELAY_PATTERN.matcher(payload).find()
+                || DBMS_PIPE_PATTERN.matcher(payload).find());
     }
 
-    /** Rewrites the first supported delay primitive while preserving its encoding and syntax. */
+    /** 重写首个延时原语中的秒数，保持原编码与语法不变。 */
     public static String changeDelaySeconds(String payload, int seconds) {
         if (payload == null) return null;
         int safeSeconds = Math.max(1, seconds);
@@ -72,10 +77,15 @@ public final class SqlInjectionDetector {
             return waitfor.replaceFirst(java.util.regex.Matcher.quoteReplacement(
                     waitfor.group(1) + safeSeconds + waitfor.group(3)));
         }
+        java.util.regex.Matcher pipe = DBMS_PIPE_PATTERN.matcher(payload);
+        if (pipe.find()) {
+            return pipe.replaceFirst(java.util.regex.Matcher.quoteReplacement(
+                    pipe.group(1) + safeSeconds + pipe.group(3)));
+        }
         return payload;
     }
 
-    /** Extracts the first delay duration in seconds, or zero for non-delay payloads. */
+    /** 提取首个延时原语的秒数；非延时 payload 返回 0。 */
     public static int extractDelaySeconds(String payload) {
         if (payload == null || payload.isEmpty()) return 0;
         java.util.regex.Matcher function = DELAY_FUNCTION_PATTERN.matcher(payload);
@@ -86,9 +96,14 @@ public final class SqlInjectionDetector {
         if (waitfor.find()) {
             try { return Integer.parseInt(waitfor.group(2)); } catch (NumberFormatException ignored) { return 0; }
         }
+        java.util.regex.Matcher pipe = DBMS_PIPE_PATTERN.matcher(payload);
+        if (pipe.find()) {
+            try { return Integer.parseInt(pipe.group(2)); } catch (NumberFormatException ignored) { return 0; }
+        }
         return 0;
     }
 
+    /** 判断方法是否参与注入探测（GET/POST/PUT/PATCH/DELETE，忽略大小写）。 */
     public static boolean isSupportedMethod(String method) {
         if (method == null) return false;
         String normalized = method.trim().toUpperCase(Locale.ROOT);
@@ -97,6 +112,7 @@ public final class SqlInjectionDetector {
                 || "DELETE".equals(normalized);
     }
 
+    /** 判断请求是否存在可注入的检测输入（URL/Body/JSON 参数，或按开关计 Cookie/自定义头）。 */
     public static boolean hasDetectableInput(List<Integer> parameterTypes,
                                               boolean checkCookie,
                                               boolean checkHeader,
@@ -112,11 +128,13 @@ public final class SqlInjectionDetector {
         return checkHeader && hasConfiguredHeaders;
     }
 
+    /** 实际响应体字节数（无响应或偏移非法返回 0）。 */
     public static int actualBodyLength(byte[] response, int bodyOffset) {
         if (response == null || bodyOffset < 0 || bodyOffset > response.length) return 0;
         return response.length - bodyOffset;
     }
 
+    /** 提取响应体中命中的错误签名集合（自定义关键字 + 规则，带来源前缀）。 */
     public static Set<String> findErrorSignatures(String responseBody,
                                                    List<Pattern> rules,
                                                    List<String> customKeys) {
@@ -138,6 +156,7 @@ public final class SqlInjectionDetector {
         return signatures;
     }
 
+    /** 候选响应是否出现基线中不存在的错误签名（错误注入判定的核心条件）。 */
     public static boolean hasNewErrorSignature(String baselineBody, String candidateBody,
                                                 List<Pattern> rules, List<String> customKeys) {
         Set<String> baseline = findErrorSignatures(baselineBody, rules, customKeys);
@@ -210,6 +229,7 @@ public final class SqlInjectionDetector {
                 && responseBody.matches("(?is).*\\b(?:select|insert|update|delete)\\b.*"));
     }
 
+    /** 内置 SQL 错误特征规则集（按 HIGH/MEDIUM/LOW 分级，覆盖各数据库厂商特征）。 */
     public static List<SqlErrorRule> defaultErrorRules() {
         List<SqlErrorRule> rules = new ArrayList<>();
         addRules(rules, SqlErrorRule.Confidence.HIGH, 40, DatabaseType.UNKNOWN,
@@ -241,7 +261,7 @@ public final class SqlInjectionDetector {
         }
     }
 
-    /** Replace an existing header by exact case-insensitive name without mutating the source list. */
+    /** 大小写不敏感地替换已有 header（不修改原列表），找不到返回空列表。 */
     public static List<String> replaceHeader(List<String> headers, String headerName, String value) {
         if (headers == null || headerName == null || headerName.trim().isEmpty()) {
             return Collections.emptyList();
@@ -261,6 +281,83 @@ public final class SqlInjectionDetector {
         return Collections.emptyList();
     }
 
+    /** 把 payload 作为新 Header 追加到请求头列表末尾（用于探测原请求不存在的 Header）。 */
+    public static List<String> insertHeader(List<String> headers, String headerName, String value) {
+        if (headers == null || headers.isEmpty() || headerName == null || headerName.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<>(headers);
+        result.add(headerName.trim() + ": " + (value == null ? "" : value));
+        return result;
+    }
+
+    /**
+     * 在 form 编码串（a=1&b=2）中原地替换第一个同名参数的值为已编码值。
+     * 只做原始文本替换，不做任何编码——调用方负责传入恰好编码一次的值。
+     * 找不到同名参数时返回 null。
+     */
+    public static String replaceFormParamValue(String rawPairs, String paraName, String encodedValue) {
+        if (rawPairs == null || paraName == null || paraName.isEmpty() || encodedValue == null) {
+            return null;
+        }
+        String[] pairs = rawPairs.split("&", -1);
+        StringBuilder rebuilt = new StringBuilder(rawPairs.length() + encodedValue.length());
+        boolean replaced = false;
+        for (int i = 0; i < pairs.length; i++) {
+            if (i > 0) rebuilt.append('&');
+            String pair = pairs[i];
+            int separator = pair.indexOf('=');
+            String rawName = separator < 0 ? pair : pair.substring(0, separator);
+            if (!replaced && rawParameterNameMatches(rawName, paraName)) {
+                rebuilt.append(rawName).append('=').append(encodedValue);
+                replaced = true;
+            } else {
+                rebuilt.append(pair);
+            }
+        }
+        return replaced ? rebuilt.toString() : null;
+    }
+
+    /**
+     * 在请求行（如 "GET /a?b=1&amp;c=2 HTTP/1.1"）中替换第一个同名 query 参数的值。
+     * 只做原始文本替换，不做任何编码；找不到同名参数时返回 null。
+     */
+    public static String replaceUrlParamInRequestLine(String requestLine, String paraName, String encodedValue) {
+        if (requestLine == null || paraName == null || paraName.isEmpty() || encodedValue == null) {
+            return null;
+        }
+        int firstSpace = requestLine.indexOf(' ');
+        int lastSpace = requestLine.lastIndexOf(' ');
+        if (firstSpace < 0 || lastSpace <= firstSpace) {
+            return null;
+        }
+        String method = requestLine.substring(0, firstSpace);
+        String target = requestLine.substring(firstSpace + 1, lastSpace);
+        String version = requestLine.substring(lastSpace + 1);
+        int queryStart = target.indexOf('?');
+        if (queryStart < 0) {
+            return null;
+        }
+        String newQuery = replaceFormParamValue(target.substring(queryStart + 1), paraName, encodedValue);
+        if (newQuery == null) {
+            return null;
+        }
+        return method + " " + target.substring(0, queryStart + 1) + newQuery + " " + version;
+    }
+
+    /** 原始参数名匹配：先按原文比较，再按 URL 解码后比较（query 中参数名可能已编码）。 */
+    private static boolean rawParameterNameMatches(String rawName, String paraName) {
+        if (rawName.equals(paraName)) {
+            return true;
+        }
+        try {
+            return java.net.URLDecoder.decode(rawName, "UTF-8").equals(paraName);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 综合判定响应是否被 WAF 拦截（连接重置/状态码+指纹组合），返回证据与置信分。 */
     public static WafEvidence detectWaf(int statusCode, List<String> responseHeaders,
                                         String responseBody, boolean connectionReset) {
         if (connectionReset) return new WafEvidence(true, "", 40, "connection reset", true);
@@ -306,6 +403,7 @@ public final class SqlInjectionDetector {
         return false;
     }
 
+    /** 依据错误特征识别数据库类型（命中首个厂商特征即返回，否则 UNKNOWN）。 */
     public static DatabaseType identifyDatabase(String responseBody, List<String> responseHeaders) {
         String text = (responseBody == null ? "" : responseBody) + "\n" + join(responseHeaders);
         for (SqlErrorRule rule : defaultErrorRules()) {
@@ -316,11 +414,13 @@ public final class SqlInjectionDetector {
         return DatabaseType.UNKNOWN;
     }
 
+    /** 判断 5xx 响应是否为框架默认错误页（白标/服务器错误等，非 SQL 错误证据）。 */
     public static boolean isDefaultErrorPage(int statusCode, List<String> headers, String body) {
         if (statusCode < 500) return false;
         return body != null && DEFAULT_ERROR_PAGE.matcher(body).find();
     }
 
+    /** 布尔盲注差异评估：长度差（自适应阈值）+ 相似度差双通道，输出证据与置信分。 */
     public static BooleanEvidence evaluateBooleanDifference(ResponseSnapshot original,
                                                              ResponseSnapshot abnormal,
                                                              ResponseSnapshot normal,
@@ -333,8 +433,15 @@ public final class SqlInjectionDetector {
         if (abnormal.isDefaultErrorPage() && abnormal.getStatusCode() >= 500) return BooleanEvidence.empty();
         boolean statusSafe = isBooleanStatusSafe(original.getStatusCode(), abnormal.getStatusCode(), normal.getStatusCode());
         if (!statusSafe) return new BooleanEvidence(false, false, false, true, 0);
+        // 长度阈值 = max(配置值, 20, 基线长度×2%, 基线长度标准差×3)。
+        // 基线缺失时（测试工具/遗留封装/缓存淘汰边界）退回旧语义：完全信任调用方配置的阈值。
         int threshold = Math.max(0, configuredLengthThreshold);
-        if (baseline != null) threshold = Math.max(threshold, baseline.getBodyLengthStandardDeviation() * 3);
+        if (baseline != null) {
+            threshold = Math.max(threshold, MIN_BOOLEAN_LENGTH_THRESHOLD);
+            threshold = Math.max(threshold, baseline.getBodyLengthStandardDeviation() * 3);
+            int referenceLength = Math.max(0, baseline.getMedianBodyLength());
+            threshold = Math.max(threshold, (int) Math.round(referenceLength * BOOLEAN_LENGTH_RATIO));
+        }
         int originalLength = cleanForLength(original.getBody()).length();
         int abnormalLength = cleanForLength(abnormal.getBody()).length();
         int normalLength = cleanForLength(normal.getBody()).length();
@@ -357,6 +464,23 @@ public final class SqlInjectionDetector {
         return true;
     }
 
+    /**
+     * 重放一致性校验：abnormal/normal 的重放响应必须与首次探测的响应保持同类
+     * （abnormal 重放 ≈ abnormal 首测，normal 重放 ≈ normal 首测），
+     * 排除随机动态页面两次探测恰好"互异"造成的假布尔模式。
+     */
+    public static boolean isBooleanReplayConsistent(String firstAbnormalBody, String replayAbnormalBody,
+                                                    String firstNormalBody, String replayNormalBody,
+                                                    double similarityThreshold) {
+        if (firstAbnormalBody == null || replayAbnormalBody == null
+                || firstNormalBody == null || replayNormalBody == null) {
+            return false;
+        }
+        return ResponseSimilarityMatcher.calculateSimilarity(firstAbnormalBody, replayAbnormalBody) >= similarityThreshold
+                && ResponseSimilarityMatcher.calculateSimilarity(firstNormalBody, replayNormalBody) >= similarityThreshold;
+    }
+
+    /** 布尔盲注差异的字符串级封装（无基线/快照上下文，固定 200 状态码）。 */
     public static boolean isBooleanDifference(String original, String abnormal, String normal,
                                                int lengthThreshold, double similarityThreshold) {
         BooleanEvidence evidence = evaluateBooleanDifference(
@@ -367,6 +491,7 @@ public final class SqlInjectionDetector {
         return evidence.isConfirmedPattern();
     }
 
+    /** 单次时间延迟判定：候选耗时需同时超过配置阈值与基线+最小增量。 */
     public static boolean isLikelyTimeDelay(long baselineMs, long candidateMs,
                                              long configuredThresholdMs, long minimumDeltaMs) {
         if (candidateMs < 0) return false;
@@ -376,6 +501,7 @@ public final class SqlInjectionDetector {
         return candidateMs >= Math.max(configured, baselineThreshold);
     }
 
+    /** 时间延迟的重复确认判定：两次探测（首测+确认）都需达到延迟阈值。 */
     public static boolean isRepeatedTimeDelay(long baselineMs, long firstCandidateMs,
                                                long confirmationMs, long configuredThresholdMs,
                                                long minimumDeltaMs) {
@@ -383,6 +509,7 @@ public final class SqlInjectionDetector {
                 && isLikelyTimeDelay(baselineMs, confirmationMs, configuredThresholdMs, minimumDeltaMs);
     }
 
+    /** 时间延迟综合评估（短/长延时相关性 + 单调性），高方差基线直接判不稳定。 */
     public static TimeDelayEvidence evaluateTimeDelay(BaselineStats baseline,
                                                        long shortResponseMs,
                                                        long longResponseMs,
@@ -404,6 +531,7 @@ public final class SqlInjectionDetector {
         return new TimeDelayEvidence(shortMatched, longMatched, monotonic, false, score);
     }
 
+    /** 期望延迟判定：候选耗时需超过基线 + max(500ms, 期望sleep×60%)，长延时另需配置阈值。 */
     public static boolean isLikelyExpectedTimeDelay(long baselineMs, long candidateMs,
                                                     long expectedSleepMs, boolean requireConfiguredThreshold,
                                                     long configuredThresholdMs, long minimumDeltaMs) {
@@ -423,10 +551,12 @@ public final class SqlInjectionDetector {
         return value == null ? "" : value.replaceAll("\\s+", "");
     }
 
+    /** 默认错误规则的只读视图。 */
     public static List<SqlErrorRule> immutableDefaultErrorRules() {
         return Collections.unmodifiableList(defaultErrorRules());
     }
 
+    /** 支持的数据库显示名列表（只读）。 */
     public static List<String> supportedDatabaseNames() {
         return Collections.unmodifiableList(Arrays.asList("mysql", "mssql", "oracle", "postgresql", "sqlite", "db2"));
     }

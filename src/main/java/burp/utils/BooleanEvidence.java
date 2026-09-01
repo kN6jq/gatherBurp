@@ -1,5 +1,6 @@
 package burp.utils;
 
+/** 布尔盲注评估的不可变证据（长度/相似度匹配、状态安全、排除标记与置信分）。 */
 public final class BooleanEvidence {
     private final boolean lengthMatched;
     private final boolean similarityMatched;

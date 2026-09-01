@@ -4,7 +4,10 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/** JSON 处理工具：对 JSON 结构做字符串值替换/追加（mode 0/1）、随机 JSON 编码
+ *  （fastjson payload 构建用）等纯函数操作。 */
 public class JsonUtils {
+    /** 按模式更新 JSON 结构中的字符串值：0=替换匹配值，1=追加。 */
     public static List<Object> updateJsonObjectFromStr(Object baseObj, String updateStr, int mode) {
         List<Object> resultList = new ArrayList<>();
 
@@ -19,6 +22,7 @@ public class JsonUtils {
         return resultList;
     }
 
+    /** 将 JSON 中字符串值替换为 updateStr（递归处理 Map/List）。 */
     private static Object replaceUpdate(Object obj, String updateStr) {
         if (obj == null) {
             return null;
@@ -52,6 +56,7 @@ public class JsonUtils {
         }
     }
 
+    /** 在 JSON 中为每个字符串值追加 updateStr（递归处理 Map/List）。 */
     private static Object appendUpdate(Object obj, String updateStr) {
         if (obj == null) {
             return null;
@@ -85,7 +90,7 @@ public class JsonUtils {
         }
     }
 
-    // 将字符串转换为Unicode编码
+    /** 将 JSON 中双引号内的内容转为 backslash-u-XXXX Unicode 编码。 */
     private static String encodeToJsonUnicode(String json) {
         // 匹配双引号中间的部分的正则表达式
         String regex = "\"(.*?)\"";
@@ -121,7 +126,7 @@ public class JsonUtils {
         return result.toString();
     }
 
-    // 将字符串转换为16进制编码
+    /** 将 JSON 中双引号内的内容转为 backslash-x-XX 十六进制编码。 */
     private static String encodeToJsonHex(String json) {
         // 匹配双引号中间的部分的正则表达式
         String regex = "\"(.*?)\"";
@@ -157,7 +162,7 @@ public class JsonUtils {
         return result.toString();
     }
 
-    // 将字符串转换为Unicode编码及16进制
+    /** 将 JSON 中双引号内的内容随机编码为 Unicode/Hex/明文（fastjson payload 绕过用）。 */
     public static String encodeToJsonRandom(String json) {
         // 匹配双引号中间的部分的正则表达式
         String regex = "\"(.*?)\"";
@@ -217,7 +222,7 @@ public class JsonUtils {
         return result.toString();
     }
 
-    // 将字符串转换为Unicode编码
+    /** 将字符串逐字符转换为 backslash-u-XXXX Unicode 转义序列。 */
     private static String convertToUnicode(String input) {
         StringBuilder unicode = new StringBuilder();
         for (char character : input.toCharArray()) {
@@ -226,7 +231,7 @@ public class JsonUtils {
         return unicode.toString();
     }
 
-    // 将字符串转换为16进制
+    /** 将字符串逐字符转换为 backslash-x-XX 十六进制转义序列。 */
     private static String convertToHex(String input) {
         StringBuilder hex = new StringBuilder();
         for (char character : input.toCharArray()) {

@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** Fastjson 模块结果表格条目：res/req 为命中判定与命中请求标识。 */
 class FastjsonEntry {
     final int id;
     final String extensionMethod;

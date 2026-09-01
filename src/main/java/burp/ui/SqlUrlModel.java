@@ -3,6 +3,8 @@ package burp.ui;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** SQL URL 表格模型。注意：当前未被引用——SqlUI 实际使用其同名内部模型（内部模型读取时
+ *  以 urldata 为监视器加锁）。 */
 public class SqlUrlModel extends AbstractTableModel {
     private final List<SqlUIEntry> data;
 

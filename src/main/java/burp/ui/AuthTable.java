@@ -8,6 +8,7 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.util.List;
 
+/** 目录穿越结果表格：选中行时把该条目的请求/响应加载进消息编辑器并记录当前展示项（EDT）。 */
 public class AuthTable extends JTable {
     private final IMessageEditor requestEditor;
     private final IMessageEditor responseEditor;

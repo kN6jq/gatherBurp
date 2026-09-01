@@ -2,6 +2,8 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** 越权模块三态对比结果表格条目：originalength/lowlength/nolength 为原始/低权限/无权限
+ *  三种请求的响应长度，isSuccess 为 i18n 判定文本。 */
 public class PermUIEntry {
     final int id;
     final String method;

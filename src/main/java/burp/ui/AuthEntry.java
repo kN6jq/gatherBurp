@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** 目录穿越模块结果表格条目：length 为响应长度。 */
 class AuthEntry {
     final int id;
     final String method;

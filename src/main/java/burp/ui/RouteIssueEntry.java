@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** 目录探测模块命中问题表格条目（经 LruSet 去重后入表）。 */
 public class RouteIssueEntry {
     final int id;
     final String issueName;

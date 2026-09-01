@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Immutable statistics for repeated baseline requests. */
+/** 重复基线请求的不可变统计数据（中位数/标准差/样本数/高方差/状态码稳定）。 */
 public final class BaselineStats {
     private final long medianResponseTimeMs;
     private final double standardDeviationMs;
@@ -33,6 +33,7 @@ public final class BaselineStats {
         this.statusStable = statusStable;
     }
 
+    /** 从样本列表计算基线统计（中位数 + 标准差 + 方差判定）。 */
     public static BaselineStats calculate(List<Long> responseTimes,
                                           List<Integer> bodyLengths,
                                           List<String> bodyHashes,
@@ -68,6 +69,7 @@ public final class BaselineStats {
                 firstNonEmpty(bodyHashes), times.size(), highVariance, statusesStable(statusCodes));
     }
 
+    /** 返回 long 列表的中位数。 */
     private static long medianLong(List<Long> values) {
         if (values == null || values.isEmpty()) return 0L;
         List<Long> sorted = new ArrayList<>(values);
@@ -77,6 +79,7 @@ public final class BaselineStats {
         return (sorted.get(middle - 1) + sorted.get(middle)) / 2L;
     }
 
+    /** 返回 int 列表的中位数。 */
     private static int medianInt(List<Integer> values) {
         if (values == null || values.isEmpty()) return 0;
         List<Integer> sorted = new ArrayList<>(values);
@@ -86,6 +89,7 @@ public final class BaselineStats {
         return (sorted.get(middle - 1) + sorted.get(middle)) / 2;
     }
 
+    /** 返回 long 列表的标准差。 */
     private static double stddevLong(List<Long> values) {
         if (values == null || values.size() < 2) return 0.0d;
         double mean = 0.0d;
@@ -99,6 +103,7 @@ public final class BaselineStats {
         return Math.sqrt(sum / values.size());
     }
 
+    /** 返回 int 列表的标准差。 */
     private static int stddevInt(List<Integer> values) {
         if (values == null || values.size() < 2) return 0;
         double mean = 0.0d;
@@ -112,6 +117,7 @@ public final class BaselineStats {
         return (int) Math.round(Math.sqrt(sum / values.size()));
     }
 
+    /** 判断状态码列表是否全部一致。 */
     private static boolean statusesStable(List<Integer> statuses) {
         if (statuses == null || statuses.isEmpty()) return true;
         Integer first = null;
@@ -123,6 +129,7 @@ public final class BaselineStats {
         return true;
     }
 
+    /** 返回列表中首个非空非空串值。 */
     private static String firstNonEmpty(List<String> values) {
         if (values != null) {
             for (String value : values) if (value != null && !value.isEmpty()) return value;

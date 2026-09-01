@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Fastjson 模块配置（fastjson 表，type: jndi/version/dns/echo）数据访问：
+ *  表列名为 url，实际存放含 FUZZ 占位的 payload 模板，读入 value 字段；异常打 stderr 并降级空列表。 */
 public class FastjsonDao {
+    /** 读取指定 type 的全部 payload 配置行。失败返回空列表。 */
     public static List<FastjsonBean> getFastjsonListsByType(String type) {
         List<FastjsonBean> fastjsons = new ArrayList<>();
 

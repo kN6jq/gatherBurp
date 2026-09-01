@@ -5,8 +5,9 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 优化的表格数据模型
- * 支持批量更新、唯一键约束和线程安全操作
+ * Similar 模块表格数据模型：按指定列的唯一键去重（addRow 为 upsert），
+ * 支持批量刷新；写方法 synchronized，data 为 CopyOnWriteArrayList、
+ * uniqueKeys 为 synchronizedSet（读路径无锁，允许扫描线程写 + EDT 读）。
  */
 public class TableModel extends AbstractTableModel {
     // 存储表格数据的线程安全列表
@@ -17,7 +18,7 @@ public class TableModel extends AbstractTableModel {
     private final Set<String> uniqueKeys;
     // 用作唯一键的列索引
     private final int keyColumnIndex;
-    // 批量更新标志
+    // 批量更新标志：true 时 addRow/setValueAt 不逐条发事件，endBatchUpdate 统一刷新
     private boolean isUpdating = false;
 
     /**

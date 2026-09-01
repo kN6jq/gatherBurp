@@ -2,6 +2,8 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** SQL 模块 payload 探测结果表格条目：selectId 关联所属 URL 行；change 为相对基线的长度变化，
+ *  time 为响应耗时（ms，字符串形式）。 */
 public class SqlPayloadEntry {
     final int selectId;
     final String key;

@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Log4j 模块配置（log4j 表，type: domain/header/payload）数据访问：
+ *  异常统一打 stderr，读方法降级为空列表或 null。 */
 public class Log4jDao {
+    /** 读取指定 type 的全部配置行。失败返回空列表。 */
     public static List<Log4jBean> getLog4jListsByType(String type) {
         List<Log4jBean> log4jBeans = new ArrayList<>();
         String sql = "SELECT * FROM log4j WHERE type = ?";
@@ -32,6 +35,7 @@ public class Log4jDao {
         return log4jBeans;
     }
 
+    /** 读取指定 type 的第一行；无匹配或失败返回 null（调用方按未配置处理）。 */
     public static Log4jBean getLog4jListByType(String type) {
         String sql = "SELECT * FROM log4j WHERE type = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -52,6 +56,7 @@ public class Log4jDao {
         return null;
     }
 
+    /** 插入一行 Log4j 配置。 */
     public static void saveLog4j(Log4jBean log4jBean) {
         String sql = "INSERT INTO log4j(type, value) VALUES(?, ?)";
         try (Connection connection = DbUtils.getConnection();
@@ -64,6 +69,7 @@ public class Log4jDao {
         }
     }
 
+    /** 更新指定 type 的 value。 */
     public static void updateLog4j(Log4jBean log4jBean) {
         String sql = "UPDATE log4j SET value = ? WHERE type = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -76,6 +82,7 @@ public class Log4jDao {
         }
     }
 
+    /** 删除指定 type 下全部配置。 */
     public static void deleteLog4jByType(String type) {
         String sql = "DELETE FROM log4j WHERE type = ?";
         try (Connection connection = DbUtils.getConnection();

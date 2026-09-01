@@ -39,4 +39,18 @@ public class UrlCacheUtilTest {
                 new URL("https://example.com"), Collections.emptyList()));
         assertFalse(UrlCacheUtil.checkUrlUnique("test", "GET", null, Collections.emptyList()));
     }
+
+    @Test
+    public void evictsOldestKeysBeyondModuleCapacity() throws Exception {
+        // 单模块容量上限 2000：插入 2001 个不同 URL 后最旧的键被淘汰，可再次作为新键加入。
+        for (int i = 0; i < 2000; i++) {
+            assertTrue(UrlCacheUtil.checkUrlUnique("evict-test", "GET",
+                    new URL("https://example.com/p" + i), Collections.<burp.IParameter>emptyList()));
+        }
+        assertTrue(UrlCacheUtil.checkUrlUnique("evict-test", "GET",
+                new URL("https://example.com/p2000"), Collections.<burp.IParameter>emptyList()));
+        // 最旧的 p0 已被淘汰，重新出现视为新 URL。
+        assertTrue(UrlCacheUtil.checkUrlUnique("evict-test", "GET",
+                new URL("https://example.com/p0"), Collections.<burp.IParameter>emptyList()));
+    }
 }

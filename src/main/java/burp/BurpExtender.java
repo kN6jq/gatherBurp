@@ -19,7 +19,16 @@ import java.util.*;
 import static burp.dao.ConfigDao.getToolConfig;
 import static burp.utils.Utils.writeReqFile;
 
+/**
+ * 插件入口：沿用 Burp legacy 扩展 API（IBurpExtenderCallbacks，未迁移 Montoya 为长期项）。
+ *
+ * <p>生命周期：registerExtenderCallbacks（插件加载，初始化线程池/数据库/UI/各监听器）→
+ * processHttpMessage（代理监听线程，每条消息回调）/ createMenuItems（EDT，右键菜单构建）→
+ * extensionUnloaded（卸载，依次关停 SimilarUI、扫描池与 Similar 线程池）。</p>
+ */
 public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener, IExtensionStateListener {
+    /** 插件加载时执行（Burp 扩展线程）：启动扫描池 → 注入全局回调 → 初始化 SQLite → 挂载主 UI 与各监听器。
+     *  顺序约束：DbUtils.init 先于任何 UI 的构造（UI 构造即读配置表）。 */
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks iBurpExtenderCallbacks) {
         ScanTaskExecutor.start();
@@ -46,6 +55,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
 
     }
 
+    /** 右键菜单构建（EDT）：无选中消息时返回 null（菜单整体不显示）；
+     *  含 config 表 module=tool 的动态命令菜单（值支持 {url}/{host}/{request} 占位符，经 RobotInput 键入）
+     *  与 FastJson/SQL/AuthBypass/Route/Log4j/Perm/Nuclei/工具 固定菜单。 */
     @Override
     public List<JMenuItem> createMenuItems(IContextMenuInvocation iContextMenuInvocation) {
         List<JMenuItem> listMenuItems = new ArrayList<JMenuItem>(1);
@@ -122,6 +134,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
     }
 
 
+    /** 插件卸载：关停三个后台执行器，避免线程泄漏到下一加载周期。 */
     @Override
     public void extensionUnloaded() {
         SimilarUI.shutdown();
@@ -129,6 +142,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         ThreadManager.shutdown();
     }
 
+    /** 消息回调，运行在 Burp 代理监听线程（非 EDT）：
+     *  ① 分发 SQL 被动扫描（统一入口，内部过滤开关/方向/工具来源）；
+     *  ② Repeater 请求中的 {@code <datab64>…</datab64>} 标签就地解码并同步 Content-Length。 */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
         // 统一入口：SQL 模块不再单独注册 IHttpListener，避免被动扫描依赖 UI 初始化/注册时序。

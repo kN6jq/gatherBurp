@@ -17,17 +17,18 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 优化的域名表格组件
+ * Similar 模块域名结果表格（JTable 子类）：以域名为唯一键去重（列索引 1），
+ * 支持右键菜单/快捷键复制、批量刷新；addEntry/refreshEntry 可由扫描线程调用，内部切 EDT。
  */
 public class DomainTable extends JTable {
 
     /**
-     * 表格数据模型
+     * 表格数据模型（域名列作为唯一键去重）
      */
     private final TableModel model;
 
     /**
-     * 表格是否已销毁
+     * 表格是否已销毁（EDT 置位、扫描线程读取，故用 volatile 语义的简单标志位）
      */
     private boolean disposed = false;
 
@@ -204,7 +205,7 @@ public class DomainTable extends JTable {
     }
 
     /**
-     * 添加新的域名条目
+     * 添加新的域名行（可由扫描线程调用，内部切 EDT）；域名已存在则跳过。
      */
     public void addEntry(Domain entry) {
         if (entry == null || entry.getDomain() == null || disposed) {
@@ -233,7 +234,7 @@ public class DomainTable extends JTable {
     }
 
     /**
-     * 刷新域名条目
+     * 按域名更新已有行（IP/时间，可由扫描线程调用，内部切 EDT）。
      */
     public void refreshEntry(Domain entry) {
         if (entry == null || entry.getDomain() == null || disposed) {
@@ -258,7 +259,7 @@ public class DomainTable extends JTable {
     }
 
     /**
-     * 清空表格数据
+     * 清空表格（切 EDT）。
      */
     public void clearData() {
         if (!disposed) {
@@ -267,7 +268,8 @@ public class DomainTable extends JTable {
     }
 
     /**
-     * 开始批量更新
+     * 开始批量更新：抑制逐行重绘，与 endBatchUpdate 必须成对调用
+     * （SimilarUI 扫描完成回调中成对使用）。
      */
     public void startBatchUpdate() {
         if (!disposed) {
@@ -276,7 +278,7 @@ public class DomainTable extends JTable {
     }
 
     /**
-     * 结束批量更新
+     * 结束批量更新：一次性触发重绘。
      */
     public void endBatchUpdate() {
         if (!disposed) {

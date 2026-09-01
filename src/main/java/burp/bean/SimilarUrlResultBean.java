@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Similar 模块 URL 提取结果（响应体中发现的、与主域名相关的 URL）。 */
 public class SimilarUrlResultBean {
     private int id;
     private int projectId;

@@ -8,58 +8,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * JSON字符串处理工具类
- * 支持对JSON字符串中的字符串类型值进行修改
- *
- * 使用示例:
- * 1. 使用布尔值控制模式（推荐）:
- *    boolean isDeleteOrigin = true; // true表示替换模式，false表示追加模式
- *    // 处理单引号
- *    List<String> results1 = JsonProcessorUtil.processBatch(
- *        jsonInput, Arrays.asList("'"), isDeleteOrigin);
- *
- *    // 处理指定数量的单引号
- *    List<String> results2 = JsonProcessorUtil.processWithQuotes(
- *        jsonInput, 2, isDeleteOrigin);
- *
- *    // 批量处理多个数量的单引号
- *    List<String> results3 = JsonProcessorUtil.processWithQuotesBatch(
- *        jsonInput, Arrays.asList(1, 2, 3), isDeleteOrigin);
- *
- * 2. 使用ProcessMode枚举:
- *    // 单个处理
- *    List<String> results1 = JsonProcessorUtil.processWithQuotes(
- *        jsonInput, 2, ProcessMode.APPEND);
- *
- *    // 批量处理
- *    List<String> results2 = JsonProcessorUtil.processWithQuotesBatch(
- *        jsonInput, Arrays.asList(1, 2, 3), ProcessMode.APPEND);
- *
- *    // 自定义payload
- *    List<String> results3 = JsonProcessorUtil.processBatch(
- *        jsonInput, Arrays.asList("'", "''"), ProcessMode.APPEND);
- */
+/** JSON 字符串处理工具：对 JSON 中字符串类型值进行替换/追加（mode 0/1），
+ *  支持批量 payload、指定数量单引号、自定义 payload 等场景。 */
 public class JsonProcessorUtil {
 
     private static final Pattern JSON_NUMBER = Pattern.compile("-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?");
 
-    // 结果类
+    /** JSON 参数处理结果（参数路径 + 修改后 JSON + 原始值）。 */
     public static class ProcessResult {
         private String paramPath;  // JSON 参数路径
         private String modifiedJson;  // 修改后的 JSON
+        private final String originalValue;  // 该叶子的原始值（字符串形式），供上层区分数字/字符串叶子
 
         public ProcessResult(String paramPath, String modifiedJson) {
+            this(paramPath, modifiedJson, null);
+        }
+
+        public ProcessResult(String paramPath, String modifiedJson, String originalValue) {
             this.paramPath = paramPath;
             this.modifiedJson = modifiedJson;
+            this.originalValue = originalValue;
         }
 
         public String getParamPath() { return paramPath; }
         public String getModifiedJson() { return modifiedJson; }
+        /** 叶子原始值的字符串形式；数字/布尔/null 叶子同样有值，无法确定时为 null。 */
+        public String getOriginalValue() { return originalValue; }
     }
-    /**
-     * 处理模式枚举
-     */
+    /** 处理模式枚举：REPLACE(0) 替换 / APPEND(1) 追加。 */
     public enum ProcessMode {
         REPLACE(0, "替换模式"),
         APPEND(1, "追加模式");
@@ -91,63 +67,122 @@ public class JsonProcessorUtil {
         }
     }
 
-    /**
-     * 处理单个JSON对象（使用布尔值控制模式）
-     *
-     * @param jsonInput JSON输入（字符串或JSONObject）
-     * @param payload 要插入的内容
-     * @param isDeleteOrigin true表示替换模式，false表示追加模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 处理单个 JSON 对象（布尔值控制模式：true=替换，false=追加）。 */
     public static List<String> process(Object jsonInput, String payload, boolean isDeleteOrigin) {
         return process(jsonInput, payload, ProcessMode.fromBoolean(isDeleteOrigin));
     }
 
-    // 修改 process 方法返回带路径信息的结果
+    /** 处理 JSON 并返回带参数路径的结果（SQL 模块 payload 表格的 key 列来源）。 */
     public static List<ProcessResult> processWithPath(Object jsonInput, String payload, boolean isDeleteOrigin) {
         List<ProcessResult> results = new ArrayList<>();
         try {
+            Object root;
             if (jsonInput instanceof JSONObject) {
-                processJsonObjectWithPath((JSONObject) jsonInput, null, "", payload,
-                        isDeleteOrigin ? 0 : 1, results);
+                root = jsonInput;
             } else if (jsonInput instanceof String) {
-                Object parsedJson = JSON.parse((String) jsonInput);
-                return processWithPath(parsedJson, payload, isDeleteOrigin);
+                root = JSON.parse((String) jsonInput);
+            } else {
+                return results;
+            }
+            int mode = isDeleteOrigin ? 0 : 1;
+            // 结构化步骤导航（等价 JSONPointer）：每个叶子的定位由"从根开始的 key/下标序列"表达，
+            // 不再把路径字符串按 '.' 切分回解析，键名包含 '.' 时依然能准确定位。
+            List<Object> steps = new ArrayList<>();
+            if (root instanceof JSONObject) {
+                processObjectWithPath((JSONObject) root, root, "", steps, payload, mode, results);
+            } else if (root instanceof JSONArray) {
+                processArrayWithPath((JSONArray) root, root, "", steps, payload, mode, results);
             }
         } catch (Exception e) {
             throw new JsonProcessingException("处理JSON时发生错误: " + e.getMessage(), e);
         }
         return results;
     }
-    // 新增处理数组的方法
-    private static void processArrayWithPath(JSONArray array, JSONObject root,
-                                             String path, String payload, int mode,
+
+    /** 在深克隆副本中按步骤序列导航到目标容器（JSONObject 或 JSONArray）。 */
+    private static Object navigateBySteps(Object cloneRoot, List<Object> steps) {
+        Object current = cloneRoot;
+        for (Object step : steps) {
+            if (current == null) {
+                return null;
+            }
+            if (step instanceof String) {
+                if (!(current instanceof JSONObject)) {
+                    return null;
+                }
+                current = ((JSONObject) current).get((String) step);
+            } else {
+                if (!(current instanceof JSONArray)) {
+                    return null;
+                }
+                current = ((JSONArray) current).get((Integer) step);
+            }
+        }
+        return current;
+    }
+
+    private static List<Object> appendStep(List<Object> steps, Object step) {
+        List<Object> child = new ArrayList<>(steps.size() + 1);
+        child.addAll(steps);
+        child.add(step);
+        return child;
+    }
+
+    /** 在克隆副本中定位 key 的父对象并写入新值。 */
+    private static void writeLeafInClone(Object cloneRoot, List<Object> parentSteps,
+                                         String key, Object replacement) {
+        Object parent = navigateBySteps(cloneRoot, parentSteps);
+        if (parent instanceof JSONObject) {
+            ((JSONObject) parent).put(key, replacement);
+        }
+    }
+
+    /** 在克隆副本中定位数组元素父容器并按下标写入新值。 */
+    private static void writeArrayLeafInClone(Object cloneRoot, List<Object> arraySteps,
+                                              int index, Object replacement) {
+        Object parent = navigateBySteps(cloneRoot, arraySteps);
+        if (parent instanceof JSONArray && index < ((JSONArray) parent).size()) {
+            ((JSONArray) parent).set(index, replacement);
+        }
+    }
+
+    // 处理数组（支持数组嵌套数组的深层递归）
+    private static void processArrayWithPath(JSONArray array, Object root,
+                                             String path, List<Object> arraySteps,
+                                             String payload, int mode,
                                              List<ProcessResult> results) {
         for (int i = 0; i < array.size(); i++) {
             Object item = array.get(i);
             String currentPath = path + "[" + i + "]";
 
             if (item instanceof String) {
-                JSONObject newRoot = cloneJsonObject(root);
-                JSONArray targetArray = getArrayByPath(newRoot, path);
-                if (targetArray != null) {
-                    String originalValue = (String) item;
-                    targetArray.set(i, mode == 0 ? payload : originalValue + payload);
-                    results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
-                }
+                Object newRoot = deepClone(root);
+                String originalValue = (String) item;
+                writeArrayLeafInClone(newRoot, arraySteps, i, mode == 0 ? payload : originalValue + payload);
+                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot), originalValue));
             } else if (isJsonPrimitive(item)) {
-                JSONObject newRoot = cloneJsonObject(root);
-                JSONArray targetArray = getArrayByPath(newRoot, path);
-                if (targetArray != null) {
-                    Object replacement = buildPrimitiveReplacement(item, payload, mode);
-                    targetArray.set(i, replacement);
-                    results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
-                }
+                Object newRoot = deepClone(root);
+                String originalValue = String.valueOf(item);
+                writeArrayLeafInClone(newRoot, arraySteps, i,
+                        buildPrimitiveReplacement(item, payload, mode));
+                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot), originalValue));
             } else if (item instanceof JSONObject) {
-                processJsonObjectWithPath(
+                processObjectWithPath(
                         (JSONObject) item,
                         root,
                         currentPath,
+                        appendStep(arraySteps, i),
+                        payload,
+                        mode,
+                        results
+                );
+            } else if (item instanceof JSONArray) {
+                // 递归处理嵌套数组 [[...]]
+                processArrayWithPath(
+                        (JSONArray) item,
+                        root,
+                        currentPath,
+                        appendStep(arraySteps, i),
                         payload,
                         mode,
                         results
@@ -157,28 +192,28 @@ public class JsonProcessorUtil {
     }
 
     // 新增带路径的处理方法
-    private static void processJsonObjectWithPath(JSONObject currentObject, JSONObject root,
-                                                  String path, String payload, int mode,
-                                                  List<ProcessResult> results) {
+    private static void processObjectWithPath(JSONObject currentObject, Object root,
+                                              String path, List<Object> parentSteps,
+                                              String payload, int mode,
+                                              List<ProcessResult> results) {
         for (String key : currentObject.keySet()) {
             Object value = currentObject.get(key);
             String currentPath = path.isEmpty() ? key : path + "." + key;
 
             if (value instanceof String) {
-                JSONObject newRoot = root == null ?
-                        cloneJsonObject(currentObject) : cloneJsonObject(root);
-                updateValueInPath(newRoot, path, key, (String) value, payload, mode);
-                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
+                Object newRoot = deepClone(root);
+                writeLeafInClone(newRoot, parentSteps, key, mode == 0 ? payload : (String) value + payload);
+                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot), (String) value));
             } else if (isJsonPrimitive(value)) {
-                JSONObject newRoot = root == null ?
-                        cloneJsonObject(currentObject) : cloneJsonObject(root);
-                updateValueInPath(newRoot, path, key, buildPrimitiveReplacement(value, payload, mode));
-                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot)));
+                Object newRoot = deepClone(root);
+                writeLeafInClone(newRoot, parentSteps, key, buildPrimitiveReplacement(value, payload, mode));
+                results.add(new ProcessResult(currentPath, JSON.toJSONString(newRoot), String.valueOf(value)));
             } else if (value instanceof JSONObject) {
-                processJsonObjectWithPath(
+                processObjectWithPath(
                         (JSONObject) value,
-                        root == null ? currentObject : root,
+                        root,
                         currentPath,
+                        appendStep(parentSteps, key),
                         payload,
                         mode,
                         results
@@ -186,8 +221,9 @@ public class JsonProcessorUtil {
             } else if (value instanceof JSONArray) {
                 processArrayWithPath(
                         (JSONArray) value,
-                        root == null ? currentObject : root,
+                        root,
                         currentPath,
+                        appendStep(parentSteps, key),
                         payload,
                         mode,
                         results
@@ -196,14 +232,12 @@ public class JsonProcessorUtil {
         }
     }
 
-    /**
-     * 处理单个JSON对象，每次只修改一个参数
-     *
-     * @param jsonInput JSON输入（字符串或JSONObject）
-     * @param payload 要插入的内容
-     * @param mode 处理模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 深克隆，根可能是对象或数组。 */
+    private static Object deepClone(Object root) {
+        return JSON.parse(JSON.toJSONString(root));
+    }
+
+    /** 处理单个 JSON 对象（枚举控制模式），每次只修改一个参数。 */
     public static List<String> process(Object jsonInput, String payload, ProcessMode mode) {
         try {
             List<Object> results = processJsonSingle(jsonInput, payload, mode.getCode());
@@ -213,26 +247,12 @@ public class JsonProcessorUtil {
         }
     }
 
-    /**
-     * 批量处理JSON对象（使用布尔值控制模式）
-     *
-     * @param jsonInput JSON输入
-     * @param payloads 要插入的内容列表
-     * @param isDeleteOrigin true表示替换模式，false表示追加模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 批量处理 JSON 对象（布尔值控制模式）。 */
     public static List<String> processBatch(Object jsonInput, List<String> payloads, boolean isDeleteOrigin) {
         return processBatch(jsonInput, payloads, ProcessMode.fromBoolean(isDeleteOrigin));
     }
 
-    /**
-     * 批量处理JSON对象
-     *
-     * @param jsonInput JSON输入
-     * @param payloads 要插入的内容列表
-     * @param mode 处理模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 批量处理 JSON 对象（枚举控制模式）。 */
     public static List<String> processBatch(Object jsonInput, List<String> payloads, ProcessMode mode) {
         List<String> allResults = new ArrayList<>();
         for (String payload : payloads) {
@@ -241,50 +261,22 @@ public class JsonProcessorUtil {
         return allResults;
     }
 
-    /**
-     * 使用指定数量的单引号处理JSON（使用布尔值控制模式）
-     *
-     * @param jsonInput JSON输入
-     * @param quoteCount 单引号数量
-     * @param isDeleteOrigin true表示替换模式，false表示追加模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 使用指定数量单引号处理 JSON（布尔值控制模式）。 */
     public static List<String> processWithQuotes(Object jsonInput, int quoteCount, boolean isDeleteOrigin) {
         return processWithQuotes(jsonInput, quoteCount, ProcessMode.fromBoolean(isDeleteOrigin));
     }
 
-    /**
-     * 使用指定数量的单引号处理JSON
-     *
-     * @param jsonInput JSON输入
-     * @param quoteCount 单引号数量
-     * @param mode 处理模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 使用指定数量单引号处理 JSON（枚举控制模式）。 */
     public static List<String> processWithQuotes(Object jsonInput, int quoteCount, ProcessMode mode) {
         return process(jsonInput, generateQuotes(quoteCount), mode);
     }
 
-    /**
-     * 批量处理指定数量的单引号（使用布尔值控制模式）
-     *
-     * @param jsonInput JSON输入
-     * @param quoteCounts 单引号数量列表
-     * @param isDeleteOrigin true表示替换模式，false表示追加模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 批量处理指定数量单引号（布尔值控制模式）。 */
     public static List<String> processWithQuotesBatch(Object jsonInput, List<Integer> quoteCounts, boolean isDeleteOrigin) {
         return processWithQuotesBatch(jsonInput, quoteCounts, ProcessMode.fromBoolean(isDeleteOrigin));
     }
 
-    /**
-     * 批量处理指定数量的单引号
-     *
-     * @param jsonInput JSON输入
-     * @param quoteCounts 单引号数量列表
-     * @param mode 处理模式
-     * @return 处理后的JSON字符串列表
-     */
+    /** 批量处理指定数量单引号（枚举控制模式）。 */
     public static List<String> processWithQuotesBatch(Object jsonInput, List<Integer> quoteCounts, ProcessMode mode) {
         List<String> allResults = new ArrayList<>();
         for (Integer count : quoteCounts) {
@@ -293,9 +285,7 @@ public class JsonProcessorUtil {
         return allResults;
     }
 
-    /**
-     * 将结果转换为字符串列表
-     */
+    /** 将结果列表转换为 JSON 字符串列表。 */
     private static List<String> convertResultsToString(List<Object> results) {
         List<String> stringResults = new ArrayList<>();
         for (Object result : results) {
@@ -304,9 +294,7 @@ public class JsonProcessorUtil {
         return stringResults;
     }
 
-    /**
-     * 生成指定数量的单引号
-     */
+    /** 生成指定数量的单引号字符串。 */
     private static String generateQuotes(int count) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -315,9 +303,7 @@ public class JsonProcessorUtil {
         return sb.toString();
     }
 
-    /**
-     * 处理JSON数据
-     */
+    /** 处理 JSON 数据（JSONObject 或 JSON 字符串）。 */
     private static List<Object> processJsonSingle(Object jsonData, String payload, int mode) {
         List<Object> results = new ArrayList<>();
         if (jsonData instanceof JSONObject) {
@@ -333,9 +319,7 @@ public class JsonProcessorUtil {
         return results;
     }
 
-    /**
-     * 处理JSON对象
-     */
+    /** 处理 JSON 对象中每个叶子节点（递归）。 */
     private static void processJsonObject(JSONObject currentObject, JSONObject root,
                                           String path, String payload, int mode,
                                           List<Object> results) {
@@ -370,9 +354,7 @@ public class JsonProcessorUtil {
         }
     }
 
-    /**
-     * 处理JSON数组
-     */
+    /** 处理 JSON 数组中每个元素（递归）。 */
     private static void processArray(JSONArray array, JSONObject root,
                                      String path, String payload, int mode,
                                      List<Object> results) {
@@ -418,9 +400,7 @@ public class JsonProcessorUtil {
         return candidate == null ? "" : candidate;
     }
 
-    /**
-     * 根据路径更新值
-     */
+    /** 根据路径更新 JSON 对象中的值。 */
     private static void updateValueInPath(JSONObject root, String path, String key, Object replacement) {
         if (path.isEmpty()) {
             root.put(key, replacement);
@@ -470,9 +450,7 @@ public class JsonProcessorUtil {
         current.put(key, mode == 0 ? payload : originalValue + payload);
     }
 
-    /**
-     * 根据路径获取数组
-     */
+    /** 根据路径获取 JSON 数组。 */
     private static JSONArray getArrayByPath(JSONObject root, String path) {
         String[] parts = path.split("\\.");
         JSONObject current = root;
@@ -485,16 +463,12 @@ public class JsonProcessorUtil {
         return current.getJSONArray(parts[parts.length - 1]);
     }
 
-    /**
-     * 深度克隆JSONObject
-     */
+    /** 深度克隆 JSONObject。 */
     private static JSONObject cloneJsonObject(JSONObject original) {
         return JSON.parseObject(JSON.toJSONString(original));
     }
 
-    /**
-     * JSON处理异常类
-     */
+    /** JSON 处理异常类。 */
     public static class JsonProcessingException extends RuntimeException {
         public JsonProcessingException(String message, Throwable cause) {
             super(message, cause);

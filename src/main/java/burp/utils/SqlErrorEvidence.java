@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+/** SQL 错误证据的不可变汇总（高/中/低置信签名集 + 识别的数据库类型 + 总分）。 */
 public final class SqlErrorEvidence {
     private final Set<String> high;
     private final Set<String> medium;

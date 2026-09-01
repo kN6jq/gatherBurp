@@ -6,10 +6,7 @@ import burp.IScanIssue;
 
 import java.net.URL;
 
-/**
- * @Author Xm17
- * @Date 2024-06-23 9:57
- */
+/** Burp Scanner 漏洞条目适配器：封装 HTTP 请求/响应、严重度和置信度为 IScanIssue 供 UI 展示。 */
 public class CustomScanIssue implements IScanIssue {
     private IHttpService httpService;
     private URL url;

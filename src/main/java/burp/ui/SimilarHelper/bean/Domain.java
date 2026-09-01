@@ -6,7 +6,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
+/** Similar 模块域名条目（表格展示对象）：equals/hashCode 仅按 domain 判定，
+ *  供 Project 内存列表去重。 */
 public class Domain {
+    // 展示用自增 ID（扫描线程递增，仅用于表格首列，非数据库主键）
     private static int counter = 0;
     private int id;
     private final String domain;
@@ -28,6 +31,7 @@ public class Domain {
         this.timestamp = formatTimestamp(bean.getCreateTime());
     }
 
+    /** 数据库 create_time 为空时回退为当前时间。 */
     private String formatTimestamp(String timestamp) {
         if (timestamp == null || timestamp.trim().isEmpty()) {
             return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());

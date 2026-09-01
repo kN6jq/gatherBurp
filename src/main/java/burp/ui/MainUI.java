@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 
+/** 插件主标签页：EDT 上按 UI_SUPPLIERS 顺序逐个初始化并挂载各功能面板；
+ *  单模块初始化失败只打日志，不阻断其余模块。 */
 public class MainUI extends JPanel implements ITab {
     private static JTabbedPane mainPanel;
     IBurpExtenderCallbacks callbacks;
@@ -61,11 +63,13 @@ public class MainUI extends JPanel implements ITab {
         }
     }
 
+    /** 主标签标题：插件名。 */
     @Override
     public String getTabCaption() {
         return Utils.NAME;
     }
 
+    /** 返回 JTabbedPane 根组件。 */
     @Override
     public Component getUiComponent() {
         return mainPanel;

@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Nuclei 模板数据对象：method/path/header 描述模板位置，dsl 为 Nuclei DSL 片段，raw 为完整模板文本。 */
 public class NucleiBean {
     private String id;
     private String name;

@@ -1,8 +1,11 @@
 package burp.ui;
 
 import burp.*;
+import burp.utils.CustomScanIssue;
+import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.RedirectLocationUtils;
+import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
 import javax.swing.*;
@@ -15,13 +18,27 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * 开放重定向检测面板：对请求中的可变异参数注入 evil.com 载荷（自定义 payload/参数清单），
+ * 按 3xx 响应的 Location 是否指向 evil.com 判定漏洞；支持被动扫描（IHttpListener）。
+ * 检测在实例 scanLock 内串行执行，目标主机经 HostThrottle 限速；
+ * 结果入静态有界 ScanResultsStore。
+ */
 public class UrlRedirectUI extends AbstractScanUI {
     private JButton btnClear;
     private JCheckBox chkPassiveScan;
 
-    private static final List<RedirectEntry> redirectLog = new ArrayList<>();
-    private final Lock scanLock = new ReentrantLock();
+    // 当前面板实例：静态 scan 入口经此定位到实例
     private static volatile UrlRedirectUI instance;
+    /** 结果列表容量上限，超限淘汰最旧条目。 */
+    private static final int MAX_LOG_ENTRIES = 2000;
+    private static final ScanResultsStore<RedirectEntry> redirectLog = new ScanResultsStore<>(MAX_LOG_ENTRIES, () -> {
+        UrlRedirectUI ui = instance;
+        if (ui != null) {
+            ui.refreshTableModel(ui.resultTable);
+        }
+    });
+    private final Lock scanLock = new ReentrantLock();
 
     /** 配置只属于当前 UI 实例，避免重复初始化时串用其他实例的配置。 */
     private DefaultTableModel payloadModel;
@@ -33,7 +50,7 @@ public class UrlRedirectUI extends AbstractScanUI {
     }
 
     static List<RedirectEntry> getRedirectLog() {
-        return redirectLog;
+        return redirectLog.list();
     }
 
     @Override
@@ -79,9 +96,8 @@ public class UrlRedirectUI extends AbstractScanUI {
     @Override
     protected void loadSavedData() {
         btnClear.addActionListener(e -> {
-            synchronized (redirectLog) {
-                redirectLog.clear();
-            }
+            // store.clear 内部加锁，与扫描线程的 add 互斥
+            redirectLog.clear();
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
             refreshTableModel(getResultTable());
@@ -208,6 +224,7 @@ public class UrlRedirectUI extends AbstractScanUI {
         return "UrlRedirect";
     }
 
+    /** 被动扫描监听（Burp 代理监听线程）：仅处理 PROXY 来源响应，提交统一有界池。 */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse iHttpRequestResponse) {
         if (passiveScanEnabled && toolFlag == IBurpExtenderCallbacks.TOOL_PROXY && !messageIsRequest) {
@@ -223,6 +240,7 @@ public class UrlRedirectUI extends AbstractScanUI {
         }
     }
 
+    /** 对单个请求执行开放重定向扫描（ScanTaskExecutor 池线程）：去重后逐 payload 测试。 */
     private void scanRequest(IHttpRequestResponse baseRequestResponse) {
         if (baseRequestResponse == null || Utils.helpers == null || Utils.callbacks == null) {
             return;
@@ -240,16 +258,25 @@ public class UrlRedirectUI extends AbstractScanUI {
                 return;
             }
 
+            // 去重按 method+scheme+host+port+path：开放重定向探测只关心参数名，
+            // 参数值变化不应触发重复全量探测（否则页面刷新一次就重发几十个请求）
+            if (!UrlCacheUtil.checkUrlUnique("redirect", method, url, new ArrayList<>())) {
+                return;
+            }
+
             List<String> redirectPayloads = generateRedirectPayloads(url.getHost());
             List<String> testParams = snapshotModel(paramModel);
+            // 请求解析一次上提，避免 payload×参数 双重循环内重复 analyzeRequest
+            List<IParameter> parameters = analyzeRequest.getParameters();
             for (String payload : redirectPayloads) {
-                testRedirect(baseRequestResponse, payload, method, testParams);
+                testRedirect(baseRequestResponse, url, payload, method, testParams, parameters);
             }
         } finally {
             scanLock.unlock();
         }
     }
 
+    /** 生成重定向 payload 列表：自定义 payload 优先，为空时用 host 拼接的默认集。 */
     private List<String> generateRedirectPayloads(String host) {
         List<String> payloads = snapshotModel(payloadModel);
 
@@ -271,11 +298,10 @@ public class UrlRedirectUI extends AbstractScanUI {
     }
 
 
-    private void testRedirect(IHttpRequestResponse baseRequestResponse, String payload, String method,
-                              List<String> testParams) {
-        IRequestInfo requestInfo = Utils.helpers.analyzeRequest(baseRequestResponse);
-        List<IParameter> parameters = requestInfo.getParameters();
-
+    /** 对单个 payload 执行重定向测试（池线程内调用）：
+     *  替换 URL 参数后请求，3xx 且 Location 指向 evil.com 判定命中并上报 Issue。 */
+    private void testRedirect(IHttpRequestResponse baseRequestResponse, URL requestUrl, String payload, String method,
+                              List<String> testParams, List<IParameter> parameters) {
         if (testParams.isEmpty()) {
             testParams.addAll(Arrays.asList(
                     "redirect","redirect_to","url","jump","target","to","link","goto","return_url","next","returnUrl","return","redirectUrl","callback","toUrl","ReturnUrl","fromUrl","redUrl","request","redirect_url","jump_to","linkto","domain","oauth_callback"
@@ -294,6 +320,7 @@ public class UrlRedirectUI extends AbstractScanUI {
                 byte[] newRequest = Utils.helpers.updateParameter(
                         baseRequestResponse.getRequest(), newParam
                 );
+                HostThrottle.throttle(serviceKey(baseRequestResponse));
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(
                         baseRequestResponse.getHttpService(), newRequest
                 );
@@ -302,9 +329,11 @@ public class UrlRedirectUI extends AbstractScanUI {
                     continue;
                 }
                 IResponseInfo responseInfo = Utils.helpers.analyzeResponse(response.getResponse());
+                int statusCode = responseInfo.getStatusCode();
 
                 boolean isVulnerable = false;
-                if (responseInfo.getStatusCode() == 302 || responseInfo.getStatusCode() == 301) {
+                // 301/302 之外，307/308 同样会以 Location 发起重定向
+                if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308) {
                     for (String header : responseInfo.getHeaders()) {
                         if (header != null && header.toLowerCase().startsWith("location:")) {
                             String location = header.substring(9).trim();
@@ -316,19 +345,40 @@ public class UrlRedirectUI extends AbstractScanUI {
                     }
                 }
 
-                synchronized (redirectLog) {
-                    redirectLog.add(new RedirectEntry(
-                            redirectLog.size(), method, requestInfo.getUrl().toString(),
-                            parameter.getName(), String.valueOf(responseInfo.getStatusCode()),
-                            isVulnerable, Utils.callbacks.saveBuffersToTempFiles(response)
-                    ));
-                    SwingUtilities.invokeLater(() -> {
-                        UrlRedirectUI ui = instance;
-                        if (ui != null) refreshTableModel(ui.resultTable);
-                    });
+                // 容量淘汰与表格刷新由 store 统一处理（lambda 要求 effectively final，先取最终值）
+                final boolean vulnerable = isVulnerable;
+                redirectLog.add(id -> new RedirectEntry(
+                        id, method, requestUrl.toString(),
+                        parameter.getName(), String.valueOf(statusCode),
+                        vulnerable, Utils.callbacks.saveBuffersToTempFiles(response)
+                ));
+
+                // 命中时同步上报 Burp Issue（Location 明确指向 evil.com 属确定性证据）
+                if (isVulnerable) {
+                    try {
+                        IScanIssue issue = new CustomScanIssue(
+                                baseRequestResponse.getHttpService(),
+                                requestUrl,
+                                new IHttpRequestResponse[]{response},
+                                "Open Redirect",
+                                "Parameter '" + parameter.getName()
+                                        + "' redirects to evil.com via Location header (status "
+                                        + statusCode + ").",
+                                "Medium", "Firm"
+                        );
+                        Utils.callbacks.addScanIssue(issue);
+                    } catch (Exception e) {
+                        Utils.stderr.println("Redirect issue report failed: " + e.getMessage());
+                    }
                 }
             }
         }
+    }
+
+    /** 目标主机限流键（HostThrottle 按 host:port 独立限速）。 */
+    private static String serviceKey(IHttpRequestResponse requestResponse) {
+        IHttpService service = requestResponse.getHttpService();
+        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
     /** DefaultTableModel 只在 EDT 上读写，扫描线程使用一次性快照避免并发读写。 */
     private static List<String> snapshotModel(DefaultTableModel model) {

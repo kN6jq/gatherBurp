@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Similar 模块项目域名配置（项目关注的核心/主域名清单）。 */
 public class SimilarDomainConfigBean {
     private int id;
     private int projectId;

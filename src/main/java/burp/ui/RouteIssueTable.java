@@ -8,6 +8,7 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.util.List;
 
+/** 目录探测命中问题表格：选中行时把该条目的请求/响应加载进消息编辑器（EDT）。 */
 public class RouteIssueTable extends JTable {
     private final IMessageEditor requestEditor;
     private final IMessageEditor responseEditor;
@@ -29,7 +30,7 @@ public class RouteIssueTable extends JTable {
             return;
         }
         int modelRow = getRowSorter() == null ? row : convertRowIndexToModel(row);
-        List<RouteIssueEntry> entries = RouteUI.getIssuslog();
+        List<RouteIssueEntry> entries = RouteUI.getIssuesLog();
         RouteIssueEntry entry;
         synchronized (entries) {
             if (modelRow < 0 || modelRow >= entries.size()) {

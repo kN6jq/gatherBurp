@@ -8,6 +8,7 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.util.List;
 
+/** 开放重定向结果表格：选中行时同步刷新请求/响应编辑器并更新当前显示项。 */
 public class RedirectTable extends JTable {
     private final IMessageEditor requestEditor;
     private final IMessageEditor responseEditor;

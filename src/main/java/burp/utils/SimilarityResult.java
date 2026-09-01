@@ -3,7 +3,7 @@ package burp.utils;
 import java.util.Collections;
 import java.util.List;
 
-/** Detailed three-response similarity values for SQL boolean checks. */
+/** 三响应两两相似度结果（原始/异常/正常），供 SQL 盲注评分使用。 */
 public final class SimilarityResult {
     private final double originalNormal;
     private final double originalAbnormal;
@@ -18,6 +18,7 @@ public final class SimilarityResult {
     public double getOriginalNormal() { return originalNormal; }
     public double getOriginalAbnormal() { return originalAbnormal; }
     public double getNormalAbnormal() { return normalAbnormal; }
+    /** 判断是否满足布尔盲注相似度模式（原始与正常 >= 阈值，异常双低于阈值）。 */
     public boolean matches(double threshold) {
         return originalNormal >= threshold
                 && originalAbnormal < threshold

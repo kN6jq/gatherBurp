@@ -6,25 +6,30 @@ import burp.IHttpService;
 import burp.utils.Utils;
 
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 智能请求发送器：发送原始请求并检测 WAF 拦截/编码绕过等信号（供 Route/SQL 探测复用）。 */
 public class SmartRequestDetector {
 
     private final IExtensionHelpers helpers;
     private final IHttpService httpService;
-    private static final int[] BLOCKED_STATUS_CODES = {403,406,410};
+    /** 拦截判定统一引用共享常量（403/406/410/429），与 Route 模块 WAF 信号口径一致。 */
+    private static final int[] BLOCKED_STATUS_CODES = WafEvidence.BLOCKED_STATUS_CODES;
 
     public SmartRequestDetector(IHttpService httpService) {
         this.helpers = Utils.helpers;
         this.httpService = httpService;
     }
 
+    /** 发送原始请求；成功直接返回，被拦截则尝试编码绕过变体，返回首个成功响应或原响应。 */
     public IHttpRequestResponse smartSendRequest(String url, byte[] request) {
-        IHttpRequestResponse normalResponse = sendRequest(url, request);
+        // 必须发送调用方构建的原始请求字节：其中携带原始 Cookie/Authorization/自定义头与 body。
+        // 旧实现用 buildHttpRequest(new URL(url)) 从 URL 重建请求，导致原始头全部丢失，
+        // 探测实际以未认证裸请求发出，绕过判定与证据请求均不可信。
+        IHttpRequestResponse normalResponse = sendRequest(request);
         if (isSuccessResponse(normalResponse)) {
             return normalResponse;
         }
@@ -41,6 +46,7 @@ public class SmartRequestDetector {
         return normalResponse;
     }
 
+    /** 生成编码绕过变体请求（单/双重 URL 编码、Unicode、混合编码）并发送，返回全部变体响应。 */
     private List<IHttpRequestResponse> tryEncodingBypass(String url, byte[] request) {
         List<IHttpRequestResponse> responses = new ArrayList<>();
 
@@ -48,10 +54,8 @@ public class SmartRequestDetector {
             URL urlObj = new URL(url);
             String path = urlObj.getPath();
             String query = urlObj.getQuery();
-            String fragment = urlObj.getRef();
 
             String[] encodedPaths = new String[] {
-                path,
                 urlEncodePath(path),
                 doubleUrlEncodePath(path),
                 unicodeEncodePath(path),
@@ -61,16 +65,51 @@ public class SmartRequestDetector {
             for (String encodedPath : encodedPaths) {
                 if (encodedPath == null || encodedPath.equals(path)) continue;
 
-                String newUrl = buildUrl(urlObj, encodedPath, query, fragment);
-                IHttpRequestResponse response = sendRequest(newUrl, request);
+                String newTarget = (query != null && !query.isEmpty())
+                        ? encodedPath + "?" + query : encodedPath;
+                byte[] variantRequest = buildRequestWithTarget(request, newTarget);
+                if (variantRequest == null) continue;
+                IHttpRequestResponse response = sendRequest(variantRequest);
                 if (response != null) {
                     responses.add(response);
                 }
             }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
 
         return responses;
+    }
+
+    /**
+     * 只替换请求行中的 request-target，保留原请求全部头与 body（认证态、Content-Length 不变）。
+     * 用于编码绕过变体：变体请求与原始请求必须处于同一会话上下文，否则 403 归因失真。
+     */
+    static byte[] buildRequestWithTarget(byte[] request, String newTarget) {
+        if (request == null || request.length == 0 || newTarget == null || newTarget.isEmpty()) {
+            return null;
+        }
+        int lineEnd = -1;
+        for (int i = 0; i + 1 < request.length; i++) {
+            if (request[i] == '\r' && request[i + 1] == '\n') {
+                lineEnd = i;
+                break;
+            }
+        }
+        if (lineEnd < 0) {
+            return null;
+        }
+        String line = new String(request, 0, lineEnd, java.nio.charset.StandardCharsets.ISO_8859_1);
+        int firstSpace = line.indexOf(' ');
+        int lastSpace = line.lastIndexOf(' ');
+        if (firstSpace < 0 || lastSpace <= firstSpace) {
+            return null;
+        }
+        String newLine = line.substring(0, firstSpace + 1) + newTarget + line.substring(lastSpace);
+        byte[] newLineBytes = newLine.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        byte[] result = new byte[newLineBytes.length + (request.length - lineEnd)];
+        System.arraycopy(newLineBytes, 0, result, 0, newLineBytes.length);
+        System.arraycopy(request, lineEnd, result, newLineBytes.length, request.length - lineEnd);
+        return result;
     }
 
     private String urlEncodePath(String path) {
@@ -138,33 +177,10 @@ public class SmartRequestDetector {
         return result.toString();
     }
 
-    private String buildUrl(URL urlObj, String path, String query, String fragment) {
-        StringBuilder urlBuilder = new StringBuilder();
-        urlBuilder.append(urlObj.getProtocol()).append("://");
-        urlBuilder.append(urlObj.getHost());
-
-        if (urlObj.getPort() != -1) {
-            urlBuilder.append(":").append(urlObj.getPort());
-        }
-
-        urlBuilder.append(path);
-
-        if (query != null && !query.isEmpty()) {
-            urlBuilder.append("?").append(query);
-        }
-
-        if (fragment != null && !fragment.isEmpty()) {
-            urlBuilder.append("#").append(fragment);
-        }
-
-        return urlBuilder.toString();
-    }
-
-    private IHttpRequestResponse sendRequest(String url, byte[] request) {
+    private IHttpRequestResponse sendRequest(byte[] request) {
         try {
-            byte[] newRequest = helpers.buildHttpRequest(new URL(url));
-            return Utils.callbacks.makeHttpRequest(httpService, newRequest);
-        } catch (MalformedURLException e) {
+            return Utils.callbacks.makeHttpRequest(httpService, request);
+        } catch (Exception e) {
             return null;
         }
     }

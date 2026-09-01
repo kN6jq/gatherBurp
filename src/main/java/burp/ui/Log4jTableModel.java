@@ -3,6 +3,8 @@ package burp.ui;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** Log4j 结果表格模型：读 Log4jUI store 的内部列表引用（写入方在 store 监视器内修改；
+ *  JTable 读取在 EDT，与刷新路径一致）。 */
 public class Log4jTableModel extends AbstractTableModel {
 
     private final List<Log4jUIEntry> log4jlog;

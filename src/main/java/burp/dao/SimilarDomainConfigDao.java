@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Similar 模块项目域名配置（domain_configs 表）数据访问：saveDomainConfigs 为"全删全插"的整体替换，
+ *  事务内执行；异常打 stderr 并降级。 */
 public class SimilarDomainConfigDao {
+    /** 插入单条域名配置。 */
     public static void saveDomainConfig(SimilarDomainConfigBean config) {
         String sql = "INSERT INTO domain_configs (project_id, domain, create_time) VALUES (?, ?, datetime('now','localtime'))";
         try (Connection connection = DbUtils.getConnection();
@@ -23,6 +26,7 @@ public class SimilarDomainConfigDao {
         }
     }
 
+    /** 全删全插的整体替换：事务内先删除项目下全部域名再批量插入。失败回滚。 */
     public static void saveDomainConfigs(int projectId, List<String> domains) {
         String deleteSql = "DELETE FROM domain_configs WHERE project_id = ?";
         String insertSql = "INSERT INTO domain_configs (project_id, domain, create_time) VALUES (?, ?, datetime('now','localtime'))";
@@ -46,6 +50,7 @@ public class SimilarDomainConfigDao {
         }
     }
 
+    /** 读取项目下全部主域名。失败返回空列表。 */
     public static List<String> getDomainConfigs(int projectId) {
         List<String> domains = new ArrayList<>();
         String sql = "SELECT domain FROM domain_configs WHERE project_id = ?";

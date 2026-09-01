@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** 开放重定向模块结果表格条目：isVulnerable 表示 Location 是否命中 evil.com。 */
 class RedirectEntry {
     final int id;
     final String method;

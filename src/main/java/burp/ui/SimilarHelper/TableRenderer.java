@@ -4,7 +4,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 
+/** Similar 模块表格通用单元格渲染器：隔行底色运行时读取 L&F 颜色（适配 Burp 暗色主题与切换）、
+ *  超长文本截断（完整值进 tooltip）、ID/Time/IP 列居中。渲染器实例被 Swing 复用，勿在其中持有行状态。 */
 public class TableRenderer extends DefaultTableCellRenderer {
+    // 超过该长度截断显示，完整内容放 tooltip
     private static final int MAX_TEXT_LENGTH = 100;
 
     @Override

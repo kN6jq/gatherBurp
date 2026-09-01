@@ -10,7 +10,10 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 目录探测规则（route 表）数据访问：所有方法在 EDT（规则管理界面）调用；
+ *  异常统一打 stderr，读方法降级为空列表、写方法静默失败。 */
 public class RouteDao {
+    /** 读取全部规则。失败时返回空列表（界面表现为无规则）。 */
     public static List<RouteBean> getRouteLists(){
         String sql = "SELECT * FROM route";
         List<RouteBean> routeBeans = new ArrayList<>();
@@ -32,6 +35,7 @@ public class RouteDao {
         return routeBeans;
     }
 
+    /** 更新指定 id 的规则（enable/name/path/express）。 */
     public static void updateRouteById(RouteBean routeBean){
         String sql = "UPDATE route SET enable = ?, name = ?, path = ?, express = ? WHERE id = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -47,6 +51,7 @@ public class RouteDao {
         }
     }
 
+    /** 仅切换规则的 enable 字段（按 name+path+express 定位）。 */
     public static void updateRouteEnable(RouteBean routeBean){
         String sql = "UPDATE route SET enable = ? WHERE name = ? and path = ? and express = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -61,6 +66,7 @@ public class RouteDao {
         }
     }
 
+    /** 按 name+path+express 删除规则。返回是否执行成功。 */
     public static boolean deleteRoute(RouteBean routeBean){
         String sql = "DELETE FROM route WHERE name = ? and path = ? and express = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -76,6 +82,7 @@ public class RouteDao {
         }
     }
 
+    /** 插入一条新规则。 */
     public static void addRoute(RouteBean routeBean){
         String sql = "INSERT INTO route (enable, name, path, express) VALUES (?, ?, ?, ?)";
         try (Connection connection = DbUtils.getConnection();

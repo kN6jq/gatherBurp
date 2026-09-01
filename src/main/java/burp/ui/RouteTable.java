@@ -4,6 +4,7 @@ import javax.swing.*;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 
+/** 目录探测规则表格（RouteUI 左栏）：规则列表 + 启用状态展示。 */
 public class RouteTable extends JTable {
     public RouteTable(TableModel tableModel) {
         super(tableModel);

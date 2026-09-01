@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.PermBean;
+import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -21,6 +22,12 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static burp.dao.PermDao.*;
 
+/**
+ * 越权（Perm）检测面板：对选中请求做三态对比——原始/低权限头/移除鉴权头，
+ * 按响应长度差异记录疑似越权结果；支持白名单过滤、结果导出剪贴板与被动扫描。
+ * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
+ * 结果入静态有界 ScanResultsStore；编辑器为自行创建的三组消息编辑器（覆盖 createEditors）。
+ */
 public class PermUI extends AbstractScanUI {
     private JTabbedPane tabbedPanereqresp; // 请求tab
     private JPanel originPane; // 原始请求面板
@@ -42,11 +49,20 @@ public class PermUI extends AbstractScanUI {
     private IMessageEditor nopermrequest;
     private IMessageEditor nopermresponse;
 
-    private static final List<PermUIEntry> permlog = new ArrayList<>();
+    // 主动检测串行锁
+    private static final Lock lock = new ReentrantLock();
+    // 当前面板实例：静态 Check 入口经此定位到实例
+    private static volatile PermUI instance;
+    /** 结果列表容量上限，超限淘汰最旧条目。 */
+    private static final int MAX_LOG_ENTRIES = 2000;
+    private static final ScanResultsStore<PermUIEntry> permlog = new ScanResultsStore<>(MAX_LOG_ENTRIES, () -> {
+        PermUI ui = instance;
+        if (ui != null) {
+            ui.refreshTableModel(ui.resultTable);
+        }
+    });
     private static boolean ispassiveScan;
     private static boolean isWhiteDomainList;
-    private static final Lock lock = new ReentrantLock();
-    private static volatile PermUI instance;
 
     public static void resetAllCaches() {
         UrlCacheUtil.resetCache("perm");
@@ -58,7 +74,7 @@ public class PermUI extends AbstractScanUI {
         // 注册被动扫描监听器
         Utils.callbacks.registerHttpListener(this);
 
-        resultTable = new URLTable(new PermTableModel(permlog));
+        resultTable = new URLTable(new PermTableModel(permlog.list()));
 
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("perm.checkbox.passive"));
         whiteDomainListCheckBox = new JCheckBox(I18nUtils.get("perm.checkbox.whitelist"));
@@ -243,6 +259,7 @@ public class PermUI extends AbstractScanUI {
         });
         refreshButton.addActionListener(e -> refreshTableModel(resultTable));
         clearButton.addActionListener(e -> {
+            // store.clear 内部加锁，与扫描线程的 add 互斥
             permlog.clear();
             originarequest.setMessage(new byte[0], true);
             originaresponse.setMessage(new byte[0], false);
@@ -273,13 +290,18 @@ public class PermUI extends AbstractScanUI {
 
     // 导出表格数据到剪切板
     private void exportTableToClipboard() {
-        if (permlog.isEmpty()) {
+        // EDT 上先做加锁快照再遍历，避免与扫描线程的并发修改产生 CME
+        List<PermUIEntry> snapshot;
+        synchronized (permlog.list()) {
+            snapshot = new ArrayList<>(permlog.list());
+        }
+        if (snapshot.isEmpty()) {
             JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.no_data"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         StringBuilder content = new StringBuilder();
         content.append("id\tmethod\turl\toriginallength\tlowlength\tnolength\tisSuccess\n");
-        for (PermUIEntry entry : permlog) {
+        for (PermUIEntry entry : snapshot) {
             content.append(entry.id).append("\t")
                    .append(entry.method).append("\t")
                    .append(entry.url).append("\t")
@@ -294,7 +316,7 @@ public class PermUI extends AbstractScanUI {
         JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.export_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // 核心检测方法
+    /** 越权三态对比检测核心（ScanTaskExecutor 池线程，经右键菜单/扫描按钮调用）。 */
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
         lock.lock();
         try {
@@ -307,16 +329,19 @@ public class PermUI extends AbstractScanUI {
             List<IParameter> paraLists = analyzeRequest.getParameters();
 
             if (!method.equals("GET") && !method.equals("POST")) return;
+            // 白名单仅在被动模式下生效；用局部变量表达"本次是否校验白名单"，
+            // 不再修改静态开关（旧行为会让主动扫描静默关闭被动白名单）
+            boolean respectWhitelist = !isSend && isWhiteDomainList;
             if (!isSend) {
                 if (!UrlCacheUtil.checkUrlUnique("perm", method, rdurlURL, paraLists)) return;
-            } else {
-                isWhiteDomainList = false;
             }
             if (Utils.isUrlBlackListSuffix(url)) return;
-            if (isWhiteDomainList) {
+            if (respectWhitelist) {
                 List<PermBean> domain = getPermListsByType("domain");
                 if (domain.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, I18nUtils.get("perm.message.fill_whitelist"), I18nUtils.get("config.title.info"), JOptionPane.ERROR_MESSAGE);
+                    // 扫描线程禁止弹模态对话框（会阻塞 ScanTaskExecutor 池线程且非 EDT），
+                    // 降级为扩展输出提示
+                    Utils.stderr.println(I18nUtils.get("perm.message.fill_whitelist"));
                     return;
                 }
                 List<String> domainList = new ArrayList<>();
@@ -330,18 +355,21 @@ public class PermUI extends AbstractScanUI {
             int bodyOffset = analyzeRequest.getBodyOffset();
             byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, byte_Request.length);
             byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
+            HostThrottle.throttle(serviceKey(baseRequestResponse));
             IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
+            if (originalRequestResponse == null || originalRequestResponse.getResponse() == null) return;
             String originallength = getResponseLength(originalRequestResponse);
-            if (originalRequestResponse.getResponse() == null) return;
 
             // 低权限请求
             List<String> lowheaders = new ArrayList<>(originalheaders);
             for (PermBean bean : getPermListsByType("permLowAuth")) {
                 String lowAuthText = bean.getValue();
-                String head = lowAuthText.split(":")[0];
+                String head = lowAuthText.split(":")[0].trim();
                 boolean found = false;
                 for (int i = 0; i < lowheaders.size(); i++) {
-                    if (lowheaders.get(i).split(":")[0].equals(head)) {
+                    // HTTP 头名大小写不敏感，按名称段精确匹配替换
+                    String existingName = lowheaders.get(i).split(":")[0].trim();
+                    if (existingName.equalsIgnoreCase(head)) {
                         lowheaders.set(i, lowAuthText);
                         found = true;
                         break;
@@ -349,8 +377,15 @@ public class PermUI extends AbstractScanUI {
                 }
                 if (!found) lowheaders.add(lowAuthText);
             }
+            HostThrottle.throttle(serviceKey(baseRequestResponse));
             IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(),
                     Utils.helpers.buildHttpMessage(lowheaders, body));
+            // 补全判空：低权限探测请求失败（返回 null）时直接结束本次判定，
+            // 避免把失败响应当作长度 0 参与越权判定
+            if (lowRequestResponse == null || lowRequestResponse.getResponse() == null) {
+                Utils.stderr.println("Perm scan skipped: low-priv request returned no response");
+                return;
+            }
             String lowlength = getResponseLength(lowRequestResponse);
 
             // 无权限请求
@@ -360,12 +395,20 @@ public class PermUI extends AbstractScanUI {
                 removeHeaders.add(bean.getValue().split(":")[0]);
             }
             noheaders.removeIf(h -> removeHeaders.contains(h.split(":")[0]));
+            HostThrottle.throttle(serviceKey(baseRequestResponse));
             IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(),
                     Utils.helpers.buildHttpMessage(noheaders, body));
+            // 补全判空：无权限探测请求失败（返回 null）时直接结束本次判定
+            if (noRequestResponse == null || noRequestResponse.getResponse() == null) {
+                Utils.stderr.println("Perm scan skipped: no-priv request returned no response");
+                return;
+            }
             String nolength = getResponseLength(noRequestResponse);
 
-            String isSuccess = originallength.equals(lowlength) && lowlength.equals(nolength) ? "未授权"
-                    : originallength.equals(lowlength) ? "存在越权" : "不存在";
+            String isSuccess = originallength.equals(lowlength) && lowlength.equals(nolength)
+                    ? I18nUtils.get("perm.verdict.unauthorized")
+                    : originallength.equals(lowlength) ? I18nUtils.get("perm.verdict.broken")
+                    : I18nUtils.get("perm.verdict.safe");
 
             add(method, url, originallength, lowlength, nolength, isSuccess,
                     originalRequestResponse, lowRequestResponse, noRequestResponse);
@@ -374,8 +417,14 @@ public class PermUI extends AbstractScanUI {
         }
     }
 
+    private static String serviceKey(IHttpRequestResponse requestResponse) {
+        IHttpService service = requestResponse.getHttpService();
+        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+    }
+
+    /** 响应长度：优先取 Content-Length 头，缺失时用字节数（无响应返回 "0"）。 */
     private static String getResponseLength(IHttpRequestResponse response) {
-        if (response.getResponse() != null) {
+        if (response != null && response.getResponse() != null) {
             for (String header : Utils.helpers.analyzeResponse(response.getResponse()).getHeaders()) {
                 if (header.toLowerCase().startsWith("content-length:")) {
                     return header.split(":")[1].trim();
@@ -385,18 +434,13 @@ public class PermUI extends AbstractScanUI {
         return response.getResponse() != null ? String.valueOf(response.getResponse().length) : "0";
     }
 
+    /** 追加一条三态对比结果到有界 store（自动刷新表格）。 */
     private static void add(String method, String url, String origLen, String lowLen, String noLen,
                             String isSuccess, IHttpRequestResponse orig, IHttpRequestResponse low, IHttpRequestResponse no) {
-        synchronized (permlog) {
-            int id = permlog.size();
-            permlog.add(new PermUIEntry(id, method, url, origLen, lowLen, noLen, isSuccess, orig, low, no));
-        }
-        SwingUtilities.invokeLater(() -> {
-            PermUI ui = instance;
-            if (ui != null) refreshTableModel(ui.resultTable);
-        });
+        permlog.add(id -> new PermUIEntry(id, method, url, origLen, lowLen, noLen, isSuccess, orig, low, no));
     }
 
+    /** 保存成功弹窗（EDT）。 */
     private void showSaveSuccess() {
         JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"),
                 I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
@@ -417,11 +461,12 @@ public class PermUI extends AbstractScanUI {
             }
             int modelRow = getRowSorter() == null ? row : convertRowIndexToModel(row);
             PermUIEntry logEntry;
-            synchronized (permlog) {
-                if (modelRow < 0 || modelRow >= permlog.size()) {
+            // 以 store 的内部列表为监视器，与 add/clear 互斥
+            synchronized (permlog.list()) {
+                if (modelRow < 0 || modelRow >= permlog.list().size()) {
                     return;
                 }
-                logEntry = permlog.get(modelRow);
+                logEntry = permlog.list().get(modelRow);
             }
             if (logEntry.requestResponse == null) {
                 return;

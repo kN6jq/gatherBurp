@@ -4,10 +4,8 @@ import burp.IParameter;
 
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -18,9 +16,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class UrlCacheUtil {
     private static final String DEFAULT_HTTP_PORT = "80";
     private static final String DEFAULT_HTTPS_PORT = "443";
+    /** 单模块去重键上限：超过后按访问序淘汰最旧条目，长时间被动扫描不再无限增长。 */
+    private static final int MAX_URL_KEYS_PER_MODULE = 2000;
 
     // 为不同模块创建独立的缓存集合
-    private static final ConcurrentHashMap<String, Set<String>> MODULE_CACHES = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, LruSet<String>> MODULE_CACHES = new ConcurrentHashMap<>();
 
     private UrlCacheUtil() {
     }
@@ -34,8 +34,8 @@ public final class UrlCacheUtil {
             return false;
         }
         try {
-            Set<String> urlKeys = MODULE_CACHES.computeIfAbsent(moduleName,
-                    key -> Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>()));
+            LruSet<String> urlKeys = MODULE_CACHES.computeIfAbsent(moduleName,
+                    key -> new LruSet<String>(MAX_URL_KEYS_PER_MODULE));
             return urlKeys.add(buildCanonicalKey(method, url, parameters));
         } catch (RuntimeException e) {
             logError(moduleName + " URL去重处理异常: " + e.getMessage(), e);
@@ -78,18 +78,22 @@ public final class UrlCacheUtil {
         return feature.toString();
     }
 
+    /** 构建长度前缀字符串（"len:value"）。 */
     private static String lengthPrefixed(String value) {
         return value.length() + ":" + value;
     }
 
+    /** null 安全的值获取。 */
     private static String value(String value) {
         return value == null ? "" : value;
     }
 
+    /** null 安全的小写转换。 */
     private static String lower(String value) {
         return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT);
     }
 
+    /** 规范化端口号：显式端口原样返回，默认端口补全，无端口返回 -1。 */
     private static String normalizedPort(String protocol, int port) {
         if (port >= 0) {
             return String.valueOf(port);
@@ -103,6 +107,7 @@ public final class UrlCacheUtil {
         return "-1";
     }
 
+    /** 规范化路径：空路径返回 "/"，确保以 "/" 开头。 */
     private static String normalizePath(String path) {
         if (path == null || path.isEmpty()) {
             return "/";
@@ -112,21 +117,25 @@ public final class UrlCacheUtil {
         return path.startsWith("/") ? path : "/" + path;
     }
 
+    /** 重置指定模块的缓存。 */
     public static void resetCache(String moduleName) {
         if (moduleName != null) {
             MODULE_CACHES.remove(moduleName);
         }
     }
 
+    /** 重置全部模块缓存。 */
     public static void resetAllCaches() {
         MODULE_CACHES.clear();
     }
 
+    /** 返回指定模块的缓存条目数。 */
     public static int getCacheSize(String moduleName) {
-        Set<String> cache = MODULE_CACHES.get(moduleName);
+        LruSet<String> cache = MODULE_CACHES.get(moduleName);
         return cache == null ? 0 : cache.size();
     }
 
+    /** 错误日志：优先写 Burp stderr，未注入时写 System.err。 */
     private static void logError(String message, Throwable throwable) {
         if (Utils.stderr != null) {
             Utils.stderr.println(message);

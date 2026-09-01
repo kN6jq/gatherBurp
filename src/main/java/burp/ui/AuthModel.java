@@ -4,6 +4,8 @@ import burp.ui.AuthEntry;
 
 import javax.swing.table.AbstractTableModel;
 
+/** 目录穿越结果表格模型：读 AuthUI 静态有界 store 的内部列表（以其为监视器加锁）；
+ *  JTable 读取发生在 EDT。 */
 public class AuthModel extends AbstractTableModel {
     @Override
     public int getRowCount() {

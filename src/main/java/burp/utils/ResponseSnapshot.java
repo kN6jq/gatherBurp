@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Minimal immutable response view used by SQL evidence logic. */
+/** SQL 证据逻辑用的最小不可变响应快照（状态码/头/体/长度/耗时/WAF/错误页标记）。 */
 public final class ResponseSnapshot {
     private final int statusCode;
     private final List<String> headers;

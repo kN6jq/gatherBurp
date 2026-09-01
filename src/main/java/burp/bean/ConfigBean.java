@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** 通用配置行：按 (module, type) 定位，value 为字符串值。 */
 public class ConfigBean {
     private Integer id;
     private String module;

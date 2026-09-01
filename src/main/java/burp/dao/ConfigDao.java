@@ -10,7 +10,11 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 通用配置（config 表，按 module+type 唯一）数据访问：异常统一打 stderr 并降级
+ *  （读返回空对象/空列表，写静默失败）。getConfig 无匹配时返回 value 为 null 的空 ConfigBean，
+ *  调用方需判空（参考各 UI 的 safeConfigValue）。 */
 public class ConfigDao {
+    /** 读取 (module, type) 的最新一行配置。无匹配时返回 value 为 null 的空对象。 */
     public static ConfigBean getConfig(String module, String type) {
         ConfigBean config = new ConfigBean();
         String sql = "select value from config where module = ? and type = ? order by id desc limit 1";
@@ -29,10 +33,12 @@ public class ConfigDao {
         return config;
     }
 
+    /** 删除某 type 下全部模块的配置（module=null 通配）。 */
     public static void deleteConfig(String type) {
         deleteConfig(null, type);
     }
 
+    /** 删除指定 (module, type) 的配置。module 为 null 时按 type 通配全部模块。 */
     public static void deleteConfig(String module, String type) {
         String sql = module == null
                 ? "delete from config where type = ?"
@@ -51,6 +57,7 @@ public class ConfigDao {
         }
     }
 
+    /** 更新 (module, type) 对应的 value。无匹配行时静默无效。 */
     public static void updateConfig(ConfigBean config) {
         String sql = "update config set value = ? where type = ? and module = ?";
         try (Connection connection = DbUtils.getConnection();
@@ -64,6 +71,7 @@ public class ConfigDao {
         }
     }
 
+    /** upsert：(module, type) 冲突时覆盖 value。 */
     public static void saveConfig(ConfigBean config) {
         String sql = "INSERT INTO config (module, type, value) VALUES (?, ?, ?) " +
                 "ON CONFLICT(module, type) DO UPDATE SET value = excluded.value";
@@ -78,6 +86,7 @@ public class ConfigDao {
         }
     }
 
+    /** 读取 module='tool' 的全部配置行（右键菜单动态工具）。失败返回空列表。 */
     public static List<ConfigBean> getToolConfig() {
         List<ConfigBean> configs = new ArrayList<>();
         String sql = "select * from config where module = 'tool'";

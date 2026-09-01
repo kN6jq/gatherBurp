@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** Similar 模块扫描项目。 */
 public class SimilarProjectBean {
     private int id;
     private String name;

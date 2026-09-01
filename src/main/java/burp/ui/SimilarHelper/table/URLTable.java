@@ -20,8 +20,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * URL表格组件
- * 用于展示和管理URL列表
+ * Similar 模块 URL 结果表格（JTable 子类）：以 URL 为唯一键去重（列索引 1），
+ * 支持右键菜单/快捷键复制、批量刷新；addEntry 可由扫描线程调用，内部切 EDT。
  */
 public class URLTable extends JTable {
 
@@ -208,7 +208,7 @@ public class URLTable extends JTable {
     }
 
     /**
-     * 添加URL条目
+     * 添加新的 URL 行（可由扫描线程调用，内部切 EDT）；URL 已存在则跳过。
      */
     public void addEntry(URL entry) {
         if (entry == null || entry.getUrl() == null || disposed) {
@@ -236,7 +236,7 @@ public class URLTable extends JTable {
     }
 
     /**
-     * 清空表格数据
+     * 清空表格（切 EDT）。
      */
     public void clearData() {
         if (!disposed) {
@@ -245,7 +245,8 @@ public class URLTable extends JTable {
     }
 
     /**
-     * 开始批量更新
+     * 开始批量更新：抑制逐行重绘，与 endBatchUpdate 必须成对调用
+     * （SimilarUI 扫描完成回调中成对使用）。
      */
     public void startBatchUpdate() {
         if (!disposed) {
@@ -254,7 +255,7 @@ public class URLTable extends JTable {
     }
 
     /**
-     * 结束批量更新
+     * 结束批量更新：一次性触发重绘。
      */
     public void endBatchUpdate() {
         if (!disposed) {

@@ -1,5 +1,6 @@
 package burp.bean;
 
+/** 目录穿越探测请求：method + 变异 path + 附加头，由 prefix/suffix 规则批量生成。 */
 public class AuthBean {
     private String method;
     private String path;

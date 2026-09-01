@@ -3,6 +3,7 @@ package burp.ui.SimilarHelper;
 import burp.utils.Utils;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -10,6 +11,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /** Similar 模块的有界后台执行器，支持扩展热重载后按需重建。 */
 public final class ThreadManager {
@@ -30,11 +32,20 @@ public final class ThreadManager {
      * 提交后台任务。队列满时直接拒绝而不是让 Burp listener/EDT 执行耗时任务。
      */
     public static boolean execute(Runnable task) {
-        if (task == null || !acceptingTasks) {
+        if (task == null) {
             return false;
         }
+        // 生命周期检查与取池在同一把锁内完成：
+        // 避免 shutdown 刚置空 executorService 时，已通过的 acceptingTasks 检查仍触发 executor() 重建出"无人持有"的池
+        ThreadPoolExecutor target;
+        synchronized (LIFECYCLE_LOCK) {
+            if (!acceptingTasks) {
+                return false;
+            }
+            target = executor();
+        }
         try {
-            executor().execute(wrap(task));
+            target.execute(wrap(task));
             return true;
         } catch (RejectedExecutionException e) {
             logError("Similar task rejected: queue is full or executor is shutting down", null);
@@ -42,6 +53,7 @@ public final class ThreadManager {
         }
     }
 
+    /** 提交返回结果的任务：关闭期或队列满抛 RejectedExecutionException；任务异常原样透传给 Future。 */
     public static <T> Future<T> submit(Callable<T> task) {
         if (!acceptingTasks) {
             throw new RejectedExecutionException("Similar executor is shutting down");
@@ -67,6 +79,26 @@ public final class ThreadManager {
         }
     }
 
+    /**
+     * 在有界线程池上执行异步供给任务，供 CompletableFuture 组合使用。
+     * 替代 CompletableFuture.supplyAsync 的默认 ForkJoinPool.commonPool——后者无界，
+     * 大流量下任务无限堆积，违背本类的有界设计。
+     */
+    public static <T> CompletableFuture<T> supplyAsync(Supplier<T> task) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        boolean accepted = execute(() -> {
+            try {
+                future.complete(task.get());
+            } catch (Throwable throwable) {
+                future.completeExceptionally(throwable);
+            }
+        });
+        if (!accepted) {
+            future.completeExceptionally(new RejectedExecutionException("Similar executor unavailable"));
+        }
+        return future;
+    }
+
     /** 在扩展重新加载时重新开放任务提交。 */
     public static void start() {
         synchronized (LIFECYCLE_LOCK) {
@@ -75,6 +107,7 @@ public final class ThreadManager {
         }
     }
 
+    /** 关闭执行器：先拒新任务，再等待最多 5s 排空，超时强制 shutdownNow。 */
     public static void shutdown() {
         acceptingTasks = false;
         ThreadPoolExecutor executor;
@@ -96,6 +129,7 @@ public final class ThreadManager {
         }
     }
 
+    /** 当前排队任务数（包级可见，供单测断言池状态）。 */
     static int getQueueSize() {
         ThreadPoolExecutor executor = executorService;
         return executor == null ? 0 : executor.getQueue().size();

@@ -16,8 +16,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Burp扩展工具类
- * 提供文件操作、字符串处理、URL处理等通用功能
+ * 全局工具类：文件读写（~/.gather 工作目录）、字符串/URL/请求处理、dnslog 载荷生成等。
+ * 注意全局可变状态——callbacks/helpers/stdout/stderr 由 BurpExtender 在插件加载时注入，
+ * 注入前调用依赖这些字段的方法会 NPE（调用方需判空）。
  */
 public final class Utils {
     // ================ 常量定义 ================
@@ -36,19 +37,13 @@ public final class Utils {
     public static PrintWriter stderr;
     public static boolean isSelect = false;
 
-    /**
-     * HTML标题提取的正则表达式
-     */
+    /** HTML标题提取的正则表达式。 */
     private static final Pattern TITLE_PATTERN = Pattern.compile("<title(.*?)>(.*?)</title>", Pattern.CASE_INSENSITIVE);
     private static final Pattern HEADING_PATTERN = Pattern.compile("<h[1-6](.*?)>(.*?)</h[1-6]>", Pattern.CASE_INSENSITIVE);
 
     // ================ 文件操作相关 ================
 
-    /**
-     * 写入请求到文件
-     * @param message HTTP请求响应对象
-     * @return 文件绝对路径
-     */
+    /** 将请求写入 ~/.gather 目录下的 .req 文件，返回文件绝对路径。 */
     public static String writeReqFile(IHttpRequestResponse message) {
         String host = message.getHttpService().getHost();
         String timeString = DateTimeFormatter.ofPattern(DEFAULT_FILE_DATETIME_PATTERN)
@@ -60,16 +55,12 @@ public final class Utils {
         return requestFile.getAbsolutePath();
     }
 
-    /**
-     * 获取Socks配置文件
-     */
+    /** 获取 ~/.gather 目录下的配置文件句柄。 */
     public static File SocksConfigFile(String filename) {
         return new File(WORKDIR, filename);
     }
 
-    /**
-     * 读取文件内容为字符串
-     */
+    /** 读取文件内容为字符串。文件不存在或读取失败返回 null。 */
     public static String readString(File file, String charset) {
         if (file == null || !file.exists()) {
             return null;
@@ -83,9 +74,7 @@ public final class Utils {
         }
     }
 
-    /**
-     * 将字符串写入文件
-     */
+    /** 将字符串写入文件（自动创建父目录），失败返回 false。 */
     public static boolean writeString(String content, File file, String charset) {
         try {
             createParentDirs(file);
@@ -97,9 +86,7 @@ public final class Utils {
         }
     }
 
-    /**
-     * 写入字节数组到文件
-     */
+    /** 写入字节数组到文件（自动创建父目录），失败返回 false。 */
     public static boolean writeBytes(byte[] data, File file) {
         if (data == null || file == null) {
             return false;
@@ -118,9 +105,7 @@ public final class Utils {
         }
     }
 
-    /**
-     * 删除所有.req后缀的缓存文件
-     */
+    /** 删除 ~/.gather 目录下全部 .req 缓存文件。目录不存在返回 false。 */
     public static boolean deleteReqFile() {
         File dir = new File(WORKDIR);
         if (!dir.exists()) {
@@ -138,9 +123,7 @@ public final class Utils {
 
     // ================ URL处理相关 ================
 
-    /**
-     * 判断URL是否为黑名单后缀
-     */
+    /** 判断 URL 后缀是否属于静态资源黑名单（js/css/jpg/png/…）。 */
     public static boolean isUrlBlackListSuffix(String url) {
         String noParameterUrl = url.split("\\?")[0];
         int lastDotIndex = noParameterUrl.lastIndexOf('.');
@@ -152,9 +135,7 @@ public final class Utils {
         return getSuffix().contains(urlSuffix.toLowerCase());
     }
 
-    /**
-     * 获取URL的根路径（不包含文件名）
-     */
+    /** 获取 URL 的根路径（不含文件名，保留目录层级）。 */
     public static String getUrlWithoutFilename(URL url) {
         String rootPath = getUrlRootPath(url);
         String path = url.getPath();
@@ -173,9 +154,7 @@ public final class Utils {
                 rootPath + path.substring(0, path.lastIndexOf('/') + 1);
     }
 
-    /**
-     * 获取URL的协议+主机+端口
-     */
+    /** 获取 URL 的协议+主机+端口字符串。 */
     public static String getUrlRootPath(URL url) {
         return String.format("%s://%s:%d",
                 url.getProtocol(), url.getHost(), url.getPort());
@@ -183,9 +162,7 @@ public final class Utils {
 
     // ================ 字符串处理相关 ================
 
-    /**
-     * 从HTML响应体中提取标题
-     */
+    /** 从 HTML 响应体中提取 <title> 或 <hN> 标签内容；无匹配返回空串。 */
     public static String extractTitle(String responseBody) {
         // 尝试从title标签提取
         Matcher titleMatcher = TITLE_PATTERN.matcher(responseBody);
@@ -208,16 +185,77 @@ public final class Utils {
         return "";
     }
 
-    /**
-     * 移除字符串中的特殊字符
-     */
+    /** 移除字符串中的换行符（\n/\r）。 */
     public static String ReplaceChar(String input) {
         return input.replaceAll("[\\n\\r]", "");
     }
 
     /**
-     * 去除字符串两端的双引号
+     * 字面量替换第一次出现的目标串（不做正则解析）。
+     * String.replaceFirst 的第一参数是正则，路径中的 ? . + 等元字符会导致替换错位或失配。
      */
+    public static String replaceFirstLiteral(String text, String target, String replacement) {
+        if (text == null || target == null || replacement == null || target.isEmpty()) {
+            return text;
+        }
+        int index = text.indexOf(target);
+        if (index < 0) {
+            return text;
+        }
+        return text.substring(0, index) + replacement + text.substring(index + target.length());
+    }
+
+    /**
+     * 请求头行与配置头名精确匹配（名称段大小写不敏感，忽略值）。
+     * contains 匹配会让 "Cookie" 误命中 "X-Cookie-Flag: ..." 等无关头。
+     */
+    public static boolean headerNameMatches(String requestHeader, String configuredName) {
+        if (requestHeader == null || configuredName == null) {
+            return false;
+        }
+        String name = configuredName.trim();
+        if (name.isEmpty()) {
+            return false;
+        }
+        int separator = requestHeader.indexOf(':');
+        if (separator <= 0) {
+            return false;
+        }
+        return requestHeader.substring(0, separator).trim().equalsIgnoreCase(name);
+    }
+
+    /**
+     * 解析代理池文本，每行格式 ip:port 或 ip:port:user:pass。
+     * 返回 [ip, port, user, pass] 数组列表，非法行（缺端口/端口非数字）跳过。
+     * 按第 3 个冒号限制切分：密码中可含冒号；IPv6 地址（多个冒号）暂不支持，
+     * 需先转为 IPv4 或方括号形式。
+     */
+    public static java.util.List<String[]> parseProxyPool(String text) {
+        java.util.List<String[]> proxies = new java.util.ArrayList<>();
+        if (text == null || text.isEmpty()) {
+            return proxies;
+        }
+        for (String line : text.replaceAll("\r\n|\r", "\n").split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String[] parts = trimmed.split(":", 4);
+            if (parts.length < 2) {
+                continue;
+            }
+            String port = parts[1].trim();
+            if (!port.matches("\\d{1,5}")) {
+                continue;
+            }
+            String user = parts.length >= 3 ? parts[2].trim().replaceAll("[\\r\\n]", "") : "";
+            String pass = parts.length >= 4 ? parts[3].trim().replaceAll("[\\r\\n]", "") : "";
+            proxies.add(new String[]{parts[0].trim(), port, user, pass});
+        }
+        return proxies;
+    }
+
+    /** 去除字符串两端的双引号。 */
     public static String RemoveQuotes(String input) {
         return input.startsWith("\"") && input.endsWith("\"") ?
                 input.substring(1, input.length() - 1) : input;
@@ -225,9 +263,7 @@ public final class Utils {
 
     // ================ 编码相关 ================
 
-    /**
-     * URL编码
-     */
+    /** URL 编码（UTF-8）。失败返回原文。 */
     public static String UrlEncode(String input) {
         try {
             return URLEncoder.encode(input, StandardCharsets.UTF_8.name());
@@ -236,18 +272,14 @@ public final class Utils {
         }
     }
 
-    /**
-     * UTF-8编码
-     */
+    /** UTF-8 编码转换。 */
     public static String Utf8Encode(String input) {
         return new String(input.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
     }
 
     // ================ 时间相关 ================
 
-    /**
-     * 获取当前时间的格式化字符串
-     */
+    /** 获取当前时间的格式化字符串（yyyy-MM-dd HH:mm:ss）。 */
     public static String getCurrentTime() {
         return LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern(DEFAULT_DATETIME_PATTERN));
@@ -255,9 +287,7 @@ public final class Utils {
 
     // ================ 私有辅助方法 ================
 
-    /**
-     * 创建父目录（如果不存在）
-     */
+    /** 创建父目录（如果不存在）。 */
     private static void createParentDirs(File file) {
         File parent = file.getParentFile();
         if (parent != null && !parent.exists()) {
@@ -265,9 +295,7 @@ public final class Utils {
         }
     }
 
-    /**
-     * 获取静态资源后缀黑名单
-     */
+    /** 获取静态资源后缀黑名单集合。 */
     private static Set<String> getSuffix() {
         return new HashSet<>(Arrays.asList(
                 "js", "css", "jpg", "png", "gif", "ico", "svg",
@@ -286,17 +314,7 @@ public final class Utils {
         throw new AssertionError("No Utils instances for you!");
     }
 
-    /**
-     * 检查域名是否匹配给定的域名列表
-     * 支持通配符匹配，例如:
-     * - 完全匹配: example.com 匹配 example.com
-     * - 子域名匹配: sub.example.com 匹配 *.example.com
-     * - 多级匹配: a.b.example.com 匹配 *.*.example.com
-     *
-     * @param targetDomain 要检查的域名
-     * @param allowedDomains 允许的域名列表
-     * @return 如果匹配返回true，否则返回false
-     */
+    /** 检查域名是否匹配给定域名列表（支持通配符：完全匹配 / 子域名匹配 / 多级匹配）。 */
     public static boolean isMatchDomainName(String targetDomain, List<String> allowedDomains) {
         if (targetDomain == null || targetDomain.trim().isEmpty() ||
                 allowedDomains == null || allowedDomains.isEmpty()) {
@@ -334,9 +352,7 @@ public final class Utils {
         return false;
     }
 
-    /**
-     * 从右到左通配符匹配域名
-     */
+    /** 从右到左通配符匹配域名段。 */
     private static boolean matchWildcard(String[] targetParts, String[] patternParts) {
         int ti = targetParts.length - 1;
         int pi = patternParts.length - 1;
@@ -363,9 +379,7 @@ public final class Utils {
         return true;
     }
 
-    /**
-     * 清理域名字符串，移除端口号和空白字符
-     */
+    /** 清理域名字符串：移除端口号和空白字符。 */
     private static String cleanDomainName(String domain) {
         domain = domain.trim();
         int portIndex = domain.indexOf(':');
@@ -375,12 +389,7 @@ public final class Utils {
         return domain;
     }
 
-    /**
-     * 生成带目标信息的dnslog地址
-     * @param targetUrl 目标URL
-     * @param dnslog dnslog基础地址
-     * @return 完整的dnslog地址
-     */
+    /** 生成带目标信息的 dnslog 地址（目标域名.URI路径.fastjson.dnslog地址）。 */
     public static String generateDnsPayload(URL targetUrl, String dnslog) {
         if (targetUrl == null || dnslog == null || dnslog.isEmpty()) {
             return dnslog;
@@ -402,11 +411,7 @@ public final class Utils {
         return dnslogPayload;
     }
 
-    /**
-     * 处理DNS payload中的特殊字符
-     * @param payload 原始payload
-     * @return 处理后的payload
-     */
+    /** 清理 DNS payload 中的特殊字符（非字母数字替换为点号，合并连续点号）。 */
     private static String sanitizeDnsPayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return payload;

@@ -1,6 +1,6 @@
 package burp.utils;
 
-/** Per-parameter primary request budget. */
+/** 每参数主请求预算（已用/剩余计数器，线程安全）。 */
 public final class ScanBudget {
     private final int maximum;
     private int used;
@@ -9,6 +9,7 @@ public final class ScanBudget {
         this.maximum = Math.max(0, maximum);
     }
 
+    /** 尝试获取一个请求配额，成功返回 true，预算耗尽返回 false。 */
     public synchronized boolean tryAcquire() {
         if (used >= maximum) return false;
         used++;

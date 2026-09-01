@@ -11,14 +11,16 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Similar 模块 URL 结果（url_results 表）数据访问。 */
 public class SimilarUrlResultDao {
+    /** upsert：(project_id, url) 已存在则仅刷新 create_time 并返回已有 id，否则插入并返回新 rowid；失败返回 -1。 */
     public static int saveUrlResult(SimilarUrlResultBean result) {
         String checkSql = "SELECT id FROM url_results WHERE project_id = ? AND url = ?";
         String updateSql = "UPDATE url_results SET create_time = datetime('now','localtime') WHERE id = ?";
         String insertSql = "INSERT INTO url_results (project_id, url, create_time) VALUES (?, ?, datetime('now','localtime'))";
 
         try (Connection connection = DbUtils.getConnection()) {
-            // First query: check existence
+            // 检查是否已存在
             try (PreparedStatement ps = connection.prepareStatement(checkSql)) {
                 ps.setInt(1, result.getProjectId());
                 ps.setString(2, result.getUrl());
@@ -34,7 +36,7 @@ public class SimilarUrlResultDao {
                 }
             }
 
-            // Not exists: insert new record
+            // 不存在则插入新记录
             try (PreparedStatement ps = connection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, result.getProjectId());
                 ps.setString(2, result.getUrl());
@@ -53,6 +55,7 @@ public class SimilarUrlResultDao {
         return -1;
     }
 
+    /** 读取项目全部 URL 结果；内部异常打 stderr 并降级空列表。 */
     public static List<SimilarUrlResultBean> getUrlResults(int projectId) {
         List<SimilarUrlResultBean> results = new ArrayList<>();
         String sql = "SELECT id, project_id, url, create_time FROM url_results WHERE project_id = ? ORDER BY create_time DESC";
@@ -76,6 +79,7 @@ public class SimilarUrlResultDao {
         return results;
     }
 
+    /** 判断指定 project_id+url 是否已存在。失败返回 false。 */
     public static boolean isUrlExists(int projectId, String url) {
         String sql = "SELECT COUNT(*) as count FROM url_results WHERE project_id = ? AND url = ?";
         try (Connection connection = DbUtils.getConnection();

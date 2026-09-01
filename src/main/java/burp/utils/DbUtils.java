@@ -17,6 +17,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * SQLite 存储层：数据库文件位于 ~/.gather/gatherburp.db。
+ * init() 每次插件加载执行：建目录 + 幂等建表 + 迁移旧库。
+ * 各 DAO 通过 getConnection() 获取连接（调用方负责关闭）。
+ */
 public class DbUtils {
     public static String DB_NAME = "gatherburp.db";
     public static String PROJECT_PATH = System.getProperty("user.home") + "/.gather/";
@@ -33,9 +38,8 @@ public class DbUtils {
     }
 
     /**
-     * Creates the data directory, applies the idempotent schema and migrates old databases.
-     * This intentionally runs on every extension load so a deleted/corrupt database file or a
-     * newly introduced table/index is repaired even when the .gather directory already exists.
+     * 创建数据目录、应用幂等 schema 并迁移旧库。每次插件加载执行，
+     * 确保删除/损坏的数据库文件或新增的表/索引能被修复。
      */
     public static synchronized void init() {
         try {
@@ -46,12 +50,14 @@ public class DbUtils {
         }
     }
 
+    /** 获取 SQLite 连接（调用方负责关闭）。 */
     public static Connection getConnection() throws SQLException {
         Connection connection = DriverManager.getConnection(DB_URL);
         configureConnection(connection);
         return connection;
     }
 
+    /** 幂等建表 + 迁移：全量执行 schema（CREATE/INDEX），仅在全新库时执行 INSERT 种子数据。 */
     public static synchronized void create() {
         try (Connection connection = getConnection()) {
             connection.setAutoCommit(false);
@@ -95,6 +101,7 @@ public class DbUtils {
         }
     }
 
+    /** 配置连接 PRAGMA（外键 + busy_timeout）。 */
     private static void configureConnection(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys = ON");
@@ -102,11 +109,12 @@ public class DbUtils {
         }
     }
 
+    /** 判断 SQL 是否为 INSERT 种子语句。 */
     private static boolean isSeedStatement(String sql) {
         return sql != null && sql.trim().toUpperCase(java.util.Locale.ROOT).startsWith("INSERT ");
     }
 
-    /** Rebuild legacy config(type UNIQUE) as config(module,type UNIQUE). */
+    /** 迁移旧 config 表（type UNIQUE → module+type UNIQUE），已迁移则跳过。 */
     static void migrateConfigTable(Connection connection) throws SQLException {
         if (!tableExists(connection, "config") || hasCompositeConfigUniqueIndex(connection)) {
             return;
@@ -128,6 +136,7 @@ public class DbUtils {
         logInfo("migrated config unique key to (module, type)");
     }
 
+    /** 判断表是否存在。 */
     private static boolean tableExists(Connection connection, String tableName) throws SQLException {
         String sql = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
@@ -138,6 +147,7 @@ public class DbUtils {
         }
     }
 
+    /** 判断 config 表是否已有 (module, type) 复合唯一索引。 */
     private static boolean hasCompositeConfigUniqueIndex(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement();
              ResultSet indexes = statement.executeQuery("PRAGMA index_list('config')")) {
@@ -162,6 +172,7 @@ public class DbUtils {
         return false;
     }
 
+    /** 从 classpath 读取 sql/init.sql 并按分号拆分为语句列表。 */
     private static List<String> readSqlFromResource() {
         List<String> sqls = new ArrayList<>();
         try (InputStream is = DbUtils.class.getClassLoader().getResourceAsStream("sql/init.sql")) {
@@ -190,6 +201,7 @@ public class DbUtils {
         return sqls;
     }
 
+    /** 安全关闭连接/预编译语句/结果集（任一为 null 跳过）。 */
     public static void close(Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
         try {
             if (resultSet != null) resultSet.close();
@@ -200,11 +212,13 @@ public class DbUtils {
         }
     }
 
+    /** 信息日志：优先写 Burp stdout，未注入时写 System.out。 */
     private static void logInfo(String message) {
         if (Utils.stdout != null) Utils.stdout.println(message);
         else System.out.println(message);
     }
 
+    /** 错误日志：优先写 Burp stderr，未注入时写 System.err。 */
     private static void logError(String message) {
         if (Utils.stderr != null) Utils.stderr.println(message);
         else System.err.println(message);

@@ -20,11 +20,16 @@ import java.awt.event.ComponentEvent;
 import java.util.List;
 
 /**
- * 扫描类UI的抽象基类
- * 提供通用的UI组件、被动扫描、URL去重等功能
+ * 扫描类 UI 抽象基类（Sql/Fastjson/Log4j/Auth/Perm/Route/UrlRedirect）：
+ * 统一初始化时序（init → createEditors → setupScanUI → setupCommonUI → loadSavedData）、
+ * 被动扫描消息过滤、ScanTaskExecutor 提交模板方法与 house-style 布局工具方法。
+ *
+ * <p>线程模型：init/组件构建/表格刷新均在 EDT（refreshTableModel 自动切 EDT）；
+ * processHttpMessage 跑在 Burp 代理监听线程，只做轻量过滤。</p>
  */
 public abstract class AbstractScanUI implements UIHandler, IMessageEditorController, IHttpListener {
     protected JPanel panel;
+    // 表格选中行时记录（EDT 写）；Burp 消息编辑器控制器回调读取
     protected volatile IHttpRequestResponse currentlyDisplayedItem;
     protected IMessageEditor requestEditor;
     protected IMessageEditor responseEditor;
@@ -52,6 +57,7 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     private static final String INITIAL_DIVIDER_WEIGHT = "gather.initialDividerWeight";
     private static final String LAYOUT_REPAIR_INSTALLED = "gather.layoutRepairInstalled";
 
+    /** 返回面板（懒创建 + 安装一次性布局修复）。EDT 调用。 */
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
         if (panel == null) {
@@ -63,18 +69,21 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         return panel;
     }
 
+    /** 当前选中消息的 HTTP 服务（IMessageEditorController 回调，未选中时返回 null）。 */
     @Override
     public IHttpService getHttpService() {
         IHttpRequestResponse item = currentlyDisplayedItem;
         return item == null ? null : item.getHttpService();
     }
 
+    /** 当前选中消息的请求字节（未选中时返回 null）。 */
     @Override
     public byte[] getRequest() {
         IHttpRequestResponse item = currentlyDisplayedItem;
         return item == null ? null : item.getRequest();
     }
 
+    /** 当前选中消息的响应字节（未选中时返回 null）。 */
     @Override
     public byte[] getResponse() {
         IHttpRequestResponse item = currentlyDisplayedItem;
@@ -305,6 +314,7 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
      */
     protected abstract void loadSavedData();
 
+    /** 被动扫描监听（Burp 代理监听线程）：过滤开关/方向/工具来源后提交统一有界池。 */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
         // 被动扫描只消费真实响应。旧实现只接受 TOOL_PROXY，导致从 Target、Scanner、
@@ -377,14 +387,14 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected abstract String getScanName();
 
     /**
-     * URL去重检查
+     * URL 去重检查（命中返回 true 并消费键，重复返回 false）。
      */
     protected boolean isUrlUnique(String moduleName, String method, java.net.URL url, List<burp.IParameter> parameters) {
         return UrlCacheUtil.checkUrlUnique(moduleName, method, url, parameters);
     }
 
     /**
-     * 重置缓存
+     * 重置指定模块的去重缓存。
      */
     protected void resetCaches(String moduleName) {
         UrlCacheUtil.resetCache(moduleName);

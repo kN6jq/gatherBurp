@@ -1,5 +1,6 @@
 package burp.utils;
 
+/** SQL 注入置信度评分器：汇总错误/布尔/时间/WAF 证据输出 CERTAIN/FIRM/NONE 等级。 */
 public final class SqlInjectionConfidenceScorer {
     public enum Level { CERTAIN, FIRM, NONE }
 

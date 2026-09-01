@@ -2,6 +2,7 @@ package burp.ui;
 
 import burp.IHttpRequestResponse;
 
+/** SQL 模块 URL 结果表格条目：id 来自 urlIdCounter（非行号），status 为 i18n 状态文本。 */
 public class SqlUIEntry {
     final int id;
     final String method;

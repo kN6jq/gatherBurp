@@ -1,5 +1,6 @@
 package burp.utils;
 
+/** 时间盲注评估的不可变证据（短/长延时匹配、单调性、高方差基线标记与置信分）。 */
 public final class TimeDelayEvidence {
     private final boolean shortMatched;
     private final boolean longMatched;

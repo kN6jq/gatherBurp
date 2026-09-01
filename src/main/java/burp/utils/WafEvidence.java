@@ -1,7 +1,13 @@
 package burp.utils;
 
-/** WAF or upstream blocking evidence. */
+/** WAF 或上游拦截的不可变证据（拦截标记/提供商/罚分/原因/连接重置）。 */
 public final class WafEvidence {
+    /**
+     * 共享的 WAF/上游拦截状态码集合：Route（trackWafSignals）、SmartRequestDetector
+     * （编码绕过触发条件）统一引用此常量，避免各处维护不同集合导致判定不一致。
+     */
+    public static final int[] BLOCKED_STATUS_CODES = {403, 406, 410, 429};
+
     private final boolean blocked;
     private final String provider;
     private final int penalty;

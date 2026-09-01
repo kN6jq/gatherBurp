@@ -3,6 +3,8 @@ package burp.ui;
 import burp.*;
 import burp.bean.FastjsonBean;
 import burp.utils.CustomScanIssue;
+import burp.utils.HostThrottle;
+import burp.utils.HttpMessageUtils;
 import burp.utils.I18nUtils;
 import burp.utils.JsonUtils;
 import burp.utils.UrlCacheUtil;
@@ -24,10 +26,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.FastjsonDao.getFastjsonListsByType;
 
-/**
- * @Author Xm17
- * @Date 2024-06-22 12:13
- */
+/** Fastjson 漏洞检测面板：四类 payload（jndi/version/dns/echo）的主动检测
+ *  （右键菜单/扫描按钮）与基于 dnslog 回连的被动扫描（IHttpListener）。
+ *  主动检测在 scanLock 内串行执行并对目标主机做 HostThrottle 限速；
+ *  结果入静态有界 ScanResultsStore（autoRefresh 开启时刷新表格）。 */
 public class FastjsonUI extends AbstractScanUI {
     private JButton btnClear; // 清空按钮
     private JButton btnRefresh; // 刷新按钮
@@ -36,13 +38,21 @@ public class FastjsonUI extends AbstractScanUI {
     // FastjsonUI 专属表格引用，确保自动刷新始终通知本模块的模型。
     private JTable fastjsonTable;
     private JCheckBox passiveScanCheckBox; // 被动扫描复选框
-    private static final List<FastjsonEntry> fastjsonlog = new ArrayList<>(); // fastjson日志
+    // 当前面板实例：静态检测入口（Check*）与 BurpExtender 的被动回调需经此定位到实例
+    private static volatile FastjsonUI instance;
+    /** 结果列表容量上限，超限淘汰最旧条目。 */
+    private static final int MAX_LOG_ENTRIES = 2000;
+    private static final ScanResultsStore<FastjsonEntry> fastjsonlog = new ScanResultsStore<>(MAX_LOG_ENTRIES, () -> {
+        FastjsonUI ui = instance;
+        // 与原有行为一致：仅在自动刷新开启时刷新表格
+        if (ui != null && ui.autoRefresh) {
+            ui.refreshTable();
+        }
+    });
 
     static List<FastjsonEntry> getFastjsonlog() {
-        return fastjsonlog;
+        return fastjsonlog.list();
     }
-
-    private static volatile FastjsonUI instance;
 
     static void setCurrentlyDisplayedItem(IHttpRequestResponse item) {
         FastjsonUI ui = instance;
@@ -96,9 +106,8 @@ public class FastjsonUI extends AbstractScanUI {
         btnClear.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                synchronized (fastjsonlog) {
-                    fastjsonlog.clear();
-                }
+                // store.clear 内部加锁，与扫描线程的 add 互斥
+                fastjsonlog.clear();
                 UrlCacheUtil.resetCache("fastjson");  // 清空URL缓存
                 if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
                 if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
@@ -183,7 +192,7 @@ public class FastjsonUI extends AbstractScanUI {
             performPassiveScan(rr);
         }
     }
-    // dnslog检测
+    /** dnslog 主动检测（ScanTaskExecutor 池线程，经右键菜单调用）：未初始化面板时静默跳过。 */
     public static void CheckDnslog(IHttpRequestResponse[] responses) {
         FastjsonUI ui = instance;
         if (ui != null) {
@@ -195,6 +204,10 @@ public class FastjsonUI extends AbstractScanUI {
         if (!hasValidResponse(responses)) {
             return;
         }
+        if (dnslogValue == null || dnslogValue.trim().isEmpty()) {
+            Utils.stderr.println(I18nUtils.get("fastjson.message.missing_dnslog"));
+            return;
+        }
         scanLock.lock();
         try{
             IHttpRequestResponse baseRequestResponse = responses[0];
@@ -202,16 +215,22 @@ public class FastjsonUI extends AbstractScanUI {
             String extensionMethod = analyzeRequest.getMethod();
             URL dnsurl = analyzeRequest.getUrl();
             String url = analyzeRequest.getUrl().toString();
-            List<String> headers = new ArrayList<>(Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders());
+            List<String> headers = new ArrayList<>(analyzeRequest.getHeaders());
             String res = I18nUtils.get("fastjson.detection.dnslog");
             IHttpService iHttpService = baseRequestResponse.getHttpService();
-            for (FastjsonBean fastjson : snapshotPayloads(dnsPayloads)) {
+            // payload 快照与 dnslog 地址在循环外各计算一次，避免每个 payload 重复构建
+            List<FastjsonBean> dnsPayloads = snapshotPayloads(this.dnsPayloads);
+            String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslogValue);
+            for (FastjsonBean fastjson : dnsPayloads) {
                 String fastjsonDnslog = fastjson.getValue();
-                String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslogValue);
                 String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslogPayload);
                 String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                 byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
+                // Content-Length 必须随新 body 重算：buildHttpMessage 不会自动修正，
+                // 否则目标按旧长度截断 JSON，autoType payload 解析失败，检测整体失效
+                HttpMessageUtils.setContentLength(headers, bytePayload.length);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                HostThrottle.throttle(hostKey(iHttpService));
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 if (resp == null || resp.getResponse() == null) {
                     Utils.stderr.println("Fastjson scan skipped: target returned no response");
@@ -227,7 +246,7 @@ public class FastjsonUI extends AbstractScanUI {
 
     }
 
-    // echo命令检测
+    /** echo 命令回显主动检测（ScanTaskExecutor 池线程）：未初始化面板时静默跳过。 */
     public static void CheckEchoVul(IHttpRequestResponse[] responses) {
         FastjsonUI ui = instance;
         if (ui != null) {
@@ -263,7 +282,11 @@ public class FastjsonUI extends AbstractScanUI {
                 FastjsonBean fastjson = iterator.next();
                 String fastjsonEcho = fastjson.getValue();
                 byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonEcho);
+                // Content-Length 必须随新 body 重算：buildHttpMessage 不会自动修正，
+                // 否则目标按旧长度截断 JSON，autoType payload 解析失败，检测整体失效
+                HttpMessageUtils.setContentLength(headers, bytePayload.length);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                HostThrottle.throttle(hostKey(iHttpService));
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 if (resp == null || resp.getResponse() == null) {
                     Utils.stderr.println("Fastjson scan skipped: target returned no response");
@@ -298,7 +321,7 @@ public class FastjsonUI extends AbstractScanUI {
             scanLock.unlock();
         }
     }
-    // jndi检测
+    /** JNDI 主动检测（ScanTaskExecutor 池线程）：弹窗选择 DNS/IP 回连方式；未初始化面板时静默跳过。 */
     public static void CheckJNDIVul(IHttpRequestResponse[] responses) {
         FastjsonUI ui = instance;
         if (ui != null) {
@@ -330,9 +353,13 @@ public class FastjsonUI extends AbstractScanUI {
                     return;
                 }
                 String jndiStr = Objects.equals(selectedValue, "DNS") ? dnslogValue : ipValue;
+                if (jndiStr == null || jndiStr.trim().isEmpty()) {
+                    Utils.stderr.println(I18nUtils.get("fastjson.message.missing_dnslog"));
+                    return;
+                }
 
                 IHttpService iHttpService = baseRequestResponse.getHttpService();
-                for (FastjsonBean payload : snapshotPayloads(jndiPayloads)) {
+                for (FastjsonBean payload : snapshotPayloads(jndiPayloads)) { // payload 快照仅含非空条目，循环内无需再次过滤
                     String dnslogKey = "";
 
                     String fastjsonJNDI = payload.getValue();
@@ -345,7 +372,11 @@ public class FastjsonUI extends AbstractScanUI {
                     String fuzzPayload = fastjsonJNDI.replace("FUZZ", dnslogKey);
                     String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                     byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
+                    // Content-Length 必须随新 body 重算：buildHttpMessage 不会自动修正，
+                    // 否则目标按旧长度截断 JSON，autoType payload 解析失败，检测整体失效
+                    HttpMessageUtils.setContentLength(headers, bytePayload.length);
                     byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                    HostThrottle.throttle(hostKey(iHttpService));
                     IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                     if (resp == null || resp.getResponse() == null) {
                         Utils.stderr.println("Fastjson scan skipped: target returned no response");
@@ -362,7 +393,7 @@ public class FastjsonUI extends AbstractScanUI {
             scanLock.unlock();
         }
     }
-    // version检测
+    /** 版本探测主动检测（ScanTaskExecutor 池线程）：未初始化面板时静默跳过。 */
     public static void CheckVersion(IHttpRequestResponse[] responses) {
         FastjsonUI ui = instance;
         if (ui != null) {
@@ -385,7 +416,11 @@ public class FastjsonUI extends AbstractScanUI {
             for (FastjsonBean fastjson : snapshotPayloads(versionPayloads)) {
                 String fastjsonVersion = fastjson.getValue();
                 byte[] bytePayload = Utils.helpers.stringToBytes(fastjsonVersion);
+                // Content-Length 必须随新 body 重算：buildHttpMessage 不会自动修正，
+                // 否则目标按旧长度截断 JSON，autoType payload 解析失败，检测整体失效
+                HttpMessageUtils.setContentLength(headers, bytePayload.length);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload); // 目前只支持post
+                HostThrottle.throttle(hostKey(iHttpService));
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(iHttpService, postMessage);
                 if (resp == null || resp.getResponse() == null) {
                     Utils.stderr.println("Fastjson scan skipped: target returned no response");
@@ -399,17 +434,17 @@ public class FastjsonUI extends AbstractScanUI {
             scanLock.unlock();
         }
     }
-    // 添加日志
+    // 添加日志（容量淘汰与表格刷新由 store 统一处理）
+    /** 追加一条扫描结果到有界 store（自动按 autoRefresh 刷新表格）。 */
     private void add(String extensionMethod, String url, String status, String res,String req, IHttpRequestResponse baseRequestResponse) {
-        synchronized (fastjsonlog) {
-            int id = fastjsonlog.size();
-            fastjsonlog.add(new FastjsonEntry(id, extensionMethod, url, status, res,req, baseRequestResponse));
-            // 只保留refreshTable即可，删除updateUI
-            if(autoRefresh) {
-                refreshTable();
-            }
-        }
+        fastjsonlog.add(id -> new FastjsonEntry(id, extensionMethod, url, status, res, req, baseRequestResponse));
     }
+
+    /** 目标主机限流键（HostThrottle 按 host:port 独立限速）。 */
+    private static String hostKey(IHttpService service) {
+        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+    }
+    /** 设置自动刷新开关（经 instance 定位，未初始化时静默跳过）。 */
     public static void setAutoRefresh(boolean value) {
         FastjsonUI ui = instance;
         if (ui != null) {
@@ -421,6 +456,7 @@ public class FastjsonUI extends AbstractScanUI {
         autoRefresh = value;
     }
 
+    /** 设置 dnslog 地址（ConfigUI 保存时调用）：同步 deprecated 静态字段与实例值。 */
     public static void setDnslog(String value) {
         value = value == null ? "" : value;
         dnslog = value;
@@ -430,6 +466,7 @@ public class FastjsonUI extends AbstractScanUI {
         }
     }
 
+    /** 设置回连 IP（ConfigUI 保存时调用）：同步 deprecated 静态字段与实例值。 */
     public static void setIp(String value) {
         value = value == null ? "" : value;
         ip = value;
@@ -439,9 +476,12 @@ public class FastjsonUI extends AbstractScanUI {
         }
     }
 
+    /** 被动扫描监听（Burp 代理监听线程）：仅轻量过滤后提交统一有界池，去重延后到 performPassiveScan。 */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
-        // 只处理被动扫描启用、响应包、且来自代理或Spider的请求
+        // 只做轻量过滤（开关/方向/来源/静态资源/POST JSON），不做 URL 去重——
+        // 去重会"消费"键：若在开关关闭期间执行，之后开启被动时同 URL 永远不会被扫描。
+        // 真正的去重已移入 performPassiveScan（确认要扫时才消费）。
         if (!passiveScanEnabled || messageIsRequest ||
                 (toolFlag != IBurpExtenderCallbacks.TOOL_PROXY &&
                         toolFlag != IBurpExtenderCallbacks.TOOL_SPIDER)) {
@@ -449,18 +489,12 @@ public class FastjsonUI extends AbstractScanUI {
         }
 
         IRequestInfo requestInfo = Utils.helpers.analyzeRequest(messageInfo);
-        URL infoUrl = requestInfo.getUrl();
         String url = requestInfo.getUrl().toString();
         String method = requestInfo.getMethod();
         List<String> headers = requestInfo.getHeaders();
 
         // 检查是否为静态资源
         if (Utils.isUrlBlackListSuffix(url)) {
-            return;
-        }
-
-        // 检查是否重复
-        if (!UrlCacheUtil.checkUrlUnique("fastjson", method, infoUrl, new ArrayList<>())) {
             return;
         }
 
@@ -486,24 +520,36 @@ public class FastjsonUI extends AbstractScanUI {
         startPassiveScan(new IHttpRequestResponse[]{messageInfo}, false);
     }
 
-    // 执行被动扫描测试
+    /** 对单个请求执行被动 dnslog 检测（ScanTaskExecutor 池线程）：确认要扫时才消费去重键。 */
     private void performPassiveScan(IHttpRequestResponse baseRequestResponse) {
         try {
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             String url = analyzeRequest.getUrl().toString();
             String method = analyzeRequest.getMethod();
             List<String> headers = new ArrayList<>(analyzeRequest.getHeaders());
+            // 被动扫描依赖 dnslog 回连，未配置时先跳过：此时不消费去重键，
+            // 否则用户之后配置好 dnslog，该 URL 也永远不会再被动扫描（除非点清空）
+            if (dnslogValue == null || dnslogValue.trim().isEmpty()) {
+                return;
+            }
+            // 去重在确认要扫描时消费（LruSet 线程安全，无需 listener 线程预消费）
+            if (!UrlCacheUtil.checkUrlUnique("fastjson", method, analyzeRequest.getUrl(), new ArrayList<>())) {
+                return;
+            }
             IHttpService httpService = baseRequestResponse.getHttpService();
             URL dnsurl = analyzeRequest.getUrl();
-            // 使用dnslog payload进行测试
-            for (FastjsonBean fastjson : snapshotPayloads(dnsPayloads)) {
+            // 使用dnslog payload进行测试（快照与 dnslog 地址各计算一次）
+            List<FastjsonBean> dnsPayloads = snapshotPayloads(this.dnsPayloads);
+            String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslogValue);
+            for (FastjsonBean fastjson : dnsPayloads) {
                 String fastjsonDnslog = fastjson.getValue();
-                String dnslogPayload = Utils.generateDnsPayload(dnsurl, dnslogValue);
                 String fuzzPayload = fastjsonDnslog.replace("FUZZ", dnslogPayload);
                 String jsonPayload = JsonUtils.encodeToJsonRandom(fuzzPayload);
                 byte[] bytePayload = Utils.helpers.stringToBytes(jsonPayload);
+                HttpMessageUtils.setContentLength(headers, bytePayload.length);
                 byte[] postMessage = Utils.helpers.buildHttpMessage(headers, bytePayload);
 
+                HostThrottle.throttle(hostKey(httpService));
                 IHttpRequestResponse resp = Utils.callbacks.makeHttpRequest(httpService, postMessage);
                 if (resp == null || resp.getResponse() == null) {
                     Utils.stderr.println("Fastjson passive scan skipped: target returned no response");

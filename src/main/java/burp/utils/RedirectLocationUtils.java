@@ -3,11 +3,12 @@ package burp.utils;
 import java.net.URI;
 import java.util.Locale;
 
-/** URL helpers used by redirect scanning without depending on Burp API classes. */
+/** 重定向扫描用的 URL 辅助工具（不依赖 Burp API 类）。 */
 public final class RedirectLocationUtils {
     private RedirectLocationUtils() {
     }
 
+    /** 判断 location 的主机是否等于或为 expectedDomain 的子域名。 */
     public static boolean isHostOrSubdomain(String location, String expectedDomain) {
         if (location == null || location.trim().isEmpty()
                 || expectedDomain == null || expectedDomain.trim().isEmpty()) {

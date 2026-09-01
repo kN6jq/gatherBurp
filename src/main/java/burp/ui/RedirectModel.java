@@ -4,6 +4,8 @@ import burp.utils.I18nUtils;
 
 import javax.swing.table.AbstractTableModel;
 
+/** 开放重定向结果表格模型：读 UrlRedirectUI 静态有界 store 的内部列表（以其为监视器加锁）；
+ *  JTable 读取发生在 EDT。 */
 public class RedirectModel extends AbstractTableModel {
     private static final String[] COLUMNS = {"#", "Method", "URL", I18nUtils.get("redirect.label.parameter"), "Status Code", "Vulnerable"};
 

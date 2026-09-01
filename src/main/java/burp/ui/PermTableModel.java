@@ -3,6 +3,8 @@ package burp.ui;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** 越权结果表格模型：读 PermUI store 的内部列表引用（以其为监视器加锁）；
+ *  JTable 读取发生在 EDT。 */
 public class PermTableModel extends AbstractTableModel {
 
     private final List<PermUIEntry> permlog;

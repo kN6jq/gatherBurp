@@ -8,6 +8,8 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/** 项目主域名配置对话框（APPLICATION_MODAL，EDT 显示）：增/改/删仅改本地列表，
+ *  点"保存"才经 Project.setMainDomains 写库（全删全插）并关闭。域名统一 trim + 小写。 */
 public class DomainConfigDialog extends JDialog {
     private DefaultListModel<String> listModel;
     private JList<String> domainList;
@@ -136,6 +138,7 @@ public class DomainConfigDialog extends JDialog {
         }
     }
 
+    /** 将当前列表整体保存到项目（触发写库）。 */
     private void saveDomains() {
         List<String> domains = new ArrayList<>();
         for (int i = 0; i < listModel.size(); i++) {

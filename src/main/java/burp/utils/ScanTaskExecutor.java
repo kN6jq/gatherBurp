@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Shared bounded executor for long-running scan tasks.
- * Prevents Burp listener/menu actions from creating an unbounded number of threads.
+ * 扫描任务共享线程池：防止 Burp 监听器/菜单动作创建无限线程。
+ * 有界队列 + AbortPolicy，拒绝时打 stderr。shutdown 后可 start 恢复。
  */
 public final class ScanTaskExecutor {
     private static final int CPU_COUNT = Math.max(2, Runtime.getRuntime().availableProcessors());
@@ -37,6 +37,7 @@ public final class ScanTaskExecutor {
     private ScanTaskExecutor() {
     }
 
+    /** 提交任务到池（自动包裹异常捕获）。池已关闭或队列满返回 false。 */
     public static boolean execute(String taskName, Runnable task) {
         if (task == null) {
             return false;
@@ -60,6 +61,7 @@ public final class ScanTaskExecutor {
         }
     }
 
+    /** 获取可用池实例：已关闭则重建，不接收任务时返回 null。 */
     private static ThreadPoolExecutor executorForSubmit() {
         synchronized (LIFECYCLE_LOCK) {
             if (!acceptingTasks) {
@@ -74,6 +76,7 @@ public final class ScanTaskExecutor {
         }
     }
 
+    /** 启动/恢复任务接收。 */
     public static void start() {
         synchronized (LIFECYCLE_LOCK) {
             acceptingTasks = true;
@@ -81,6 +84,7 @@ public final class ScanTaskExecutor {
         }
     }
 
+    /** 关闭池：停止接收新任务并 shutdownNow 已排队线程。 */
     public static void shutdown() {
         acceptingTasks = false;
         ThreadPoolExecutor current;
@@ -93,11 +97,13 @@ public final class ScanTaskExecutor {
         }
     }
 
+    /** 返回当前队列积压数（测试/监控用）。 */
     static int getQueueSize() {
         ThreadPoolExecutor current = executor;
         return current == null ? 0 : current.getQueue().size();
     }
 
+    /** 获取当前池实例：已关闭则重建。 */
     private static ThreadPoolExecutor executor() {
         ThreadPoolExecutor current = executor;
         if (current != null && !current.isShutdown()) {
@@ -113,6 +119,7 @@ public final class ScanTaskExecutor {
         }
     }
 
+    /** 错误日志：优先写 Burp stderr，未注入时写 System.err。 */
     private static void logError(String message, Throwable throwable) {
         if (Utils.stderr != null) {
             Utils.stderr.println(message);

@@ -3,6 +3,8 @@ package burp.ui;
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
+/** Fastjson 结果表格模型：读 FastjsonUI 静态有界 store 的内部列表（以其为监视器加锁，
+ *  与 store 的写入线程互斥）；JTable 读取发生在 EDT。 */
 public class FastjsonModel extends AbstractTableModel {
 
     @Override

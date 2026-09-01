@@ -35,8 +35,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 相似域名扫描UI主类
- * 负责界面展示和用户交互
+ * Similar（相似域名/URL 挖掘）模块主类：被动扫描——注册 IHttpListener，扫描开启时
+ * 从响应体提取与项目主域名相关的域名/URL，解析 IP、展示表格并持久化。
+ *
+ * <p>线程模型：UI 在 EDT；processHttpMessage 跑在 Burp 代理监听线程（只做轻量过滤），
+ * 实际处理提交 ThreadManager 池；表格写入一律经 invokeLater 切 EDT；
+ * 项目切换用 isSelectingProject 标志防并发。</p>
  */
 public class SimilarUI implements UIHandler, IHttpListener {
 
@@ -61,7 +65,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     private IExtensionHelpers helpers;
 
     // 业务数据
-    private Project currentProject;
+    private volatile Project currentProject;
     private List<Project> projects = new ArrayList<>();
 
     /**
@@ -191,6 +195,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     /**
      * 处理扫描按钮点击事件
      */
+    /** 切换扫描开关（EDT）：未选项目就开启时弹窗提示并复位。 */
     private void handleScanButtonClick() {
         if (currentProject == null && scanButton.isSelected()) {
             JOptionPane.showMessageDialog(mainPanel, I18nUtils.get("similar.message.select_project"));
@@ -264,7 +269,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 处理HTTP消息
+     * HTTP 监听回调（Burp 代理监听线程）：仅做轻量过滤，实际处理提交 ThreadManager 池。
      */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
@@ -286,6 +291,9 @@ public class SimilarUI implements UIHandler, IHttpListener {
      * 处理HTTP响应
      */
     private void processHttpResponse(IHttpRequestResponse messageInfo) {
+        if (messageInfo.getResponse() == null) {
+            return;
+        }
         // 分析请求URL
         IRequestInfo requestInfo = helpers.analyzeRequest(messageInfo);
         String url = requestInfo.getUrl().toString();
@@ -347,32 +355,52 @@ public class SimilarUI implements UIHandler, IHttpListener {
      * 处理提取的数据
      */
     private void processExtractedData(String content) {
-        // 并行提取域名和URL
-        CompletableFuture<Set<String>> domainsFuture = CompletableFuture.supplyAsync(() -> extractDomains(content));
-        CompletableFuture<Set<String>> urlsFuture = CompletableFuture.supplyAsync(() -> extractUrls(content));
+        // 并行提取域名和URL（走 ThreadManager 有界池，禁止 commonPool 无界堆积）。
+        // 用 thenCombine 组合结果而不是 future.get()：父任务若在同一池的线程上阻塞等待
+        // 子任务，高流量下可能占满池线程导致"父等子、子等池"的饥饿死锁。
+        ThreadManager.supplyAsync(() -> extractDomains(content))
+                .thenCombine(ThreadManager.supplyAsync(() -> extractUrls(content)),
+                        SimilarUI::mergeExtractionResults)
+                .thenAccept(this::processExtractionResults)
+                .exceptionally(e -> {
+                    Utils.stderr.println("处理提取数据失败: " + e.getMessage());
+                    return null;
+                });
+    }
 
-        try {
-            // 获取提取结果
-            Set<String> domains = domainsFuture.get();
-            Set<String> urls = urlsFuture.get();
+    /** 合并两个提取结果（纯函数，任一为 null 时以空集合兜底）。 */
+    private static ExtractionPair mergeExtractionResults(Set<String> domains, Set<String> urls) {
+        return new ExtractionPair(
+                domains == null ? new LinkedHashSet<>() : domains,
+                urls == null ? new LinkedHashSet<>() : urls);
+    }
 
-            // 处理域名
-            domains.stream()
-                    .filter(this::isDomainRelevant)
-                    .forEach(this::processNewDomain);
+    /** 按相关性过滤后分发域名/URL 处理（ThreadManager 池线程）。 */
+    private void processExtractionResults(ExtractionPair results) {
+        // 处理域名
+        results.domains.stream()
+                .filter(this::isDomainRelevant)
+                .forEach(this::processNewDomain);
 
-            // 处理URL
-            urls.stream()
-                    .filter(this::isUrlRelevant)
-                    .forEach(this::processNewUrl);
+        // 处理URL
+        results.urls.stream()
+                .filter(this::isUrlRelevant)
+                .forEach(this::processNewUrl);
+    }
 
-        } catch (Exception e) {
-            Utils.stderr.println("处理提取数据失败: " + e.getMessage());
+    /** 域名/URL 提取结果对。 */
+    private static final class ExtractionPair {
+        private final Set<String> domains;
+        private final Set<String> urls;
+
+        private ExtractionPair(Set<String> domains, Set<String> urls) {
+            this.domains = domains;
+            this.urls = urls;
         }
     }
 
     /**
-     * 处理新发现的域名
+     * 处理新发现的域名：缓存/数据库双重检查（synchronized(this)）→ 异步解析 IP → 更新 UI 并入库。
      */
     private void processNewDomain(String domain) {
         if (!isDomainMatch(domain) || isReloading) {
@@ -397,10 +425,12 @@ public class SimilarUI implements UIHandler, IHttpListener {
             }
         }
 
-        // 异步解析IP
-        CompletableFuture.supplyAsync(() -> getIPWithCache(domain))
+        // 异步解析IP：解析失败返回 null，不再把"解析失败: xxx"之类的错误字符串写入 ip 字段
+        ThreadManager.supplyAsync(() -> getIPWithCache(domain))
                 .thenAccept(ip -> {
-                    Utils.stdout.println("域名匹配成功: " + domain);
+                    if (ip == null) {
+                        return;
+                    }
                     updateDomainUI(domain, ip);
                 })
                 .exceptionally(e -> {
@@ -427,7 +457,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 更新域名UI
+     * 更新域名 UI 并入库（切 EDT 加表格行，再经 ThreadManager 池写库并回写真实 ID）。
      */
     private void updateDomainUI(String domain, String ip) {
         if (isReloading) {
@@ -439,7 +469,6 @@ public class SimilarUI implements UIHandler, IHttpListener {
                 // 添加到表格
                 Domain entry = new Domain(domain, ip);
                 domainTable.addEntry(entry);
-                Utils.stdout.println("已添加域名到表格: " + domain);
 
                 // 保存到数据库
                 saveDomainToDatabase(entry);
@@ -450,7 +479,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 保存域名到数据库
+     * 域名结果入库（ThreadManager 池线程）：upsert 成功后回写真实 ID、刷新表格行并缓存。
      */
     private void saveDomainToDatabase(Domain entry) {
         ThreadManager.execute(() -> {
@@ -474,7 +503,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 处理新发现的URL
+     * 处理新发现的 URL：缓存/数据库双重检查后，切 EDT 加表格行并异步入库。
      */
     private void processNewUrl(String url) {
         if (isReloading) {
@@ -527,7 +556,8 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 项目选择处理
+     * 项目选择回调（EDT，来自 ProjectManageDialog）：提交切换处理到池；
+     * isSelectingProject 标志在任务被拒时同样复位，防止切换功能永久锁死。
      */
     private void handleProjectSelection(Project project) {
         if (isSelectingProject || project == null) {
@@ -535,8 +565,10 @@ public class SimilarUI implements UIHandler, IHttpListener {
         }
 
         isSelectingProject = true;
+        // 任务被有界池拒绝时必须复位标志，否则项目切换功能永久锁死
+        boolean accepted = false;
         try {
-            ThreadManager.execute(() -> {
+            accepted = ThreadManager.execute(() -> {
                 try {
                     switchToNewProject(project);
                 } catch (Exception e) {
@@ -545,14 +577,15 @@ public class SimilarUI implements UIHandler, IHttpListener {
                     isSelectingProject = false;
                 }
             });
-        } catch (Exception e) {
-            isSelectingProject = false;
-            throw e;
+        } finally {
+            if (!accepted) {
+                isSelectingProject = false;
+            }
         }
     }
 
     /**
-     * 切换到新项目
+     * 切换到新项目（ThreadManager 池线程）：清理旧项目 → 设置新项目 → 加载域名配置 → 批量载入历史数据。
      */
     private void switchToNewProject(Project project) throws SQLException {
         // 清理当前项目
@@ -576,7 +609,10 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 加载项目所有数据
+     * 批量载入项目历史域名/URL 结果（并行查库 + 按 key 去重保留最小 id + 批量刷表），
+     * 并以 join 阻塞至加载完成。
+     * 注意：此处两个 DB 查询用 CompletableFuture.supplyAsync 直接提交到 ForkJoinPool.commonPool
+     * （IO 等待，当前并发量下可接受；与 processExtractedData 的"禁 commonPool"约定不同，见其注释）。
      * @param projectId 项目ID
      */
     private void loadAllProjectData(int projectId) throws SQLException {
@@ -668,7 +704,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 更新项目UI
+     * 更新项目显示标签并启用控制按钮（切 EDT）。
      */
     private void updateProjectUI(Project project) {
         SwingUtilities.invokeLater(() -> {
@@ -679,7 +715,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 显示域名配置警告
+     * 项目无主域名配置时弹窗提醒（切 EDT）。
      */
     private void showDomainConfigWarning() {
         SwingUtilities.invokeLater(() -> {
@@ -691,7 +727,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 处理项目切换错误
+     * 项目切换失败处理：记录日志并弹窗（切 EDT）。
      */
     private void handleProjectSwitchError(Exception e) {
         Utils.stderr.println("切换项目失败: " + e.getMessage());
@@ -703,14 +739,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
         });
     }
 
-    // 信号量用于限制DNS解析并发数
+    // 信号量用于限制DNS解析并发数（10）
     private final Semaphore dnsResolveSemaphore = new Semaphore(10);
 
-    // 黑名单后缀集合
+    // 静态资源后缀黑名单：命中的域名/URL 不提取，对应请求不处理
     private Set<String> blackListSuffixes;
 
     /**
-     * 初始化数据
+     * 初始化数据：按钮初始禁用、初始化黑名单、注册定时清理任务。
      */
     private void setupData() {
         // 设置按钮初始状态
@@ -725,7 +761,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 初始化黑名单后缀
+     * 初始化静态资源后缀黑名单（图片/脚本/字体/媒体/文档/压缩等）。
      */
     private void initializeBlackList() {
         blackListSuffixes = new HashSet<>(Arrays.asList(
@@ -749,6 +785,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
 
+    /** 停止两个 Swing 定时器（插件卸载时调用；static 防止多实例重复持有）。 */
     public static void shutdown() {
         if (statsTimer != null) {
             statsTimer.stop();
@@ -761,7 +798,8 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 设置定时清理任务
+     * 注册每小时执行的清理任务：清过期 IP 缓存 + 同步当前项目域名配置。
+     * Timer 回调在 EDT，处理提交 ThreadManager 池。
      */
     private void setupCleanupTask() {
         if (cleanupTimer != null) cleanupTimer.stop();
@@ -784,7 +822,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 同步项目数据
+     * 从库重新同步当前项目的主域名配置（ThreadManager 池线程）。
      */
     private void syncProjectData() {
         try {
@@ -796,7 +834,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 提取域名
+     * 正则提取响应体中的域名（ThreadManager 池线程，过滤黑名单后缀，小写归一）。
      */
     private Set<String> extractDomains(String content) {
         Set<String> domains = new HashSet<>();
@@ -825,7 +863,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 提取URL
+     * 正则提取响应体中的 http(s) URL（ThreadManager 池线程，经 isValidUrl 校验）。
      */
     private Set<String> extractUrls(String content) {
         Set<String> urls = new HashSet<>();
@@ -906,7 +944,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 获取带缓存的IP地址
+     * 获取带缓存的IP地址。解析失败/超时/中断返回 null（调用方据此跳过入库，避免错误字符串污染 ip 字段）。
      */
     private String getIPWithCache(String domain) {
         // 检查缓存
@@ -915,18 +953,25 @@ public class SimilarUI implements UIHandler, IHttpListener {
             return cachedIP;
         }
 
+        // 负缓存：近期解析失败的域名短期内直接跳过，
+        // 避免不可解析域名在后续每个响应中重复触发 DNS 查询（缓存穿透）
+        if (CacheManager.isIpCacheNegative(domain)) {
+            return null;
+        }
+
         // 使用信号量限制并发DNS查询
         try {
             return dnsResolveSemaphore.tryAcquire(5, TimeUnit.SECONDS) ?
-                    performDNSResolve(domain) : "解析超时";
+                    performDNSResolve(domain) : null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return "解析中断";
+            return null;
         }
     }
 
     /**
-     * 执行DNS解析
+     * 执行 DNS 解析（全程持有 DNS 信号量，finally 释放）：
+     * 全部 IP 逗号拼接，成功写正缓存、失败/无结果写负缓存，返回 null 表示解析失败。
      */
     private String performDNSResolve(String domain) {
         try {
@@ -943,9 +988,13 @@ public class SimilarUI implements UIHandler, IHttpListener {
                 CacheManager.cacheIP(domain, result);
                 return result;
             }
-            return "无解析结果";
+            Utils.stderr.println("DNS 无解析结果: " + domain);
+            CacheManager.cacheIpFailure(domain);
+            return null;
         } catch (Exception e) {
-            return "解析失败: " + e.getMessage();
+            Utils.stderr.println("DNS 解析失败 " + domain + ": " + e.getMessage());
+            CacheManager.cacheIpFailure(domain);
+            return null;
         } finally {
             dnsResolveSemaphore.release();
         }
@@ -979,7 +1028,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
     }
 
     /**
-     * 清理当前项目
+     * 项目切换前的清理：停扫描、清项目缓存、清表格（切 EDT）。
      */
     private void cleanupCurrentProject() {
         if (currentProject != null) {

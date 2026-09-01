@@ -6,6 +6,8 @@ import burp.dao.SimilarDomainConfigDao;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Similar 模块项目（内存聚合对象）：持有主域名清单与域名/URL 结果列表；
+ *  setMainDomains 有副作用——整体替换并写库（saveDomainConfigs 全删全插）。 */
 public class Project {
     private int id;
     private String name;

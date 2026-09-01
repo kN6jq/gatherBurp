@@ -1,6 +1,7 @@
 package burp.ui;
 
 
+/** 目录探测规则表格条目（routeList 展示用，enable 可被启用/禁用按钮修改）。 */
 public class RouteUIEntry {
     final int id;
     int enable;
