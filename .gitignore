@@ -39,3 +39,7 @@ build/
 ### Local runtime/test residue ###
 /data.db
 /nul
+
+### Qoder/codegraph & review artifacts ###
+/.codegraph/
+.review_diff.txt
