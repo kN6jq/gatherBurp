@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
@@ -29,13 +31,13 @@ public class Log4jTableModel extends AbstractTableModel {
             case 0:
                 return "#";
             case 1:
-                return "Method";
+                return I18nUtils.get("table.method");
             case 2:
-                return "URL";
+                return I18nUtils.get("table.url");
             case 3:
-                return "Status";
+                return I18nUtils.get("table.status");
             case 4:
-                return "Length";
+                return I18nUtils.get("table.length");
             default:
                 return "";
         }

@@ -20,7 +20,9 @@ public class RedirectTable extends JTable {
         TableColumnModel columnModel = getColumnModel();
         columnModel.getColumn(0).setMaxWidth(50);
         columnModel.getColumn(1).setMaxWidth(80);
-        columnModel.getColumn(4).setMaxWidth(80);
+        // "Status Code" 表头需要至少 80px 才不被截断
+        columnModel.getColumn(4).setMinWidth(80);
+        columnModel.getColumn(4).setMaxWidth(90);
     }
 
     @Override

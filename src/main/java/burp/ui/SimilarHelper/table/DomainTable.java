@@ -38,7 +38,8 @@ public class DomainTable extends JTable {
     public DomainTable() {
         // 初始化表格模型
         model = new TableModel(
-                new String[]{"ID", "Domain", "IP", "Time"},
+                new String[]{I18nUtils.get("table.id"), I18nUtils.get("table.domain"),
+                        I18nUtils.get("table.ip"), I18nUtils.get("table.time")},
                 1  // 域名列作为唯一键
         );
         setModel(model);

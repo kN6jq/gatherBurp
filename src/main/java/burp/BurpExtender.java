@@ -7,6 +7,7 @@ import burp.ui.SimilarUI;
 import burp.ui.SqlUI;
 import burp.ui.SimilarHelper.ThreadManager;
 import burp.utils.DbUtils;
+import burp.utils.I18nUtils;
 import burp.utils.RobotInput;
 import burp.utils.ScanTaskExecutor;
 import burp.utils.Utils;
@@ -49,8 +50,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
                 Utils.callbacks.customizeUiComponent(mainUI);
             }
         });
-        Utils.stdout.println("[" + Utils.NAME + " v" + Utils.VERSION + "] by " + Utils.AUTHOR + " loaded successfully.\n");
-        Utils.stdout.println("Tip: If any errors occur, delete the '.gather' directory in your user folder and reload the extension.\n");
+        Utils.stdout.println(I18nUtils.format("common.message.loaded", Utils.NAME, Utils.VERSION, Utils.AUTHOR) + "\n");
+        Utils.stdout.println(I18nUtils.get("common.message.load_tip") + "\n");
         Utils.stdout.println("GitHub: https://github.com/kN6jq/gatherBurp\n");
 
     }

@@ -54,15 +54,15 @@ public class RouteTableModel extends AbstractTableModel {
     public String getColumnName(int column) {
         switch (column) {
             case 0:
-                return "id";
+                return I18nUtils.get("table.id");
             case 1:
-                return "enable";
+                return I18nUtils.get("table.enable");
             case 2:
-                return "name";
+                return I18nUtils.get("table.name");
             case 3:
-                return "path";
+                return I18nUtils.get("table.path");
             case 4:
-                return "express";
+                return I18nUtils.get("table.expression");
             default:
                 return "";
         }

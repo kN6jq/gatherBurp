@@ -7,7 +7,8 @@ import javax.swing.table.AbstractTableModel;
 /** 开放重定向结果表格模型：读 UrlRedirectUI 静态有界 store 的内部列表（以其为监视器加锁）；
  *  JTable 读取发生在 EDT。 */
 public class RedirectModel extends AbstractTableModel {
-    private static final String[] COLUMNS = {"#", "Method", "URL", I18nUtils.get("redirect.label.parameter"), "Status Code", "Vulnerable"};
+    // 列头在 getColumnName 中动态取 i18n，不能用 static 数组缓存（语言在插件加载时才确定）
+    private static final int COLUMN_COUNT = 6;
 
     @Override
     public int getRowCount() {
@@ -18,7 +19,7 @@ public class RedirectModel extends AbstractTableModel {
 
     @Override
     public int getColumnCount() {
-        return COLUMNS.length;
+        return COLUMN_COUNT;
     }
 
     @Override
@@ -42,7 +43,15 @@ public class RedirectModel extends AbstractTableModel {
 
     @Override
     public String getColumnName(int column) {
-        return COLUMNS[column];
+        switch (column) {
+            case 0: return "#";
+            case 1: return I18nUtils.get("table.method");
+            case 2: return I18nUtils.get("table.url");
+            case 3: return I18nUtils.get("table.parameter");
+            case 4: return I18nUtils.get("table.status_code");
+            case 5: return I18nUtils.get("table.vulnerable");
+            default: return "";
+        }
     }
 
     @Override

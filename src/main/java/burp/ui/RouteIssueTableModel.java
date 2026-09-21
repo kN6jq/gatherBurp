@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
@@ -50,13 +52,13 @@ public class RouteIssueTableModel extends AbstractTableModel {
     public String getColumnName(int column) {
         switch (column) {
             case 0:
-                return "id";
+                return I18nUtils.get("table.id");
             case 1:
-                return "Issue name";
+                return I18nUtils.get("table.issue_name");
             case 2:
-                return "url";
+                return I18nUtils.get("table.url");
             case 3:
-                return "status";
+                return I18nUtils.get("table.status");
             default:
                 return "";
         }

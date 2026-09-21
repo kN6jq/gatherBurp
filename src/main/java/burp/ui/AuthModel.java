@@ -1,6 +1,7 @@
 package burp.ui;
 
 import burp.ui.AuthEntry;
+import burp.utils.I18nUtils;
 
 import javax.swing.table.AbstractTableModel;
 
@@ -40,11 +41,11 @@ public class AuthModel extends AbstractTableModel {
     @Override
     public String getColumnName(int column) {
         switch (column) {
-            case 0: return "id";
-            case 1: return "method";
-            case 2: return "url";
-            case 3: return "status";
-            case 4: return "length";
+            case 0: return I18nUtils.get("table.id");
+            case 1: return I18nUtils.get("table.method");
+            case 2: return I18nUtils.get("table.url");
+            case 3: return I18nUtils.get("table.status");
+            case 4: return I18nUtils.get("table.length");
             default: return null;
         }
     }

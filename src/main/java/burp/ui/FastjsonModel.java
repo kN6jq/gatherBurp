@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
@@ -42,12 +44,12 @@ public class FastjsonModel extends AbstractTableModel {
     @Override
     public String getColumnName(int column) {
         switch (column) {
-            case 0: return "id";
-            case 1: return "method";
-            case 2: return "url";
-            case 3: return "status";
-            case 4: return "res";
-            case 5: return "req";
+            case 0: return I18nUtils.get("table.id");
+            case 1: return I18nUtils.get("table.method");
+            case 2: return I18nUtils.get("table.url");
+            case 3: return I18nUtils.get("table.status");
+            case 4: return I18nUtils.get("table.response");
+            case 5: return I18nUtils.get("table.request");
             default: return "";
         }
     }

@@ -33,7 +33,7 @@ public class DbUtils {
         try {
             Class.forName(DB_DRIVER);
         } catch (ClassNotFoundException e) {
-            logError("Failed to load SQLite driver: " + e.getMessage());
+            logError(I18nUtils.format("db.message.driver_failed", e.getMessage()));
         }
     }
 
@@ -46,7 +46,7 @@ public class DbUtils {
             Files.createDirectories(Paths.get(PROJECT_PATH));
             create();
         } catch (Exception e) {
-            logError("数据库初始化失败: " + e.getMessage());
+            logError(I18nUtils.format("db.message.init_failed", e.getMessage()));
         }
     }
 
@@ -89,7 +89,7 @@ public class DbUtils {
                     }
                 }
                 connection.commit();
-                logInfo("init db success");
+                logInfo(I18nUtils.get("db.message.init_success"));
             } catch (Exception e) {
                 connection.rollback();
                 throw e;
@@ -97,7 +97,7 @@ public class DbUtils {
                 connection.setAutoCommit(true);
             }
         } catch (Exception e) {
-            logError("初始化数据库结构失败: " + e.getMessage());
+            logError(I18nUtils.format("db.message.schema_failed", e.getMessage()));
         }
     }
 
@@ -133,7 +133,7 @@ public class DbUtils {
             statement.execute("DROP TABLE config");
             statement.execute("ALTER TABLE config_migration_new RENAME TO config");
         }
-        logInfo("migrated config unique key to (module, type)");
+        logInfo(I18nUtils.get("db.message.migrated_config"));
     }
 
     /** 判断表是否存在。 */

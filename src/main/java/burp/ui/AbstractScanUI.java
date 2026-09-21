@@ -147,12 +147,10 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     }
 
     /**
-     * 用主推样式包裹结果表：带 common.border.results 标题的滚动面板。
+     * 包裹结果表的滚动面板（无标题边框，表格上下文已由所在模块页签表明）。
      */
     protected JScrollPane wrapResultsTable(JTable table) {
-        JScrollPane sp = new JScrollPane(table);
-        sp.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
-        return sp;
+        return new JScrollPane(table);
     }
 
     /**
@@ -285,6 +283,21 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
                 panel.add(component, constraints);
             }
         }
+        return panel;
+    }
+
+    /**
+     * 右栏纵向堆叠：扫描选项区固定在顶部、只占自身 preferred 高度，
+     * 剩余空间全部给下方内容区。
+     *
+     * <p>不要用 JSplitPane 按比例放选项区：resizeWeight 会把整栏增量的
+     * 20%~30% 分给选项面板，而 GridBag 无 weighty 时把多余高度均摊成
+     * 行间距，复选框就会被拉散。</p>
+     */
+    protected JPanel stackOptionsAbove(JComponent optionsPanel, JComponent contentPanel) {
+        JPanel panel = new JPanel(new BorderLayout(0, 3));
+        panel.add(optionsPanel, BorderLayout.NORTH);
+        panel.add(contentPanel, BorderLayout.CENTER);
         return panel;
     }
 

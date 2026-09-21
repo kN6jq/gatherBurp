@@ -195,15 +195,11 @@ public class PermUI extends AbstractScanUI {
         JPanel actionButtonsPanel = createCompactButtonPanel(refreshButton, clearButton);
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("perm.border.actions")));
 
-        Dimension scanOptionsSize = scanOptionsPanel.getPreferredSize();
-        scanOptionsPanel.setMinimumSize(new Dimension(0, Math.max(52, scanOptionsSize.height)));
-        JSplitPane mainRightSplit = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.24);
-        mainRightSplit.setTopComponent(scanOptionsPanel);
+        // 扫描选项固定在顶部（只占自身 preferred 高度），剩余空间全部给配置区。
         JPanel cfgAct = new JPanel(new BorderLayout(3, 3));
         cfgAct.add(configPanel, BorderLayout.CENTER);
         cfgAct.add(actionButtonsPanel, BorderLayout.SOUTH);
-        mainRightSplit.setBottomComponent(cfgAct);
-        rightSplitPane.add(mainRightSplit, BorderLayout.CENTER);
+        rightSplitPane.add(stackOptionsAbove(scanOptionsPanel, cfgAct), BorderLayout.CENTER);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         mainSplit.setLeftComponent(leftSplitPane);

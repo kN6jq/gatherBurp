@@ -87,7 +87,6 @@ public class Log4jUI extends AbstractScanUI {
 
         resultTable = new URLTable(new Log4jTableModel(log4jlog.list()));
         urltablescrollpane = new JScrollPane(resultTable);
-        urltablescrollpane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
 
         // 被动扫描选择框
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("log4j.checkbox.passive"));
@@ -144,15 +143,11 @@ public class Log4jUI extends AbstractScanUI {
         JPanel actionButtonsPanel = createCompactButtonPanel(refreshTableButton, clearTableButton);
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("log4j.border.actions")));
 
-        Dimension scanOptionsSize = scanOptionsPanel.getPreferredSize();
-        scanOptionsPanel.setMinimumSize(new Dimension(0, Math.max(78, scanOptionsSize.height)));
-        JSplitPane mainRightSplitPane = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.28);
-        mainRightSplitPane.setTopComponent(scanOptionsPanel);
+        // 扫描选项固定在顶部（只占自身 preferred 高度），剩余空间全部给配置区。
         JPanel configAndActionsPanel = new JPanel(new BorderLayout(3, 3));
         configAndActionsPanel.add(configPanel, BorderLayout.CENTER);
         configAndActionsPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
-        mainRightSplitPane.setBottomComponent(configAndActionsPanel);
-        rightTopPanel.add(mainRightSplitPane, BorderLayout.CENTER);
+        rightTopPanel.add(stackOptionsAbove(scanOptionsPanel, configAndActionsPanel), BorderLayout.CENTER);
 
         // payload区域
         JLabel payloadLabel = new JLabel(I18nUtils.get("log4j.label.payload"));

@@ -2064,16 +2064,11 @@ public class SqlUI extends AbstractScanUI {
         JPanel actionButtonsPanel = createCompactButtonPanel(refreshTableButton, clearTableButton);
         actionButtonsPanel.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("sql.border.actions")));
 
-        // 扫描选项不能只占 16%，否则在右侧窄栏中会被 JSplitPane 压缩到
-        // 复选框文字/控件不可见。保留紧凑间距，但给选项区稳定的可用高度。
-        Dimension scanOptionsSize = scanOptionsPanel.getPreferredSize();
-        scanOptionsPanel.setMinimumSize(new Dimension(0, Math.max(86, scanOptionsSize.height)));
-        JSplitPane mainRightSplit = applyCompactSplit(new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.30);
-        mainRightSplit.setTopComponent(scanOptionsPanel);
+        // 扫描选项固定在顶部（只占自身 preferred 高度），剩余空间全部给配置区。
         JPanel cfgAct = new JPanel(new BorderLayout(3, 3));
         cfgAct.add(configPanel, BorderLayout.CENTER);
         cfgAct.add(actionButtonsPanel, BorderLayout.SOUTH);
-        mainRightSplit.setBottomComponent(cfgAct);
+        JPanel optionsStack = stackOptionsAbove(scanOptionsPanel, cfgAct);
 
         // 下方：Payload 和 Error Key。使用真正的纵向分割器，避免 BorderLayout
         // 按 preferred size 抢占空间后把上面的扫描选项自动挤没。
@@ -2096,7 +2091,7 @@ public class SqlUI extends AbstractScanUI {
 
         JSplitPane rightOuterSplit = applyCompactSplit(
                 new JSplitPane(JSplitPane.VERTICAL_SPLIT), 0.62);
-        rightOuterSplit.setTopComponent(mainRightSplit);
+        rightOuterSplit.setTopComponent(optionsStack);
         rightOuterSplit.setBottomComponent(rightDownPanel);
         rightSplitPane.add(rightOuterSplit, BorderLayout.CENTER);
 
@@ -2525,8 +2520,11 @@ public class SqlUI extends AbstractScanUI {
         public PayloadTable(AbstractTableModel model) {
             super(model);
             TableColumnModel columnModel = getColumnModel();
-            columnModel.getColumn(0).setMaxWidth(50);
-            columnModel.getColumn(6).setMaxWidth(50);
+            // 表头 "Parameter"/"Status Code" 在 50px 下会被截断成 "Para..."/"Statu..."
+            columnModel.getColumn(0).setMinWidth(80);
+            columnModel.getColumn(0).setMaxWidth(110);
+            columnModel.getColumn(6).setMinWidth(80);
+            columnModel.getColumn(6).setMaxWidth(90);
         }
 
         @Override

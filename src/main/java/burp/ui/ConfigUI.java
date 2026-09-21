@@ -98,7 +98,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         dnslogButton = new JButton();
-        dnslogButton.setText(I18nUtils.get("config.button.save"));
+        dnslogButton.setText(I18nUtils.get("config.button.save_dnslog"));
         configPanelTop.add(dnslogButton, new GridConstraints(1, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -119,7 +119,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         ipButton = new JButton();
-        ipButton.setText(I18nUtils.get("config.button.save"));
+        ipButton.setText(I18nUtils.get("config.button.save_ip"));
         configPanelTop.add(ipButton, new GridConstraints(2, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -133,10 +133,11 @@ public class ConfigUI implements UIHandler {
                 GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, null, null, 0, false));
 
+        // 工具名很短，固定宽度即可，避免跟随 DNS/IP 输入栏一起被拉伸到整行
         toolNameTextField = new JTextField();
         configPanelTop.add(toolNameTextField, new GridConstraints(3, 1, 1, 1,
-                GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL,
-                GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED,
+                GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE,
+                GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED,
                 null, new Dimension(150, -1), null, 0, false));
 
         toolArgvLabel = new JLabel();
@@ -153,7 +154,7 @@ public class ConfigUI implements UIHandler {
                 null, new Dimension(250, -1), null, 0, false));
 
         toolButton = new JButton();
-        toolButton.setText(I18nUtils.get("config.button.save"));
+        toolButton.setText(I18nUtils.get("config.button.save_tool"));
         configPanelTop.add(toolButton, new GridConstraints(3, 4, 1, 1,
                 GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW,
@@ -396,11 +397,11 @@ public class ConfigUI implements UIHandler {
         public String getColumnName(int column) {
             switch (column) {
                 case 0:
-                    return "id";
+                    return I18nUtils.get("table.id");
                 case 1:
-                    return "key";
+                    return I18nUtils.get("table.key");
                 case 2:
-                    return "value";
+                    return I18nUtils.get("table.value");
                 default:
                     return null;
             }

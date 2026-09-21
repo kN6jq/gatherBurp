@@ -10,8 +10,10 @@ public class RouteTable extends JTable {
         super(tableModel);
         TableColumnModel columnModel = getColumnModel();
         columnModel.getColumn(0).setMaxWidth(50);
-        columnModel.getColumn(1).setMaxWidth(50);
+        // enable 列要完整放下 "Enabled"/"Disabled"
+        columnModel.getColumn(1).setMinWidth(70);
+        columnModel.getColumn(1).setMaxWidth(85);
         columnModel.getColumn(2).setMinWidth(100);
-        columnModel.getColumn(2).setMaxWidth(150);
+        columnModel.getColumn(2).setMaxWidth(180);
     }
 }

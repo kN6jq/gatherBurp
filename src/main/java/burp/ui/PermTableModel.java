@@ -1,5 +1,7 @@
 package burp.ui;
 
+import burp.utils.I18nUtils;
+
 import javax.swing.table.AbstractTableModel;
 import java.util.List;
 
@@ -56,19 +58,19 @@ public class PermTableModel extends AbstractTableModel {
     public String getColumnName(int column) {
         switch (column) {
             case 0:
-                return "id";
+                return I18nUtils.get("table.id");
             case 1:
-                return "method";
+                return I18nUtils.get("table.method");
             case 2:
-                return "url";
+                return I18nUtils.get("table.url");
             case 3:
-                return "originalength";
+                return I18nUtils.get("table.original_length");
             case 4:
-                return "lowlength";
+                return I18nUtils.get("table.low_length");
             case 5:
-                return "nolength";
+                return I18nUtils.get("table.no_length");
             case 6:
-                return "isSuccess";
+                return I18nUtils.get("table.success");
             default:
                 return null;
         }
