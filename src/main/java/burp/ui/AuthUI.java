@@ -13,14 +13,17 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 目录穿越/鉴权绕过（BypassAuth）检测面板：对 GET/POST 请求生成前缀/后缀路径变异
- * （;/.、%2e、..;/ 等）与伪造 IP 头、Accept 头替换请求，按响应状态/长度记录结果。
+ * 目录穿越/鉴权绕过（BypassAuth）检测面板：对 GET 请求生成前缀/后缀路径变异
+ * （;/.、%2e、..;/ 等），对 GET/POST 请求做伪造 IP 头与 Accept 头替换探测，
+ * 按响应状态/长度记录结果。POST 不做路径变异——原 body 重放会对写接口产生副作用。
+ * 同一 method+URL 经 UrlCacheUtil 去重，仅主动右键触发；
  * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
  * 结果入静态有界 ScanResultsStore；不支持被动扫描（doPassiveScan 为空实现）。
  */
@@ -126,7 +129,7 @@ public class AuthUI extends AbstractScanUI {
     }
 
     /** Auth 主动检测核心（ScanTaskExecutor 池线程，经右键菜单调用）：
-     *  依次执行前缀/后缀路径变异、伪造 IP 头、Accept 头替换三类探测。 */
+     *  去重放行后依次执行 GET 路径变异、伪造 IP 头、Accept 头替换三类探测。 */
     public static void Check(IHttpRequestResponse[] requestResponses) {
         lock.lock();
         try {
@@ -144,6 +147,11 @@ public class AuthUI extends AbstractScanUI {
             if (Utils.isUrlBlackListSuffix(url)) {
                 return;
             }
+            // 同一 method+URL 只测一轮，重复右键直接跳过；清表时 resetCache("auth") 放行重测
+            if (!UrlCacheUtil.checkUrlUnique("auth", method, rdurlURL,
+                    Collections.<IParameter>emptyList())) {
+                return;
+            }
 
             // 复用方法入口处的解析结果，避免重复 analyzeRequest
             List<String> headers = analyzeRequest.getHeaders();
@@ -158,25 +166,32 @@ public class AuthUI extends AbstractScanUI {
                 throw new RuntimeException(e);
             }
 
+            // 路径变异仅对 GET 执行：POST 变异沿用原 body 重放，会对写接口产生副作用
             List<AuthBean> authRequests = new ArrayList<>();
-            authRequests.addAll(prefix(method, path));
-            authRequests.addAll(suffix(method, path));
+            if ("GET".equals(method)) {
+                authRequests.addAll(prefix(method, path));
+                authRequests.addAll(suffix(method, path));
+            }
 
             if (Objects.equals(method, "GET") || Objects.equals(method, "POST")) {
-                for (AuthBean value : authRequests) {
-                    // 字面量替换第一次出现的 path：replaceFirst 第一参数是正则，
-                    // 路径中的 ? . + 等元字符会导致替换错位或失配
-                    String new_request = Utils.replaceFirstLiteral(request, path, value.getPath());
-                    HostThrottle.throttle(serviceKey(baseRequestResponse));
-                    IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
-                    if (response == null || response.getResponse() == null) {
-                        Utils.stderr.println("Auth scan skipped: target returned no response");
-                        continue;
+                // path 不在请求行字面量中（绝对 URI 形式等）时替换会静默失配，
+                // 发出原始请求却按 payload URL 记录，此时跳过路径变异
+                if (!path.isEmpty() && request.contains(path)) {
+                    for (AuthBean value : authRequests) {
+                        // 字面量替换第一次出现的 path：replaceFirst 第一参数是正则，
+                        // 路径中的 ? . + 等元字符会导致替换错位或失配
+                        String new_request = Utils.replaceFirstLiteral(request, path, value.getPath());
+                        HostThrottle.throttle(serviceKey(baseRequestResponse));
+                        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
+                        if (response == null || response.getResponse() == null) {
+                            Utils.stderr.println("Auth scan skipped: target returned no response");
+                            continue;
+                        }
+                        String requrl = urlWithoutQuery + value.getPath();
+                        String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+                        String length = String.valueOf(response.getResponse().length);
+                        add(method, requrl, statusCode, length, response);
                     }
-                    String requrl = urlWithoutQuery + value.getPath();
-                    String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
-                    String length = String.valueOf(response.getResponse().length);
-                    add(method, requrl, statusCode, length, response);
                 }
                 List<AuthBean> testHeaders = forgeHeaders(method, url);
                 for (AuthBean header : testHeaders) {
@@ -283,7 +298,7 @@ public class AuthUI extends AbstractScanUI {
 
     /** Accept 头替换探测：移除原 Accept 后加标准 JSON Accept 重放请求（池线程内调用）。 */
     public static void changeAccept(List<String> headers, byte[] body, String method, String url, IHttpRequestResponse baseRequestResponse) {
-        headers.removeIf(header -> header.startsWith("Accept:"));
+        headers.removeIf(header -> Utils.headerNameMatches(header, "Accept"));
         // 修复：原值 "text/javascript, /; q=0.01" 丢失了 */*（历史转义问题），是非法 Accept 头
         headers.add("Accept: application/json, text/javascript, */*; q=0.01");
         HostThrottle.throttle(serviceKey(baseRequestResponse));
