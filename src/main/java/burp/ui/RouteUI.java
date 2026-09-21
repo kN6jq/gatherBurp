@@ -50,7 +50,7 @@ public class RouteUI extends AbstractScanUI {
     private JButton enableButton;
     private JButton resetButton;
 
-    /** 单次触发（单个 URL）的探测请求预算：5 条路径 × 33 条默认规则 ≈ 165，留余量取 170。 */
+    /** 单次触发（单个 URL）的探测请求预算：5 条路径 × 34 条默认规则 = 170。 */
     private static final int MAX_REQUESTS_PER_CHECK = 170;
     // 当前面板实例：静态 Check 入口与 BurpExtender 被动回调经此定位到实例
     private static volatile RouteUI instance;

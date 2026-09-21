@@ -100,7 +100,7 @@ public class RouteDao {
     /**
      * 默认探测规则集 {name, path, express}：吸收外部高质量规则集并按本项目 DSL 改写
      * （仅用 code/body/headers/title + = != && || 与括号嵌套，needle 不含引号/转义序列），
-     * 覆盖 Swagger 全家桶 / Spring Actuator / Jolokia / Tomcat / Git·SVN·DS_Store 泄露 /
+     * 覆盖 Swagger 全家桶(含 Knife4j) / Spring Actuator / Jolokia / Tomcat / Git·SVN·DS_Store 泄露 /
      * Nacos / Druid / S3 / Prometheus Metrics / WSDL，并保留本地独有的
      * Actuator Loggers、Nacos Users/Configs、XXL-JOB、JeecgBoot 组合。
      */
@@ -120,6 +120,8 @@ public class RouteDao {
             {"Swagger API Doc", "/v2/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
             {"Swagger API Doc", "/v3/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
             {"Swagger API Doc", "/api/v2/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            // Knife4j 文档页（国内 Java 项目常见，doc.html 为固定入口）
+            {"Knife4j Doc", "/doc.html", "code=\"200\" && (body=\"knife4j\" || body=\"swagger-models\")"},
             // Spring Boot Actuator
             {"Spring Actuator Env", "/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
             {"Spring Actuator Env", "/actuator/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
