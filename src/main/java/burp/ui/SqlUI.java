@@ -46,13 +46,14 @@ public class SqlUI extends AbstractScanUI {
     private static final List<SqlUIEntry> urldata = new ArrayList<>();  // urldata
     private static final List<SqlPayloadEntry> payloaddata = new ArrayList<>(); // payload
     private static final List<SqlPayloadEntry> payloaddata2 = new ArrayList<>(); // payload
-    private static boolean isPassiveScan; // 是否被动扫描
-    private static boolean isCheckCookie; // 是否检测cookie
-    private static boolean isCheckHeader; // 是否检测header
-    private static boolean isWhiteDomain; // 是否白名单域名
-    private static boolean isDeleteOrgin; // 是否删除原始值
-    private static boolean isUrlEncode; // 是否进行URL编码
-    private static boolean isInsertMissingHeader; // Header探测是否允许新增原请求不存在的头
+    // 开关由 EDT 复选框监听器写入、扫描线程池读取，volatile 保证可见性
+    private static volatile boolean isPassiveScan; // 是否被动扫描
+    private static volatile boolean isCheckCookie; // 是否检测cookie
+    private static volatile boolean isCheckHeader; // 是否检测header
+    private static volatile boolean isWhiteDomain; // 是否白名单域名
+    private static volatile boolean isDeleteOrgin; // 是否删除原始值
+    private static volatile boolean isUrlEncode; // 是否进行URL编码
+    private static volatile boolean isInsertMissingHeader; // Header探测是否允许新增原请求不存在的头
     private static volatile List<String> listErrorKey = new ArrayList<>(); // // 存放错误key
     private static volatile List<SqlBean> sqliPayload = new ArrayList<>(); // 存放sql关键字
     private static volatile List<SqlBean> headerList = new ArrayList<>(); // 存放header白名单
@@ -73,9 +74,14 @@ public class SqlUI extends AbstractScanUI {
     /** 被动 SQL 错误泄露按 URL + 指纹去重，不受注入 URL 缓存影响。 */
     private static final LruSet<String> passiveErrorIssueKeys = new LruSet<>(MAX_TRACKED_ISSUE_KEYS);
     private static final LruCache<String, ScanBudget> parameterBudgets = new LruCache<>(MAX_TRACKED_URL_STATE * 8);
+    /** 单 URL 总探测预算：参数位置多时防止总请求量失控（错误/布尔/时间探测共享）。 */
+    private static final int MAX_REQUESTS_PER_URL = 60;
+    private static final LruCache<Integer, ScanBudget> urlBudgets = new LruCache<>(MAX_TRACKED_URL_STATE);
     private static final LruCache<String, TimeCandidateState> timeCandidates = new LruCache<>(MAX_TRACKED_URL_STATE * 4);
+    /** 同一响应对象只计一次 WAF 拦截：多个评估入口会对同一响应重复调用 analyzeAndTrackWaf。 */
+    private static final LruSet<IHttpRequestResponse> wafCountedResponses = new LruSet<>(2048);
     private JCheckBox booleanBlindCheckBox; // 布尔盲注选择框
-    private static boolean isBooleanBlind;  // 是否进行布尔盲注
+    private static volatile boolean isBooleanBlind;  // 是否进行布尔盲注
     private JCheckBox insertMissingHeaderCheckBox; // Header缺失时新增探测选择框
     private static int timeBlindThreshold = 6000; // 延时注入阈值(ms)
     private static int lengthThreshold = 10; // 响应长度差异阈值
@@ -89,12 +95,17 @@ public class SqlUI extends AbstractScanUI {
     private static final List<SqlErrorRule> SQL_ERROR_RULES = SqlInjectionDetector.immutableDefaultErrorRules();
     // 当前面板实例：静态入口（dispatchPassiveHttpMessage 等）经此定位到实例
     private static volatile SqlUI instance;
-    private static final LruCache<Integer, List<SqlPayloadEntry>> urlPayloadMapping = new LruCache<>(MAX_TRACKED_URL_STATE);
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
+    /** 保存按钮专用单线程执行器：DB 删改移出 EDT，同时串行化防止连点先删后插交错。 */
+    private static final java.util.concurrent.ExecutorService saveExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "SqlUI-save");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     /** 清空全部扫描状态（基线/证据/预算/去重键），并同步重置共享节流器与 URL 缓存。 */
     public static void resetAllCaches() {
-        urlPayloadMapping.clear();
         vul.clear();
         reportedIssues.clear();
         passiveErrorIssueKeys.clear();
@@ -105,9 +116,11 @@ public class SqlUI extends AbstractScanUI {
         baselineRequestResponses.clear();
         databaseFingerprints.clear();
         wafBlockCounters.clear();
+        wafCountedResponses.clear();
         // WAF 慢速主机标记与最后请求时间已收口到共享节流器
         HostThrottle.reset();
         parameterBudgets.clear();
+        urlBudgets.clear();
         timeCandidates.clear();
         UrlCacheUtil.resetCache("sqli");
     }
@@ -128,6 +141,12 @@ public class SqlUI extends AbstractScanUI {
     private static final Pattern CLEAN_UUID = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
     private static final Pattern CLEAN_WHITESPACE = Pattern.compile("\\s+");
     private static final Pattern CLEAN_HTML_TAGS = Pattern.compile("<[^>]+>");
+
+    /** 写方法：重放请求体会真正改动服务端数据，默认不扫描。 */
+    private static boolean isWriteMethod(String method) {
+        return "PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method)
+                || "DELETE".equalsIgnoreCase(method);
+    }
 
     /** SQL 检测核心（ScanTaskExecutor 池线程）：被动入口先记录再过滤，
      *  基线采样后按参数位置执行错误/布尔/时间三类探测。isSend=手动扫描，false=被动。 */
@@ -170,6 +189,11 @@ public class SqlUI extends AbstractScanUI {
         int logid = isSend ? -1 : addUrl(method, url, 0, baseRequestResponse);
         if (!SqlInjectionDetector.isSupportedMethod(method)) {
             updatePassiveStatus(logid, I18nUtils.get("sql.status.skip_method"));
+            return;
+        }
+        // 写方法重放会改动业务数据（PUT/PATCH/DELETE），一律不探测
+        if (isWriteMethod(method)) {
+            updatePassiveStatus(logid, I18nUtils.get("sql.status.skip_write_method"));
             return;
         }
         if (Utils.isUrlBlackListSuffix(url)) {
@@ -233,10 +257,12 @@ public class SqlUI extends AbstractScanUI {
         byte[] request = baseRequestResponse.getRequest();
         int bodyOffset = analyzeRequest.getBodyOffset();
         byte[] body = Arrays.copyOfRange(request, bodyOffset, request.length);
+        // GET 无副作用可多次采样取稳定统计；其余方法（含写方法）只回放一次，减少重复副作用。
+        int baselineSamples = "GET".equalsIgnoreCase(method) ? BASELINE_SAMPLE_COUNT : 1;
         BaselineSample baselineSample = sampleBaseline(
                 baseRequestResponse.getHttpService(),
                 Utils.helpers.buildHttpMessage(reqheaders, body),
-                BASELINE_SAMPLE_COUNT);
+                baselineSamples);
         if (baselineSample == null || baselineSample.representative == null
                 || baselineSample.representative.getResponse() == null) {
             if (passiveErrorDisclosure) {
@@ -407,7 +433,6 @@ public class SqlUI extends AbstractScanUI {
                         }
 
                         // 测试单引号响应
-                        long singleQuoteStartTime = System.currentTimeMillis();
                         JsonProcessorUtil.ProcessResult singleQuoteResult = singleQuoteResults.get(jsonParam);
                         if (singleQuoteResult == null) {
                             continue;
@@ -416,15 +441,15 @@ public class SqlUI extends AbstractScanUI {
                         if (!acquireBudget(logid, jsonLocation)) {
                             continue;
                         }
-                        IHttpRequestResponse singleQuoteResponse = sendRequest(baseRequestResponse.getHttpService(), singleQuoteBytes);
-                        long singleQuoteResponseTime = System.currentTimeMillis() - singleQuoteStartTime;
+                        TimedResponse singleQuoteTimed = sendRequestTimed(baseRequestResponse.getHttpService(), singleQuoteBytes);
+                        IHttpRequestResponse singleQuoteResponse = singleQuoteTimed.response;
+                        long singleQuoteResponseTime = singleQuoteTimed.elapsedMs;
                         if (singleQuoteResponse == null || singleQuoteResponse.getResponse() == null) {
                             continue;
                         }
                         String singleQuoteBody = getResponseBody(singleQuoteResponse);
 
                         // 测试双引号响应
-                        long doubleQuoteStartTime = System.currentTimeMillis();
                         JsonProcessorUtil.ProcessResult doubleQuoteResult = doubleQuoteResults.get(jsonParam);
                         if (doubleQuoteResult == null) {
                             continue;
@@ -433,8 +458,9 @@ public class SqlUI extends AbstractScanUI {
                         if (!acquireBudget(logid, jsonLocation)) {
                             continue;
                         }
-                        IHttpRequestResponse doubleQuoteResponse = sendRequest(baseRequestResponse.getHttpService(), doubleQuoteBytes);
-                        long doubleQuoteResponseTime = System.currentTimeMillis() - doubleQuoteStartTime;
+                        TimedResponse doubleQuoteTimed = sendRequestTimed(baseRequestResponse.getHttpService(), doubleQuoteBytes);
+                        IHttpRequestResponse doubleQuoteResponse = doubleQuoteTimed.response;
+                        long doubleQuoteResponseTime = doubleQuoteTimed.elapsedMs;
                         if (doubleQuoteResponse == null || doubleQuoteResponse.getResponse() == null) {
                             continue;
                         }
@@ -443,14 +469,16 @@ public class SqlUI extends AbstractScanUI {
                         int singleQuoteLength = getResponseLength(singleQuoteResponse);
                         int doubleQuoteLength = getResponseLength(doubleQuoteResponse);
 
-                        // 检查是否存在盲注
-                        BooleanEvidence jsonBooleanEvidence = evaluateBlindEvidence(logid,
-                                originalRequestResponse, singleQuoteResponse, doubleQuoteResponse, jsonBaselineTime);
-                        if (isBooleanBlind && jsonBooleanEvidence != null && jsonBooleanEvidence.isConfirmedPattern()
-                                && validateBooleanCounterEvidence(logid, originalRequestResponse,
-                                singleQuoteResponse, doubleQuoteResponse, jsonBaselineTime)) {
-                            reportBlindInjection(logid, jsonLocation, jsonParam, url, singleQuoteResponse,
-                                    doubleQuoteResponse, "JSON", jsonBooleanEvidence);
+                        // 检查是否存在盲注（关闭时跳过三响应快照与全身体积相似度计算）
+                        if (isBooleanBlind) {
+                            BooleanEvidence jsonBooleanEvidence = evaluateBlindEvidence(logid,
+                                    originalRequestResponse, singleQuoteResponse, doubleQuoteResponse, jsonBaselineTime);
+                            if (jsonBooleanEvidence != null && jsonBooleanEvidence.isConfirmedPattern()
+                                    && validateBooleanCounterEvidence(logid, originalRequestResponse,
+                                    singleQuoteResponse, doubleQuoteResponse, jsonBaselineTime)) {
+                                reportBlindInjection(logid, jsonLocation, jsonParam, url, singleQuoteResponse,
+                                        doubleQuoteResponse, "JSON", jsonBooleanEvidence);
+                            }
                         }
 
                         // 数字型盲注：仅对原始值为整数的叶子探测（变异保持 JSON 语法合法）。
@@ -518,7 +546,6 @@ public class SqlUI extends AbstractScanUI {
                             }
 
                             // 测试当前payload
-                            long startTime = System.currentTimeMillis();
                             JsonProcessorUtil.ProcessResult payloadResult = payloadEntry.getValue().get(jsonParam);
                             if (payloadResult == null) continue;
 
@@ -526,8 +553,9 @@ public class SqlUI extends AbstractScanUI {
                             if (!acquireBudget(logid, jsonLocation)) {
                                 break;
                             }
-                            IHttpRequestResponse payloadResponse = sendRequest(baseRequestResponse.getHttpService(), payloadBytes);
-                            long responseTime = System.currentTimeMillis() - startTime;
+                            TimedResponse payloadTimed = sendRequestTimed(baseRequestResponse.getHttpService(), payloadBytes);
+                            IHttpRequestResponse payloadResponse = payloadTimed.response;
+                            long responseTime = payloadTimed.elapsedMs;
                             if (payloadResponse == null || payloadResponse.getResponse() == null) {
                                 continue;
                             }
@@ -597,12 +625,11 @@ public class SqlUI extends AbstractScanUI {
                         } else {
                             payload = paraValue + sqlPayload;
                         }
-                        long startTime = System.currentTimeMillis();
                         IParameter iParameters = Utils.helpers.buildParameter(paraName, payload, para.getType());
                         byte[] bytes = Utils.helpers.updateParameter(baseRequestResponse.getRequest(), iParameters);
-                        IHttpRequestResponse newRequestResponse = sendRequest(baseRequestResponse.getHttpService(), bytes);
-                        long endTime = System.currentTimeMillis();
-                        String responseTime = String.valueOf(endTime - startTime);
+                        TimedResponse cookieTimed = sendRequestTimed(baseRequestResponse.getHttpService(), bytes);
+                        IHttpRequestResponse newRequestResponse = cookieTimed.response;
+                        String responseTime = String.valueOf(cookieTimed.elapsedMs);
                         if (newRequestResponse == null || newRequestResponse.getResponse() == null) {
                             addPayload(logid, paraName, payload, 0, "N/A", errkey, responseTime, "", newRequestResponse);
                             continue;
@@ -682,11 +709,11 @@ public class SqlUI extends AbstractScanUI {
                         }
                     }
                     String errkey = "x";
-                    long startTime = System.currentTimeMillis();
-                    IHttpRequestResponse newRequestResponse = sendRequest(
+                    TimedResponse headerTimed = sendRequestTimed(
                             baseRequestResponse.getHttpService(),
                             Utils.helpers.buildHttpMessage(mutatedHeaders, body));
-                    long responseTimeMs = System.currentTimeMillis() - startTime;
+                    IHttpRequestResponse newRequestResponse = headerTimed.response;
+                    long responseTimeMs = headerTimed.elapsedMs;
                     if (newRequestResponse == null || newRequestResponse.getResponse() == null) {
                         addPayload(logid, effectiveHeaderName, payload, 0, "N/A", errkey, String.valueOf(responseTimeMs), "", null);
                         continue;
@@ -768,7 +795,6 @@ public class SqlUI extends AbstractScanUI {
         synchronized (urldata) {
             urldata.removeIf(entry -> entry.id == logid);
         }
-        urlPayloadMapping.remove(logid);
         vul.remove(logid);
         reportedIssues.remove(logid);
         confirmedLocations.remove(logid);
@@ -778,6 +804,7 @@ public class SqlUI extends AbstractScanUI {
         baselineRequestResponses.remove(logid);
         databaseFingerprints.remove(logid);
         parameterBudgets.removeKeys(key -> key.startsWith(logid + "|"));
+        urlBudgets.remove(logid);
         timeCandidates.removeKeys(key -> key.startsWith(logid + "|"));
 
         SqlUI ui = instance;
@@ -908,8 +935,13 @@ public class SqlUI extends AbstractScanUI {
         return HostThrottle.isSlow(service.getProtocol() + "://" + service.getHost() + ":" + service.getPort());
     }
 
-    /** 获取该参数位置的探测预算（每位置 15 次，跨探测共享，超限返回 false）。 */
+    /** 获取探测预算：单位置 15 次、单 URL 总量 60 次双重上限（跨错误/布尔/时间探测共享），超限返回 false。 */
     private static boolean acquireBudget(int logid, String location) {
+        ScanBudget urlBudget = urlBudgets.computeIfAbsent(logid,
+                key -> new ScanBudget(MAX_REQUESTS_PER_URL));
+        if (!urlBudget.tryAcquire()) {
+            return false;
+        }
         return parameterBudgets.computeIfAbsent(budgetKey(logid, location),
                 key -> new ScanBudget(15)).tryAcquire();
     }
@@ -921,7 +953,9 @@ public class SqlUI extends AbstractScanUI {
             IResponseInfo info = Utils.helpers.analyzeResponse(response.getResponse());
             WafEvidence evidence = SqlInjectionDetector.detectWaf(
                     (int) info.getStatusCode(), info.getHeaders(), getResponseBody(response), false);
-            if (evidence.isBlocked() && response.getHttpService() != null) {
+            if (evidence.isBlocked() && response.getHttpService() != null
+                    // 同一响应会被快照/上报多个入口重复分析，按响应对象去重只计一次
+                    && wafCountedResponses.add(response)) {
                 IHttpService service = response.getHttpService();
                 String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
                 // 同一主机连续 ≥2 次拦截即标记为慢速主机（共享节流器会放大后续间隔，并带 TTL 过期）
@@ -1013,15 +1047,16 @@ public class SqlUI extends AbstractScanUI {
         List<IHttpRequestResponse> responses = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
-            long started = System.nanoTime();
             IHttpRequestResponse response;
+            long elapsed;
             try {
-                response = sendRequest(service, request);
+                TimedResponse timed = sendRequestTimed(service, request);
+                response = timed.response;
+                elapsed = timed.elapsedMs;
             } catch (Exception e) {
                 Utils.stderr.println("SQL baseline request failed: " + e.getMessage());
                 continue;
             }
-            long elapsed = Math.max(0L, (System.nanoTime() - started) / 1000000L);
             if (response == null || response.getResponse() == null) {
                 continue;
             }
@@ -1076,12 +1111,30 @@ public class SqlUI extends AbstractScanUI {
      * 节流实现与 Route 模块共用 {@link HostThrottle}（80ms 常规 / 300ms 慢速，带 TTL 过期）。
      */
     private static IHttpRequestResponse sendRequest(IHttpService service, byte[] request) {
+        return sendRequestTimed(service, request).response;
+    }
+
+    /** 定时请求结果对：响应 + 请求本身耗时（ms）。 */
+    private static final class TimedResponse {
+        private final IHttpRequestResponse response;
+        private final long elapsedMs;
+
+        private TimedResponse(IHttpRequestResponse response, long elapsedMs) {
+            this.response = response;
+            this.elapsedMs = elapsedMs;
+        }
+    }
+
+    /** 节流先行、只计请求本身耗时：HostThrottle 的等待（80~300ms 以上）不得混入时间盲注耗时证据。 */
+    private static TimedResponse sendRequestTimed(IHttpService service, byte[] request) {
         if (service == null || request == null) {
-            return null;
+            return new TimedResponse(null, 0L);
         }
         String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
         HostThrottle.throttle(hostKey);
-        return Utils.callbacks.makeHttpRequest(service, request);
+        long started = System.nanoTime();
+        IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service, request);
+        return new TimedResponse(response, Math.max(0L, (System.nanoTime() - started) / 1000000L));
     }
 
     /** 将 JSON 变异结果按参数路径索引（LinkedHashMap 保序），避免扫描中反复线性查找。 */
@@ -1155,12 +1208,8 @@ public class SqlUI extends AbstractScanUI {
         if (abnormal == null || normal == null || abnormal.getRequest() == null || normal.getRequest() == null) {
             return false;
         }
-        long started = System.currentTimeMillis();
         IHttpRequestResponse abnormalReplay = sendRequest(abnormal.getHttpService(), abnormal.getRequest());
-        long abnormalElapsed = System.currentTimeMillis() - started;
-        started = System.currentTimeMillis();
         IHttpRequestResponse normalReplay = sendRequest(normal.getHttpService(), normal.getRequest());
-        long normalElapsed = System.currentTimeMillis() - started;
         BooleanEvidence replay = evaluateBlindEvidence(logid, original, abnormalReplay, normalReplay, baselineTime);
         // 重放一致性：abnormal/normal 的重放响应必须与首次探测同类，
         // 排除随机动态页面两次恰好"互异"造成的假布尔模式。
@@ -1171,37 +1220,7 @@ public class SqlUI extends AbstractScanUI {
         return replay != null && replay.isConfirmedPattern() && replayConsistent;
     }
 
-    /** 盲注三响应交叉判定：长度模式与相似度模式须同时成立（防随机内容误触发）。 */
-    private static boolean checkBlindInjection(String originalResponse, String abnormalResponse, String normalResponse) {
-        if (originalResponse == null || abnormalResponse == null || normalResponse == null
-                || abnormalResponse.isEmpty() || normalResponse.isEmpty()) {
-            return false;
-        }
-        // 长度差异 alone 容易被随机内容误触发；必须同时满足长度模式和相似度模式。
-        boolean lengthBasedCheck = checkResponseLength(originalResponse, abnormalResponse, normalResponse);
-        return lengthBasedCheck && checkResponseSimilarity(originalResponse, abnormalResponse, normalResponse);
-    }
-
-    /** 响应长度模式判定（清理动态内容后）：原≈正常、原/异常差异明显（使用配置阈值）。 */
-    private static boolean checkResponseLength(String originalResponse, String abnormalResponse, String normalResponse) {
-
-        // 获取处理后的响应长度
-        int cleanOriginalLength = cleanResponse(originalResponse).length();
-        int cleanAbnormalLength = cleanResponse(abnormalResponse).length();
-        int cleanNormalLength = cleanResponse(normalResponse).length();
-
-        // 计算长度差异
-        int diffOriginalAbnormal = Math.abs(cleanOriginalLength - cleanAbnormalLength);
-        int diffOriginalNormal = Math.abs(cleanOriginalLength - cleanNormalLength);
-        int diffNormalAbnormal = Math.abs(cleanNormalLength - cleanAbnormalLength);
-
-        // 判断长度模式（使用配置的阈值）
-        return diffOriginalNormal <= lengthThreshold && // 原始响应和正常响应长度相近
-                diffOriginalAbnormal > lengthThreshold && // 原始响应和异常响应长度差异明显
-                diffNormalAbnormal > lengthThreshold;     // 正常响应和异常响应长度差异明显
-    }
-
-    /** 清理响应中的动态内容（token/时间戳/会话/HTML 标签等）并标准化，供长度与相似度比对。 */
+    /** 清理响应中的动态内容（token/时间戳/会话/HTML 标签等）并标准化，供被动泄露去重键使用。 */
     private static String cleanResponse(String response) {
         if (response == null || response.isEmpty()) {
             return "";
@@ -1231,27 +1250,6 @@ public class SqlUI extends AbstractScanUI {
         cleanResponse = CLEAN_WHITESPACE.matcher(cleanResponse).replaceAll(" ").trim().toLowerCase();
 
         return cleanResponse;
-    }
-
-    // 检查响应相似度模式
-    private static boolean checkResponseSimilarity(String originalResponse, String abnormalResponse, String normalResponse) {
-        // 使用统一的cleanResponse方法
-        String cleanOriginal = cleanResponse(originalResponse);
-        String cleanAbnormal = cleanResponse(abnormalResponse);
-        String cleanNormal = cleanResponse(normalResponse);
-
-        // 相似度比对（使用配置的阈值，百分比转小数）
-        double simThreshold = similarityThreshold / 100.0;
-        boolean originalVsNormalSimilar = !ResponseSimilarityMatcher.compareTwoResponses(
-                cleanOriginal, cleanNormal, simThreshold);    // 相似
-        boolean originalVsAbnormalDifferent = ResponseSimilarityMatcher.compareTwoResponses(
-                cleanOriginal, cleanAbnormal, simThreshold);  // 不相似
-        boolean normalVsAbnormalDifferent = ResponseSimilarityMatcher.compareTwoResponses(
-                cleanNormal, cleanAbnormal, simThreshold);    // 不相似
-
-        return originalVsNormalSimilar &&
-                originalVsAbnormalDifferent &&
-                normalVsAbnormalDifferent;
     }
 
     /** 只让同一请求、同一位置、同一类型的漏洞创建一次 Burp Issue。 */
@@ -1454,9 +1452,9 @@ public class SqlUI extends AbstractScanUI {
             // 普通报错/布尔 payload 的网络抖动不能进入时间盲注通道。
             return false;
         }
-        long replayStart = System.currentTimeMillis();
-        IHttpRequestResponse replay = sendRequest(requestResponse.getHttpService(), requestResponse.getRequest());
-        long replayTime = System.currentTimeMillis() - replayStart;
+        TimedResponse replayTimed = sendRequestTimed(requestResponse.getHttpService(), requestResponse.getRequest());
+        IHttpRequestResponse replay = replayTimed.response;
+        long replayTime = replayTimed.elapsedMs;
         if (replay == null || replay.getResponse() == null) {
             return false;
         }
@@ -1538,9 +1536,10 @@ public class SqlUI extends AbstractScanUI {
         if (abnormalResponse == null || normalResponse == null || evidence == null || !evidence.isConfirmedPattern()) {
             return false;
         }
+        BaselineStats blindBaseline = baselineStatsMap.get(logid);
         SqlInjectionConfidenceScorer.Result score = SqlInjectionConfidenceScorer.score(
                 null, evidence, null, WafEvidence.none(), false,
-                baselineStatsMap.containsKey(logid) && baselineStatsMap.get(logid).isHighVariance(), true);
+                blindBaseline != null && blindBaseline.isHighVariance(), true);
         if (score.getLevel() == SqlInjectionConfidenceScorer.Level.NONE) {
             return false;
         }
@@ -1604,7 +1603,7 @@ public class SqlUI extends AbstractScanUI {
         return value.matches("^-?\\d+$");
     }
 
-    /** 获取响应体字符串（UTF-8，按 bodyOffset 截取头部之后）。 */
+    /** 获取响应体字符串（按 Content-Type 的 charset 解码，缺省/非法回退 UTF-8；按 bodyOffset 截取头部之后）。 */
     public static String getResponseBody(IHttpRequestResponse requestResponse) {
         if (requestResponse == null || requestResponse.getResponse() == null) {
             return "";
@@ -1612,8 +1611,42 @@ public class SqlUI extends AbstractScanUI {
         byte[] response = requestResponse.getResponse();
         IResponseInfo responseInfo = Utils.helpers.analyzeResponse(response);
         int bodyOffset = responseInfo.getBodyOffset();
+        byte[] bodyBytes = Arrays.copyOfRange(response, bodyOffset, response.length);
+        return new String(bodyBytes, resolveResponseCharset(responseInfo.getHeaders()));
+    }
 
-        return new String(Arrays.copyOfRange(response, bodyOffset, response.length), java.nio.charset.StandardCharsets.UTF_8);
+    /** 解析响应头声明的 charset（GBK/Big5 页面不再按 UTF-8 解出乱码），未声明或不支持时回退 UTF-8。 */
+    private static java.nio.charset.Charset resolveResponseCharset(List<String> headers) {
+        if (headers != null) {
+            for (String header : headers) {
+                if (header == null || !header.regionMatches(true, 0, "content-type:", 0, 13)) {
+                    continue;
+                }
+                int charsetIndex = header.toLowerCase(Locale.ROOT).indexOf("charset=");
+                if (charsetIndex < 0) {
+                    break;
+                }
+                String charset = header.substring(charsetIndex + "charset=".length()).trim();
+                int boundary = charset.length();
+                for (int i = 0; i < boundary; i++) {
+                    char c = charset.charAt(i);
+                    if (c == ';' || c == ' ' || c == '"' || c == '\'') {
+                        boundary = i;
+                        break;
+                    }
+                }
+                charset = charset.substring(0, boundary);
+                if (!charset.isEmpty()) {
+                    try {
+                        return java.nio.charset.Charset.forName(charset);
+                    } catch (Exception ignored) {
+                        // 非法或不支持的 charset 声明，回退 UTF-8
+                    }
+                }
+                break;
+            }
+        }
+        return java.nio.charset.StandardCharsets.UTF_8;
     }
 
     /** 获取响应体实际字节数（按 bodyOffset 计算，避免信任错误或缺失的 Content-Length）。 */
@@ -1628,11 +1661,10 @@ public class SqlUI extends AbstractScanUI {
 
 
     // 添加url数据到表格
-    /** 新增 URL 结果行（自增 id），初始化该 id 的 payload 映射并刷新表格。 */
+    /** 新增 URL 结果行（自增 id），随后刷新表格。 */
     public static int addUrl(String method, String url, int length, IHttpRequestResponse requestResponse) {
         int id = urlIdCounter.getAndIncrement();
         SqlUIEntry entry = new SqlUIEntry(id, method, url, length, I18nUtils.get("sql.detection.in_progress"), requestResponse);
-        urlPayloadMapping.put(id, Collections.synchronizedList(new ArrayList<>()));
 
         synchronized (urldata) {
             urldata.add(entry);
@@ -1645,14 +1677,14 @@ public class SqlUI extends AbstractScanUI {
         return id;
     }
 
-    /** 超限淘汰最旧 URL 结果（锁内调用），并同步清理被淘汰 id 的 payload 映射，防止映射泄漏。 */
+    /** 超限淘汰最旧 URL 结果（锁内调用），并同步释放被淘汰 id 的探测预算。 */
     private static void trimUrlDataOverflow() {
         if (urldata.size() <= MAX_LOG_ENTRIES) {
             return;
         }
         int excess = urldata.size() - MAX_LOG_ENTRIES;
         for (int i = 0; i < excess; i++) {
-            urlPayloadMapping.remove(((SqlUIEntry) urldata.get(i)).id);
+            urlBudgets.remove(((SqlUIEntry) urldata.get(i)).id);
         }
         urldata.subList(0, excess).clear();
     }
@@ -1689,11 +1721,9 @@ public class SqlUI extends AbstractScanUI {
         return false;
     }
 
-    /** 追加 payload 探测结果到 urlPayloadMapping（供表格按 URL 过滤）与 payloaddata2（EDT 刷新，容量上限同 URL 列表）。 */
+    /** 追加 payload 探测结果到 payloaddata2（EDT 刷新，容量上限同 URL 列表；URL 表选中行按 selectId 过滤展示）。 */
     public static void addPayload(int selectId, String key, String value, int length, String change, String errkey, String time, String status, IHttpRequestResponse requestResponse) {
         SqlPayloadEntry entry = new SqlPayloadEntry(selectId, key, value, length, change, errkey, time, status, requestResponse);
-        urlPayloadMapping.computeIfAbsent(selectId,
-                cacheKey -> Collections.synchronizedList(new ArrayList<>())).add(entry);
 
         SwingUtilities.invokeLater(() -> {
             synchronized (payloaddata2) {
@@ -1734,9 +1764,6 @@ public class SqlUI extends AbstractScanUI {
             payload = isDeleteOrgin ? value : paraValue + value;
         }
 
-        // 发送请求并记录时间
-        long startTime = System.currentTimeMillis();
-
         // 构造新的参数
         if (para == null || baseRequestResponse == null || baseRequestResponse.getRequest() == null
                 || paraName == null || paraName.trim().isEmpty()) {
@@ -1761,11 +1788,10 @@ public class SqlUI extends AbstractScanUI {
 
         // 每个参数最多 15 个主检测请求；复核请求不占用此预算。
         if (!acquireBudget(logid, parameterLocation(para, paraName))) return null;
-        // 发送请求
-        IHttpRequestResponse newRequestResponses = sendRequest(baseRequestResponse.getHttpService(), paramByte);
-
-        long endTime = System.currentTimeMillis();
-        long responseTime = endTime - startTime;
+        // 发送请求并只计请求本身耗时（节流等待不计入）
+        TimedResponse probeTimed = sendRequestTimed(baseRequestResponse.getHttpService(), paramByte);
+        IHttpRequestResponse newRequestResponses = probeTimed.response;
+        long responseTime = probeTimed.elapsedMs;
 
         // 获取响应数据
         if (newRequestResponses == null || newRequestResponses.getResponse() == null) {
@@ -2185,7 +2211,6 @@ public class SqlUI extends AbstractScanUI {
             refreshTableModel(payloadtable);
         });
         clearTableButton.addActionListener(e -> {
-            urlPayloadMapping.clear();
             synchronized (urldata) {
                 urldata.clear();
             }
@@ -2195,9 +2220,7 @@ public class SqlUI extends AbstractScanUI {
             synchronized (payloaddata2) {
                 payloaddata2.clear();
             }
-            vul.clear();
-            passiveErrorIssueKeys.clear();
-            UrlCacheUtil.resetCache("sqli");
+            resetAllCaches();
             if (requestEditor != null) requestEditor.setMessage(new byte[0], true);
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
             SqlUI ui = instance;
@@ -2209,19 +2232,8 @@ public class SqlUI extends AbstractScanUI {
         saveHeaderListButton.addActionListener(e -> saveTextAreaContent(headerTextArea, "header", SqlBean::new));
         saveWhiteListButton.addActionListener(e -> saveTextAreaContent(whiteListTextArea, "domain", SqlBean::new));
 
-        saveSqlErrorKeyButton.addActionListener(e -> {
-            deleteSqlByType("sqlErrorKey");
-            saveTextAreaContent(sqlErrorKeyTextArea, "sqlErrorKey", SqlBean::new);
-            List<String> updatedErrorKeys = new ArrayList<>();
-            getSqlListsByType("sqlErrorKey").forEach(b -> {
-                if (b != null && b.getValue() != null && !b.getValue().trim().isEmpty()) {
-                    updatedErrorKeys.add(b.getValue().trim());
-                }
-            });
-            listErrorKey = Collections.unmodifiableList(updatedErrorKeys);
-            sqlErrorKeyTextArea.repaint();
-            showSaveSuccess();
-        });
+        saveSqlErrorKeyButton.addActionListener(e ->
+                saveTextAreaContent(sqlErrorKeyTextArea, "sqlErrorKey", SqlBean::new));
     }
 
     /**
@@ -2254,31 +2266,41 @@ public class SqlUI extends AbstractScanUI {
         return "SqlInject";
     }
 
-    /** 保存文本框内容到 sql 表（先删后插，多行按行拆分），并刷新对应运行时快照。 */
+    /** 保存文本框内容到 sql 表（先删后插，多行按行拆分），并刷新对应运行时快照；
+     *  DB 读写在单线程执行器中串行完成，完成提示回到 EDT 弹窗。 */
     private void saveTextAreaContent(JTextArea textArea, String type, java.util.function.BiFunction<String, String, SqlBean> factory) {
         String text = textArea.getText();
-        deleteSqlByType(type);
-        if (text.contains("\n")) {
+        saveExecutor.execute(() -> {
+            deleteSqlByType(type);
             for (String line : text.split("\n")) {
                 if (line.trim().isEmpty()) continue;
                 saveSql(factory.apply(type, line.trim()));
             }
-        } else if (!text.trim().isEmpty()) {
-            saveSql(factory.apply(type, text.trim()));
-        }
-        if ("payload".equals(type)) sqliPayload = Collections.unmodifiableList(new ArrayList<>(getSqlListsByType("payload")));
-        if ("header".equals(type)) headerList = Collections.unmodifiableList(new ArrayList<>(getSqlListsByType("header")));
-        if ("domain".equals(type)) {
-            List<String> updatedDomains = new ArrayList<>();
-            getSqlListsByType("domain").forEach(b -> {
-                if (b != null && b.getValue() != null && !b.getValue().trim().isEmpty()) {
-                    updatedDomains.add(b.getValue().trim());
+            if ("payload".equals(type)) sqliPayload = Collections.unmodifiableList(new ArrayList<>(getSqlListsByType("payload")));
+            if ("header".equals(type)) headerList = Collections.unmodifiableList(new ArrayList<>(getSqlListsByType("header")));
+            if ("domain".equals(type)) {
+                List<String> updatedDomains = new ArrayList<>();
+                for (SqlBean bean : getSqlListsByType("domain")) {
+                    if (bean != null && bean.getValue() != null && !bean.getValue().trim().isEmpty()) {
+                        updatedDomains.add(bean.getValue().trim());
+                    }
                 }
+                domainList = Collections.unmodifiableList(updatedDomains);
+            }
+            if ("sqlErrorKey".equals(type)) {
+                List<String> updatedErrorKeys = new ArrayList<>();
+                for (SqlBean bean : getSqlListsByType("sqlErrorKey")) {
+                    if (bean != null && bean.getValue() != null && !bean.getValue().trim().isEmpty()) {
+                        updatedErrorKeys.add(bean.getValue().trim());
+                    }
+                }
+                listErrorKey = Collections.unmodifiableList(updatedErrorKeys);
+            }
+            SwingUtilities.invokeLater(() -> {
+                textArea.repaint();
+                showSaveSuccess();
             });
-            domainList = Collections.unmodifiableList(updatedDomains);
-        }
-        textArea.repaint();
-        showSaveSuccess();
+        });
     }
 
     /** 保存成功后弹窗提示（EDT 调用）。 */

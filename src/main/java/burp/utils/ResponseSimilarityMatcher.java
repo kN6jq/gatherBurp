@@ -9,6 +9,8 @@ public class ResponseSimilarityMatcher {
     /** 相似度阈值，可以根据实际测试调整 */
     private static final double SIMILARITY_THRESHOLD = 0.85;
     private static final int MIN_TOKEN_LENGTH = 4;
+    /** 参与相似度计算的正文字符上限：预处理与分词开销随长度线性增长，超大响应截断防 CPU 爆炸。 */
+    private static final int MAX_SIMILARITY_BODY_CHARS = 64 * 1024;
 
     /** 预编译的响应预处理正则模式集 */
     private static final Pattern HTML_TAG_PATTERN = Pattern.compile("<[^>]+>");
@@ -80,10 +82,10 @@ public class ResponseSimilarityMatcher {
                 calculateSimilarity(original, abnormal),
                 calculateSimilarity(normal, abnormal));
     }
-    /** 计算两响应的 Jaccard 相似度（预处理 + token 集合交集/并集）。 */
+    /** 计算两响应的 Jaccard 相似度（截断超大正文 + 预处理 + token 集合交集/并集）。 */
     public static double calculateSimilarity(String str1, String str2) {
-        str1 = preprocessResponse(str1);
-        str2 = preprocessResponse(str2);
+        str1 = preprocessResponse(truncateForSimilarity(str1));
+        str2 = preprocessResponse(truncateForSimilarity(str2));
 
         Set<String> set1 = tokenize(str1);
         Set<String> set2 = tokenize(str2);
@@ -99,6 +101,14 @@ public class ResponseSimilarityMatcher {
         }
 
         return (double) intersection.size() / union.size();
+    }
+
+    /** 截断超大响应体（两侧同口径比较前固定片段，控制预处理与分词开销）。 */
+    private static String truncateForSimilarity(String str) {
+        if (str == null || str.length() <= MAX_SIMILARITY_BODY_CHARS) {
+            return str;
+        }
+        return str.substring(0, MAX_SIMILARITY_BODY_CHARS);
     }
 
     /** 预处理响应内容（去 HTML 标签/动态内容/标点，转小写合并空白）。 */
