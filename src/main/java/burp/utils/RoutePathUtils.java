@@ -17,26 +17,31 @@ public final class RoutePathUtils {
         List<String> testPaths = new ArrayList<>();
         originalPath = cleanPath(originalPath);
 
-        String[] pathSegments = originalPath.split("/");
+        List<String> segments = new ArrayList<>();
+        for (String segment : originalPath.split("/")) {
+            if (!segment.isEmpty()) {
+                segments.add(cleanSegment(segment));
+            }
+        }
+        // 末段形如文件名（含点）时不作为目录前缀：/index.php 不应产出 /index.php/actuator
+        // 这类 pathinfo 探测请求量翻倍，且前端控制器常对未知后缀回 200 整页造成误报
+        if (!segments.isEmpty() && segments.get(segments.size() - 1).contains(".")) {
+            segments.remove(segments.size() - 1);
+        }
+
         StringBuilder currentPath = new StringBuilder();
 
         testPaths.add(payload);
 
         int depth = 0;
-        for (String segment : pathSegments) {
-            if (!segment.isEmpty()) {
-                // 深度上限：约束请求数 = (1 + MAX_TEST_PATH_DEPTH) × 规则数
-                if (depth >= MAX_TEST_PATH_DEPTH) {
-                    break;
-                }
-                depth++;
-                if (currentPath.length() == 0) {
-                    currentPath.append("/").append(cleanSegment(segment));
-                } else {
-                    currentPath.append("/").append(cleanSegment(segment));
-                }
-                testPaths.add(currentPath + payload);
+        for (String segment : segments) {
+            // 深度上限：约束请求数 = (1 + MAX_TEST_PATH_DEPTH) × 规则数
+            if (depth >= MAX_TEST_PATH_DEPTH) {
+                break;
             }
+            depth++;
+            currentPath.append("/").append(segment);
+            testPaths.add(currentPath + payload);
         }
 
         return testPaths;

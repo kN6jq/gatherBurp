@@ -19,7 +19,6 @@ import javax.swing.table.TableModel;
 import java.awt.*;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -302,7 +301,7 @@ public class RouteUI extends AbstractScanUI {
     // 路径组合逻辑在 burp.utils.RoutePathUtils（纯函数，带深度上限），便于单元测试。
 
     /** 目录探测核心（ScanTaskExecutor 池线程，经右键菜单/扫描按钮/被动扫描调用）：
-     *  路径组合 × 启用规则逐条请求，ExpressionUtils 判定命中并记录 WAF 信号。 */
+     *  路径组合 × 启用规则逐条以 GET 空体探测（buildNewRequest），ExpressionUtils 判定命中并记录 WAF 信号。 */
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
         lock.lock();
         try {
@@ -329,7 +328,6 @@ public class RouteUI extends AbstractScanUI {
                 return;
             }
 
-            byte[] rawRequest = baseRequest.getRequest();
             List<String> headers = analyzeRequest.getHeaders();
             IHttpService service = baseRequest.getHttpService();
             int sentRequests = 0;
@@ -356,14 +354,7 @@ public class RouteUI extends AbstractScanUI {
                     }
                     uniqueUrl.add(dedupKey);
 
-                    byte[] newRequest = buildNewRequest(
-                            service,
-                            headers,
-                            method,
-                            testPath,
-                            analyzeRequest.getBodyOffset(),
-                            rawRequest
-                    );
+                    byte[] newRequest = buildNewRequest(service, headers, testPath);
 
                     String fullUrl = baseUrl.getProtocol() + "://" + baseUrl.getHost() +
                             (baseUrl.getPort() != -1 ? ":" + baseUrl.getPort() : "") + testPath;
@@ -421,33 +412,28 @@ public class RouteUI extends AbstractScanUI {
         return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
 
-    /** 基于原始请求替换路径构造新请求（POST 保留 body，GET 置空 body）。 */
+    /** 构造探测请求：目录探测本质是只读探路，一律改写为 GET + 空 body（复用原请求头）。
+     *  若沿用基础请求的 method/body，POST 表单会被重放到 /nacos/v1/auth/users 等写接口上，
+     *  在未授权目标上直接造成建用户等副作用；Content-Length 描述的是已剥离的 body，必须一并去掉。 */
     private static byte[] buildNewRequest(
             IHttpService httpService,
             List<String> headers,
-            String method,
-            String newPath,
-            int bodyOffset,
-            byte[] originalRequest
+            String newPath
     ) {
         List<String> newHeaders = new ArrayList<>();
         for (int i = 0; i < headers.size(); i++) {
             if (i == 0) {
-                String firstLine = headers.get(0);
-                String[] parts = firstLine.split(" ");
+                String[] parts = headers.get(0).split(" ");
+                parts[0] = "GET";
                 parts[1] = newPath;
                 newHeaders.add(String.join(" ", parts));
+            } else if (headers.get(i).trim().toLowerCase(java.util.Locale.ROOT).startsWith("content-length")) {
+                continue;
             } else {
                 newHeaders.add(headers.get(i));
             }
         }
-
-        if (method.equals("POST")) {
-            byte[] body = Arrays.copyOfRange(originalRequest, bodyOffset, originalRequest.length);
-            return Utils.helpers.buildHttpMessage(newHeaders, body);
-        } else {
-            return Utils.helpers.buildHttpMessage(newHeaders, null);
-        }
+        return Utils.helpers.buildHttpMessage(newHeaders, null);
     }
 
     /** 与已加载规则按 path 查重（ensureDefaultRules 同口径），避免同路径重复探测。 */
