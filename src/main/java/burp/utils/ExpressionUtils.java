@@ -5,17 +5,20 @@ import burp.IRequestInfo;
 import burp.IResponseInfo;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Stack;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** 路由规则表达式求值工具：解析 code="200" && body="xxx" 形式的规则，
- *  对绑定的请求/响应求值；表达式变量支持 code/url/headers/body/title。 */
+ *  对绑定的请求/响应求值；表达式变量支持 code/headers/body/title。
+ *  语法为递归下降：|| 最低优先级、&& 次之、括号与单条件最高；
+ *  词法扫描感知双引号，引号内的 = && || ( ) 不参与结构拆分。 */
 public class ExpressionUtils {
     private IHttpRequestResponse baseRequestResponse;
     private IResponseInfo iResponseInfo;
+    // 同一实例会被同一条表达式的多个 body/title 条件求值，解码一次后缓存
+    private String cachedBody;
+    private String cachedTitle;
 
     public ExpressionUtils() {
     }
@@ -48,14 +51,23 @@ public class ExpressionUtils {
         return Arrays.copyOfRange(responseBytes, bodyOffset, responseBytes.length);
     }
 
-    /** 从响应体中提取 HTML title。 */
+    /** 响应体字符串（懒解码缓存）。 */
+    private String bodyText() {
+        if (cachedBody == null) {
+            cachedBody = Utils.callbacks.getHelpers().bytesToString(getBody());
+        }
+        return cachedBody;
+    }
+
+    /** 从响应体中提取 HTML title（懒解码缓存）。 */
     public String getTitle(){
-        byte[] responseBytes = this.baseRequestResponse.getResponse();
-        int bodyOffset = this.iResponseInfo.getBodyOffset();
-        byte[] responseBody = Arrays.copyOfRange(responseBytes, bodyOffset, responseBytes.length);
-        String decodedString = new String(responseBody, StandardCharsets.UTF_8);
-        String title = Utils.extractTitle(decodedString);
-        return title;
+        if (cachedTitle == null) {
+            byte[] responseBytes = this.baseRequestResponse.getResponse();
+            int bodyOffset = this.iResponseInfo.getBodyOffset();
+            byte[] responseBody = Arrays.copyOfRange(responseBytes, bodyOffset, responseBytes.length);
+            cachedTitle = Utils.extractTitle(new String(responseBody, StandardCharsets.UTF_8));
+        }
+        return cachedTitle;
     }
 
     /** 相等或包含关系判定（code 精确匹配，headers/body 模糊包含）。 */
@@ -82,7 +94,7 @@ public class ExpressionUtils {
             }
             return false;
         }else if (key.equals("body")) {
-            key = Utils.callbacks.getHelpers().bytesToString(getBody());
+            key = bodyText();
         }else {
             key = key.trim();
         }
@@ -117,7 +129,7 @@ public class ExpressionUtils {
             }
             return true;
         }else if (key.equals("body")) {
-            key = Utils.callbacks.getHelpers().bytesToString(getBody());
+            key = bodyText();
         }
 
         value = Utils.RemoveQuotes(value);
@@ -137,154 +149,171 @@ public class ExpressionUtils {
     }
 
     /**
-     * 轻量语法校验：括号配对且至少含一个比较条件。供规则保存前反馈，不参与运行时求值。
+     * 轻量语法校验：括号配对（引号内不计）、无未闭合引号且至少含一个引号外比较符。
+     * 供规则保存前反馈，不参与运行时求值。
      */
     public static boolean isValidExpression(String expression) {
         if (expression == null || expression.trim().isEmpty()) {
             return false;
         }
         int depth = 0;
+        boolean inQuotes = false;
+        boolean hasCondition = false;
         for (int i = 0; i < expression.length(); i++) {
             char c = expression.charAt(i);
-            if (c == '(') {
-                depth++;
-            } else if (c == ')') {
-                depth--;
-                if (depth < 0) {
-                    return false;
-                }
-            }
-        }
-        return depth == 0 && expression.contains("=");
-    }
-
-    /** 表达式求值入口：trim 后递归处理复合/括号/逻辑运算。 */
-    public boolean process(String expression) {
-        expression = expression.trim();
-        return evaluateExpression(expression);
-    }
-
-    /** 表达式求值核心：简单表达式直接处理，复合表达式递归。 */
-    private boolean evaluateExpression(String expression) {
-        // 如果是简单表达式,直接处理
-        if (!isCompoundExpression(expression)) {
-            return processSingle(expression);
-        }
-
-        // 处理带括号的表达式
-        if (expression.contains("(")) {
-            return handleBrackets(expression);
-        }
-
-        // 处理AND/OR运算
-        if (expression.contains("&&") || expression.contains("||")) {
-            return handleLogicalOperators(expression);
-        }
-
-        return processSingle(expression);
-    }
-
-    /** 检查是否为复合表达式（含 &&/||/括号）。 */
-    private boolean isCompoundExpression(String expression) {
-        return expression.contains("&&") ||
-                expression.contains("||") ||
-                expression.contains("(") ||
-                expression.contains(")");
-    }
-
-    /** 处理带括号的表达式：递归求值括号内子表达式并替换。 */
-    private boolean handleBrackets(String expression) {
-        Stack<Integer> stack = new Stack<>();
-        int start = -1;
-
-        for (int i = 0; i < expression.length(); i++) {
-            char c = expression.charAt(i);
-            if (c == '(') {
-                if (stack.isEmpty()) {
-                    start = i;
-                }
-                stack.push(i);
-            } else if (c == ')') {
-                // 括号不配对：合法表达式已被 isValidExpression 拦截，运行时保守判 false 而不是抛异常
-                if (stack.isEmpty()) {
-                    return false;
-                }
-                stack.pop();
-                if (stack.isEmpty()) {
-                    // 找到匹配的括号对
-                    String before = expression.substring(0, start).trim();
-                    String middle = expression.substring(start + 1, i).trim();
-                    String after = expression.substring(i + 1).trim();
-
-                    // 递归处理括号内的表达式
-                    boolean middleResult = evaluateExpression(middle);
-
-                    // 构造新的表达式并继续处理
-                    String newExpression;
-                    if (before.isEmpty() && after.isEmpty()) {
-                        return middleResult;
-                    } else if (before.isEmpty()) {
-                        newExpression = middleResult + " " + after;
-                    } else if (after.isEmpty()) {
-                        newExpression = before + " " + middleResult;
-                    } else {
-                        newExpression = before + " " + middleResult + " " + after;
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (!inQuotes) {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                    if (depth < 0) {
+                        return false;
                     }
-                    return evaluateExpression(newExpression);
+                } else if (c == '=' && (i == 0 || expression.charAt(i - 1) != '=')
+                        && (i + 1 >= expression.length() || expression.charAt(i + 1) != '=')) {
+                    hasCondition = true;
                 }
             }
         }
-        return false;
+        return depth == 0 && !inQuotes && hasCondition;
     }
 
-    /** 处理逻辑运算符（&& 短路与 / || 短路或）。 */
-    private boolean handleLogicalOperators(String expression) {
-        // 优先处理AND运算
-        if (expression.contains("&&")) {
-            String[] parts = expression.split("&&", 2);
-            boolean leftResult = evaluateExpression(parts[0].trim());
-            // 短路运算
-            if (!leftResult) return false;
-            return leftResult && evaluateExpression(parts[1].trim());
+    /** 表达式求值入口：标准优先级递归下降（|| 最低）。 */
+    public boolean process(String expression) {
+        if (expression == null) {
+            return false;
         }
-
-        // 处理OR运算
-        if (expression.contains("||")) {
-            String[] parts = expression.split("\\|\\|", 2);
-            boolean leftResult = evaluateExpression(parts[0].trim());
-            // 短路运算
-            if (leftResult) return true;
-            return leftResult || evaluateExpression(parts[1].trim());
-        }
-
-        return processSingle(expression);
+        return parseOr(expression.trim());
     }
 
-    /** 处理单个条件表达式：按 = 或 != 操作符拆分并调用 eq/neq。 */
+    /** || 层：任一子表达式为真即真（短路）。 */
+    private boolean parseOr(String expr) {
+        List<String> parts = splitTopLevel(expr, "||");
+        if (parts.size() > 1) {
+            for (String part : parts) {
+                if (parseAnd(part.trim())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return parseAnd(expr);
+    }
+
+    /** && 层：全部子表达式为真才真（短路）。 */
+    private boolean parseAnd(String expr) {
+        List<String> parts = splitTopLevel(expr, "&&");
+        if (parts.size() > 1) {
+            for (String part : parts) {
+                if (!parsePrimary(part.trim())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return parsePrimary(expr);
+    }
+
+    /** 原子层：整体被一对括号包裹则剥壳递归，否则按单条件处理。 */
+    private boolean parsePrimary(String expr) {
+        expr = expr.trim();
+        if (expr.isEmpty()) {
+            return false;
+        }
+        if (isFullyWrapped(expr)) {
+            return parseOr(expr.substring(1, expr.length() - 1).trim());
+        }
+        return processSingle(expr);
+    }
+
+    /** 处理单个条件表达式：引号外定位首个 = / != 操作符并调用 eq/neq。 */
     private boolean processSingle(String expression) {
         expression = expression.trim();
         if (expression.equals("true")) return true;
         if (expression.equals("false")) return false;
 
-        // 使用正则表达式匹配操作符
-        Pattern pattern = Pattern.compile("(?<!\\!)=|!=");
-        Matcher matcher = pattern.matcher(expression);
+        int opIndex = findTopLevelOperator(expression);
+        if (opIndex < 0) {
+            return false;
+        }
+        boolean negated = expression.charAt(opIndex) == '!';
+        String key = expression.substring(0, opIndex).trim();
+        String value = expression.substring(opIndex + (negated ? 2 : 1)).trim();
+        return negated ? neq(key, value) : eq(key, value);
+    }
 
-        if (matcher.find()) {
-            String operator = matcher.group();
-            String[] parts = expression.split(Pattern.quote(operator), 2);
-            if (parts.length != 2) return false;
+    /** 引号外首个比较符下标（!= 返回 ! 的位置），找不到返回 -1。 */
+    static int findTopLevelOperator(String expr) {
+        boolean inQuotes = false;
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (!inQuotes && c == '=') {
+                boolean isDoubleEquals = i > 0 && expr.charAt(i - 1) == '=';
+                if (isDoubleEquals) {
+                    continue;
+                }
+                return (i > 0 && expr.charAt(i - 1) == '!') ? i - 1 : i;
+            }
+        }
+        return -1;
+    }
 
-            String key = parts[0].trim();
-            String value = parts[1].trim();
+    /** 按顶层分隔符拆分：双引号字符串与括号组内部不拆分。 */
+    static List<String> splitTopLevel(String expr, String delimiter) {
+        List<String> parts = new ArrayList<>();
+        boolean inQuotes = false;
+        int depth = 0;
+        int last = 0;
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (!inQuotes) {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                } else if (depth == 0 && startsAt(expr, i, delimiter)) {
+                    parts.add(expr.substring(last, i));
+                    i += delimiter.length() - 1;
+                    last = i + 1;
+                }
+            }
+        }
+        parts.add(expr.substring(last));
+        return parts;
+    }
 
-            // 根据操作符调用相应的比较方法
-            if (operator.equals("=")) {
-                return eq(key, value);
-            } else if (operator.equals("!=")) {
-                return neq(key, value);
+    /** 表达式是否整体被一对括号包裹（首个 '(' 的配对 ')' 恰为末字符）。 */
+    static boolean isFullyWrapped(String expr) {
+        if (!expr.startsWith("(") || !expr.endsWith(")")) {
+            return false;
+        }
+        int depth = 0;
+        boolean inQuotes = false;
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (!inQuotes) {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                    if (depth == 0) {
+                        return i == expr.length() - 1;
+                    }
+                }
             }
         }
         return false;
+    }
+
+    private static boolean startsAt(String expr, int index, String token) {
+        return expr.startsWith(token, index);
     }
 }

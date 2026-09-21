@@ -49,6 +49,7 @@ public class RouteUI extends AbstractScanUI {
     private JButton addButton;
     private JButton deleteButton;
     private JButton enableButton;
+    private JButton resetButton;
 
     /** 单次触发（单个 URL）的探测请求预算：5 条路径 × 11 条默认规则 ≤ 60。 */
     private static final int MAX_REQUESTS_PER_CHECK = 60;
@@ -102,7 +103,6 @@ public class RouteUI extends AbstractScanUI {
         issusTable = new RouteIssueTable(new RouteIssueTableModel(issuesLog.list()), requestEditor, responseEditor);
         resultTable = issusTable;
         issustablescrollpane = new JScrollPane(issusTable);
-        issustablescrollpane.setBorder(BorderFactory.createTitledBorder(I18nUtils.get("common.border.results")));
         ruleTable = new RouteTable(new RouteTableModel(routelog));
         ruleTableScrollPane = new JScrollPane(ruleTable);
     }
@@ -134,6 +134,8 @@ public class RouteUI extends AbstractScanUI {
         topPanel.add(deleteButton);
         enableButton = new JButton(I18nUtils.get("route.button.enable"));
         topPanel.add(enableButton);
+        resetButton = new JButton(I18nUtils.get("route.button.reset"));
+        topPanel.add(resetButton);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 
@@ -253,6 +255,18 @@ public class RouteUI extends AbstractScanUI {
             updateRouteEnable(routeBean);
             routeList = getRouteLists();
             loadRouteRules();
+        });
+
+        resetButton.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(null,
+                    I18nUtils.get("route.message.reset_confirm"),
+                    I18nUtils.get("config.title.info"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                resetToDefaults();
+                loadRouteRules();
+            }
         });
     }
 

@@ -109,18 +109,33 @@ public class RouteDao {
             {"Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
             // Druid 连接池监控未授权
             {"Druid Monitor", "/druid/index.html", "code=\"200\" && body=\"Druid Stat Index\""},
-            // Swagger / OpenAPI
-            {"Swagger v2", "/v2/api-docs", "code=\"200\" && body=\"swagger\""},
-            {"OpenAPI v3", "/v3/api-docs", "code=\"200\" && body=\"openapi\""},
-            // Nacos 未授权：列用户 / 读配置
-            {"Nacos Users", "/nacos/v1/auth/users?pageNo=1&pageSize=10", "code=\"200\" && body=\"username\""},
-            {"Nacos Configs", "/nacos/v1/cs/configs?search=accurate&pageNo=1&pageSize=10", "code=\"200\" && body=\"dataId\""},
+            // Swagger / OpenAPI：swagger/openapi 一词太泛，叠加 JSON 结构特征降误报
+            {"Swagger v2", "/v2/api-docs", "code=\"200\" && body=\"swagger\" && body=\"paths\""},
+            {"OpenAPI v3", "/v3/api-docs", "code=\"200\" && body=\"openapi\" && body=\"paths\""},
+            // Nacos 未授权：列用户 / 读配置（分页壳字段 totalCount + 数据字段双特征）
+            {"Nacos Users", "/nacos/v1/auth/users?pageNo=1&pageSize=10", "code=\"200\" && body=\"username\" && body=\"totalCount\""},
+            {"Nacos Configs", "/nacos/v1/cs/configs?search=accurate&pageNo=1&pageSize=10", "code=\"200\" && body=\"dataId\" && body=\"totalCount\""},
             // XXL-JOB 后台（默认 admin/123456，空 token 可 RCE）
             {"XXL-JOB Admin", "/xxl-job-admin/toLogin", "code=\"200\" && (title=\"XXL-JOB\" || body=\"XXL-JOB\")"},
             // JeecgBoot 标识接口 / 积木报表 SQL 注入点(405=端点存在但需 POST)
             {"JeecgBoot", "/sys/getCheckCode", "code=\"200\" && body=\"checkKey\""},
             {"JeecgBoot JMReport", "/jmreport/queryFieldBySql", "code=\"405\""},
     };
+
+    /**
+     * 重置规则：清空 route 表（含用户自定义与历史遗留行）后重新播种 DEFAULT_RULES。
+     * ensureDefaultRules 按 path 去重只增不删，旧版本种子行需靠本方法清理。
+     */
+    public static void resetToDefaults() {
+        try (Connection connection = DbUtils.getConnection();
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("DELETE FROM route");
+        } catch (Exception e) {
+            Utils.stderr.println("reset route rules failed: " + e.getMessage());
+            return;
+        }
+        ensureDefaultRules();
+    }
 
     /**
      * 按 path 去重补齐默认规则：某 path 不存在则插入；已存在（含用户自定义）则保留不动。
