@@ -98,23 +98,56 @@ public class RouteDao {
     }
 
     /**
-     * 精选 Java 框架路由泄露默认规则：{name, path, express}。
-     * 聚焦实战常见的 Spring Boot Actuator、Swagger/OpenAPI、Druid、Nacos、XXL-JOB、JeecgBoot，
-     * 每条均以「状态码 + 响应特征」组合降低误报。去掉 heapdump(响应过大易卡死)等冷门项。
+     * 默认探测规则集 {name, path, express}：吸收外部高质量规则集并按本项目 DSL 改写
+     * （仅用 code/body/headers/title + = != && || 与括号嵌套，needle 不含引号/转义序列），
+     * 覆盖 Swagger 全家桶 / Spring Actuator / Jolokia / Tomcat / Git·SVN·DS_Store 泄露 /
+     * Nacos / Druid / S3 / Prometheus Metrics / WSDL，并保留本地独有的
+     * Actuator Loggers、Nacos Users/Configs、XXL-JOB、JeecgBoot 组合。
      */
     private static final String[][] DEFAULT_RULES = {
+            // Swagger UI 页面
+            {"Swagger UI", "/swagger-ui.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
+            {"Swagger UI", "/swagger-ui/index.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
+            {"Swagger UI", "/swagger/index.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
+            // Swagger Resources
+            {"Swagger Resources", "/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"location\")"},
+            {"Swagger Resources", "/api/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"location\")"},
+            // swagger.json 系列（文档 JSON 必带 info 段，与 swagger/openapi 版本字段组合判）
+            {"Swagger", "/v1/swagger.json", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            {"Swagger", "/v2/swagger.json", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            {"Swagger", "/swagger.json", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            // OpenAPI 文档端点
+            {"Swagger API Doc", "/v2/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            {"Swagger API Doc", "/v3/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
+            {"Swagger API Doc", "/api/v2/api-docs", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
             // Spring Boot Actuator
-            {"Actuator", "/actuator", "code=\"200\" && body=\"_links\""},
-            {"Actuator Env", "/actuator/env", "code=\"200\" && body=\"propertySources\""},
-            {"Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
-            // Druid 连接池监控未授权
-            {"Druid Monitor", "/druid/index.html", "code=\"200\" && body=\"Druid Stat Index\""},
-            // Swagger / OpenAPI：swagger/openapi 一词太泛，叠加 JSON 结构特征降误报
-            {"Swagger v2", "/v2/api-docs", "code=\"200\" && body=\"swagger\" && body=\"paths\""},
-            {"OpenAPI v3", "/v3/api-docs", "code=\"200\" && body=\"openapi\" && body=\"paths\""},
-            // Nacos 未授权：列用户 / 读配置（分页壳字段 totalCount + 数据字段双特征）
+            {"Spring Actuator Env", "/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
+            {"Spring Actuator Env", "/actuator/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
+            {"Spring Actuator", "/actuator", "code=\"200\" && (body=\"health\" || body=\"self\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
+            {"Spring Actuator", "/api/actuator", "code=\"200\" && (body=\"health\" || body=\"self\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
+            {"Spring Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
+            // Spring Jolokia（Actuator 下可 RCE）
+            {"Spring Jolokia", "/jolokia/list", "code=\"200\" && (body=\"springframework\" || body=\"reloadByURL\" || body=\"createJNDIRealm\")"},
+            {"Spring Jolokia", "/actuator/jolokia/list", "code=\"200\" && (body=\"springframework\" || body=\"reloadByURL\" || body=\"createJNDIRealm\")"},
+            // Tomcat 示例/管理后台
+            {"Tomcat Session Example", "/examples/servlets/servlet/SessionExample", "title=\"Sessions Example\" || (body=\"../sessions.html\" && body=\"SessionExample;\")"},
+            {"Tomcat Manager App", "/manager/html", "title=\"401 Unauthorized\" || title=\"403 Access Denied\" || (body=\"manager-gui\" && body=\"s3cret\")"},
+            // 版本控制 / 系统文件泄露
+            {"Git Leak", "/.git/config", "code=\"200\" && body=\"repositoryformatversion\""},
+            {"SVN Leak", "/.svn/entries", "code=\"200\" && body=\"dir\" && body=\"file\""},
+            {"DS_Store Leak", "/.DS_Store", "code=\"200\" && body=\"Bud1\""},
+            // Nacos：控制台指纹 / 列用户 / 读配置
+            {"Nacos", "/nacos/v1/console/server/state", "code=\"200\" && body=\"auth_enabled\" && body=\"false\""},
             {"Nacos Users", "/nacos/v1/auth/users?pageNo=1&pageSize=10", "code=\"200\" && body=\"username\" && body=\"totalCount\""},
             {"Nacos Configs", "/nacos/v1/cs/configs?search=accurate&pageNo=1&pageSize=10", "code=\"200\" && body=\"dataId\" && body=\"totalCount\""},
+            // Druid 连接池监控未授权
+            {"Alibaba Druid", "/druid/index.html", "code=\"200\" && title=\"Druid Stat Index\""},
+            // S3 兼容存储桶列表泄露
+            {"S3 Bucket Listing", "/", "body=\"<ListBucketResult \" && body=\"<?xml \""},
+            // Prometheus node_exporter 未授权
+            {"Metrics", "/metrics", "code=\"200\" && body=\"# HELP node_uname_info\" && body=\"# TYPE node_uname_info gauge\""},
+            // WebService WSDL 列表
+            {"WSDL Service", "/services", "code=\"200\" && (body=\"Available SOAP services:\" || body=\"Available Services:\") && body=\"?wsdl\""},
             // XXL-JOB 后台（默认 admin/123456，空 token 可 RCE）
             {"XXL-JOB Admin", "/xxl-job-admin/toLogin", "code=\"200\" && (title=\"XXL-JOB\" || body=\"XXL-JOB\")"},
             // JeecgBoot 标识接口 / 积木报表 SQL 注入点(405=端点存在但需 POST)
