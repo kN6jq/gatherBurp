@@ -10,7 +10,6 @@ import com.alibaba.fastjson.JSONObject;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,13 +21,6 @@ public class SocksUI implements UIHandler {
     private JButton saveButton;
     private JButton nextButton;
     private JCheckBox enableCheckBox;
-    private Boolean dns_over_socks;
-    private String host;
-    private int port;
-    private Boolean use_proxy;
-    private Boolean use_user_options;
-    private String username;
-    private String password;
     private JTextPane ipTextField;
     private JTextPane logTextField;
     private List<ProxyConfig> proxyConfigs;
@@ -83,13 +75,22 @@ public class SocksUI implements UIHandler {
         nextButton.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if (proxyConfigs == null || proxyConfigs.isEmpty()) {
+                // 从未配置过才提示"先保存"；池空说明全部用完，两个提示不能混
+                if (proxyConfigs == null) {
                     JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.save_first"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+                if (proxyConfigs.isEmpty()) {
+                    JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.all_used"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
 
                 if (currentIndex >= 0 && currentIndex < proxyConfigs.size()) {
                     proxyConfigs.remove(currentIndex);
+                    // 已用代理同步移出输入框与 socks.json：
+                    // 不回写的话再点"保存"会把用过的整池原样复活，与移除逻辑互相打架
+                    saveProxyPool(proxyConfigs);
+                    ipTextField.setText(renderPool(proxyConfigs));
                 }
 
                 if (proxyConfigs.isEmpty()) {
@@ -123,7 +124,7 @@ public class SocksUI implements UIHandler {
                 boolean enabled = enableCheckBox.isSelected();
                 isEnableSettings(Utils.callbacks, enabled);
                 String currentText = logTextField.getText();
-                String newText = currentText + (enabled ? "Socks Enable\n" : "Socks Disable\n");
+                String newText = currentText + I18nUtils.get(enabled ? "socks.log.enable" : "socks.log.disable") + "\n";
                 logTextField.setText(newText);
             }
         });
@@ -135,14 +136,39 @@ public class SocksUI implements UIHandler {
         } else {
             loadProxyPool();
         }
+        // 回填启用状态要在挂监听器之前（setupListeners 之后才执行），避免触发 isEnableSettings 重发配置
+        restoreEnableState();
+    }
+
+    /** 启动时从 socks.json 回填"启用 SOCKS"勾选状态。不回填的话，插件重载后勾选框
+     *  显示未启用而 Burp 实际还在走代理，用户点"下一个"就会按禁用把配置重写掉。 */
+    private void restoreEnableState() {
+        try {
+            JSONObject jsonObject = readSocksConfig();
+            if (jsonObject == null) {
+                return;
+            }
+            enableCheckBox.setSelected(Boolean.TRUE.equals(jsonObject.getBoolean("use_proxy")));
+        } catch (Exception e) {
+            Utils.stderr.println("Socks enable state restore failed: " + e.getMessage());
+        }
+    }
+
+    /** 读取并解析 socks.json；文件缺失/损坏返回 null，调用方自行兜底。 */
+    private static JSONObject readSocksConfig() {
+        try {
+            return JSON.parseObject(Utils.readString(Utils.SocksConfigFile("socks.json"), "utf-8"));
+        } catch (Exception e) {
+            Utils.stderr.println("Socks config read failed: " + e.getMessage());
+            return null;
+        }
     }
 
     /** 持久化代理池到 socks.json 的 pool 字段，插件重载后无需重新录入。
      *  注意：username/password 以明文存入（与既有行为一致，后续如需加密需同步处理 loadProxyPool 的读取逻辑）。 */
     private void saveProxyPool(List<ProxyConfig> configs) {
         try {
-            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
-            JSONObject jsonObject = JSON.parseObject(jsonStr);
+            JSONObject jsonObject = readSocksConfig();
             if (jsonObject == null) {
                 jsonObject = new JSONObject();
             }
@@ -162,41 +188,40 @@ public class SocksUI implements UIHandler {
         }
     }
 
-    /** 启动时从 socks.json 恢复代理池列表与输入框内容。 */
+    /** 启动时从 socks.json 恢复代理池列表与输入框内容。
+     *  无条件初始化 proxyConfigs（哪怕为空）：让"下一个"按钮能区分"从未配置"和"全部用完"。 */
     private void loadProxyPool() {
-        try {
-            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"), "utf-8");
-            JSONObject jsonObject = JSON.parseObject(jsonStr);
-            if (jsonObject == null) {
-                return;
-            }
+        proxyConfigs = new ArrayList<>();
+        JSONObject jsonObject = readSocksConfig();
+        if (jsonObject != null) {
             com.alibaba.fastjson.JSONArray pool = jsonObject.getJSONArray("pool");
-            if (pool == null || pool.isEmpty()) {
-                return;
-            }
-            StringBuilder text = new StringBuilder();
-            proxyConfigs = new ArrayList<>();
-            for (int i = 0; i < pool.size(); i++) {
-                JSONObject entry = pool.getJSONObject(i);
-                if (entry == null) continue;
-                String ipAddr = entry.getString("ip");
-                String port = entry.getString("port");
-                if (ipAddr == null || port == null) continue;
-                String user = entry.getString("username");
-                String pass = entry.getString("password");
-                ProxyConfig config = new ProxyConfig(ipAddr, port, user, pass);
-                proxyConfigs.add(config);
-                if (text.length() > 0) text.append('\n');
-                text.append(config.ip).append(':').append(config.port);
-                if (!config.username.isEmpty()) {
-                    text.append(':').append(config.username).append(':').append(config.password);
+            if (pool != null) {
+                for (int i = 0; i < pool.size(); i++) {
+                    JSONObject entry = pool.getJSONObject(i);
+                    if (entry == null) continue;
+                    String ipAddr = entry.getString("ip");
+                    String port = entry.getString("port");
+                    if (ipAddr == null || port == null) continue;
+                    proxyConfigs.add(new ProxyConfig(ipAddr, port,
+                            entry.getString("username"), entry.getString("password")));
                 }
             }
-            ipTextField.setText(text.toString());
-            currentIndex = -1;
-        } catch (Exception e) {
-            Utils.stderr.println("Socks pool load failed: " + e.getMessage());
         }
+        ipTextField.setText(renderPool(proxyConfigs));
+        currentIndex = -1;
+    }
+
+    /** 把代理池渲染成输入框文本（每行 ip:port[:user:pass]），保存/轮换两处共用同一格式。 */
+    private static String renderPool(List<ProxyConfig> configs) {
+        StringBuilder text = new StringBuilder();
+        for (ProxyConfig config : configs) {
+            if (text.length() > 0) text.append('\n');
+            text.append(config.ip).append(':').append(config.port);
+            if (!config.username.isEmpty()) {
+                text.append(':').append(config.username).append(':').append(config.password);
+            }
+        }
+        return text.toString();
     }
 
     private void setupUI() {
@@ -235,9 +260,11 @@ public class SocksUI implements UIHandler {
                 JOptionPane.showMessageDialog(null, I18nUtils.get("socks.message.invalid_port"), I18nUtils.get("config.title.info"), JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            // 先读取现有配置
-            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
-            JSONObject jsonObject = JSON.parseObject(jsonStr);
+            // 先读取现有配置；文件缺失/损坏时用空对象兜底，本次设置照常生效并重建文件
+            JSONObject jsonObject = readSocksConfig();
+            if (jsonObject == null) {
+                jsonObject = new JSONObject();
+            }
             // 配置项缺失时 getBoolean 返回 null，自动拆箱会 NPE；用 TRUE.equals 做空安全读取
             boolean dns_over_socks_update = Boolean.TRUE.equals(jsonObject.getBoolean("dns_over_socks"));
             boolean use_user_options_update = Boolean.TRUE.equals(jsonObject.getBoolean("use_user_options"));
@@ -273,14 +300,14 @@ public class SocksUI implements UIHandler {
 
             // 更新日志
             String currentText = logTextField.getText();
-            String newText = currentText + "Socks Setting Success\n" +
-                    "Current ip: " + config.ip +
-                    " port: " + config.port;
+            StringBuilder newText = new StringBuilder(currentText)
+                    .append(I18nUtils.get("socks.log.set_success")).append('\n')
+                    .append(String.format(I18nUtils.get("socks.log.current_ip"), config.ip, config.port));
             if (!config.username.isEmpty()) {
-                newText += " username: " + config.username;
+                newText.append(' ').append(String.format(I18nUtils.get("socks.log.username"), config.username));
             }
-            newText += "\n";
-            logTextField.setText(newText);
+            newText.append('\n');
+            logTextField.setText(newText.toString());
 
         }catch (Exception e2){
             Utils.stderr.println(e2.getMessage());
@@ -290,8 +317,12 @@ public class SocksUI implements UIHandler {
     /** 启用/禁用代理：更新 socks.json 的 use_proxy 后按当前 host/port 重发配置。 */
     public void isEnableSettings(IBurpExtenderCallbacks callbacks, boolean enable) {
         try{
-            String jsonStr = Utils.readString(Utils.SocksConfigFile("socks.json"),"utf-8");
-            JSONObject jsonObject = JSON.parseObject(jsonStr);
+            JSONObject jsonObject = readSocksConfig();
+            // 文件缺失/损坏时没有可重发的 host/port，直接放弃本次开关（只记日志，不假装成功）
+            if (jsonObject == null) {
+                Utils.stderr.println("Socks settings skipped: socks.json missing or unreadable");
+                return;
+            }
 
             // 更新启用状态
             jsonObject.put("use_proxy", enable);
@@ -339,8 +370,7 @@ public class SocksUI implements UIHandler {
 
     /** 判断 socks.json 配置文件是否已存在。 */
     public boolean isConfigFileExist() {
-        File file = new File(Utils.WORKDIR + "socks.json");
-        return file.exists();
+        return Utils.SocksConfigFile("socks.json").exists();
     }
 
     @Override
