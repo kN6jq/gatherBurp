@@ -32,6 +32,12 @@
       <artifactId>forms_rt</artifactId>
       <version>7.0.3</version>
     </dependency>
+    <!-- https://github.com/albfernandez/juniversalchardet U2C 页签的编码探测 -->
+    <dependency>
+      <groupId>com.github.albfernandez</groupId>
+      <artifactId>juniversalchardet</artifactId>
+      <version>2.5.0</version>
+    </dependency>
     <!-- https://mvnrepository.com/artifact/org.xerial/sqlite-jdbc -->
     <dependency>
       <groupId>org.xerial</groupId>

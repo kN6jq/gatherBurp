@@ -6,6 +6,7 @@ import burp.ui.MainUI;
 import burp.ui.SimilarUI;
 import burp.ui.SqlUI;
 import burp.ui.SimilarHelper.ThreadManager;
+import burp.ui.codec.U2CTabFactory;
 import burp.utils.DbUtils;
 import burp.utils.FakeIPPayloadGenerator;
 import burp.utils.FakeIPUtils;
@@ -48,6 +49,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         MainUI mainUI = new MainUI(Utils.callbacks);
         Utils.callbacks.addSuiteTab(mainUI);
         Utils.callbacks.registerIntruderPayloadGeneratorFactory(new FakeIPPayloadGenerator());
+        // U2C：消息编辑器附属页签，把 Unicode 转义转成中文显示 + 编码轮换
+        Utils.callbacks.registerMessageEditorTabFactory(new U2CTabFactory());
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
