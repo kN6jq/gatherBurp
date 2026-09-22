@@ -412,7 +412,7 @@ public final class Utils {
     }
 
     /** 清理 DNS payload 中的特殊字符（非字母数字替换为点号，合并连续点号）。 */
-    private static String sanitizeDnsPayload(String payload) {
+    public static String sanitizeDnsPayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return payload;
         }

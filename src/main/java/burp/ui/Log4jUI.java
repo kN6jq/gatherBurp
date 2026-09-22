@@ -25,8 +25,10 @@ import static burp.dao.ConfigDao.getConfig;
 import static burp.dao.Log4jDao.*;
 
 /**
- * Log4j 漏洞检测面板：对 GET/POST 请求的参数与 Header 注入 JNDI payload（dnslog/IP 回连），
- * 支持白名单过滤、原始值替换与被动扫描（IHttpListener）。检测在静态 lock 内串行执行，
+ * Log4j 漏洞检测面板：对请求的参数与 Header 注入 JNDI payload（dnslog/IP 回连），
+ * 支持白名单过滤、原始值替换与被动扫描（IHttpListener）。被动扫描只发送 GET，
+ * 手动右键检测可覆盖原始值（含 POST）；配置列表（域名/header/payload）以
+ * 不可变快照供扫描线程读取，避免保存时并发修改。检测在静态 lock 内串行执行，
  * 目标主机经 HostThrottle 限速；结果入静态有界 ScanResultsStore。
  */
 public class Log4jUI extends AbstractScanUI {
@@ -57,18 +59,20 @@ public class Log4jUI extends AbstractScanUI {
             ui.refreshTableModel(ui.resultTable);
         }
     });
-    private static boolean isPassiveScan; // 是否是被动扫描
-    private static boolean isOriginalValue; // 是否删除原始值
-    private static boolean isCheckHeader; // 是否检测header
-    private static boolean isCheckParam; // 是否检测参数
-    private static boolean isDnsOrIp; // 是否是dns或者ip
-    private static boolean isCheckWhiteList; // 是否检测白名单
-    private static Set<String> log4jPayload = new LinkedHashSet<>(); // 存储log4j payload
-    private static List<String> payloadList = new ArrayList<>(); // payload列表
-    private static List<String> domainList = new ArrayList<>(); // 白名单域名
-    private static List<String> headerList = new ArrayList<>(); // header列表
-    public static String dns;
-    public static String ip;
+    // 勾选状态均为 volatile：EDT 上的复选框监听写入，扫描池线程读取
+    private static volatile boolean isOriginalValue; // 是否删除原始值
+    private static volatile boolean isCheckHeader; // 是否检测header
+    private static volatile boolean isCheckParam; // 是否检测参数
+    private static volatile boolean isDnsOrIp; // 是否是dns或者ip
+    private static volatile boolean isCheckWhiteList; // 是否检测白名单
+    private static final Set<String> log4jPayload = new LinkedHashSet<>(); // 本轮探测用的完整 payload（锁内串行复用）
+    // 配置列表以"不可变快照 + volatile 整体替换"发布：保存按钮在 EDT 上重建新列表，
+    // 扫描线程只读引用，避免遍历时被 clear/add 打断（ConcurrentModificationException）
+    private static volatile List<String> payloadList = Collections.emptyList(); // payload列表
+    private static volatile List<String> domainList = Collections.emptyList(); // 白名单域名
+    private static volatile List<String> headerList = Collections.emptyList(); // header列表
+    public static volatile String dns;
+    public static volatile String ip;
 
     public static void resetAllCaches() {
         UrlCacheUtil.resetCache("log4j");
@@ -192,11 +196,8 @@ public class Log4jUI extends AbstractScanUI {
 
     @Override
     protected void loadSavedData() {
-        // 被动扫描选择框
-        passiveScanCheckBox.addActionListener(e -> {
-            isPassiveScan = passiveScanCheckBox.isSelected();
-            passiveScanEnabled = isPassiveScan;
-        });
+        // 被动扫描选择框（开关状态由基类 passiveScanEnabled 承担）
+        passiveScanCheckBox.addActionListener(e -> passiveScanEnabled = passiveScanCheckBox.isSelected());
         originalValueCheckBox.addActionListener(e -> isOriginalValue = originalValueCheckBox.isSelected());
         checkHeaderCheckBox.addActionListener(e -> isCheckHeader = checkHeaderCheckBox.isSelected());
         checkParmamCheckBox.addActionListener(e -> isCheckParam = checkParmamCheckBox.isSelected());
@@ -209,22 +210,28 @@ public class Log4jUI extends AbstractScanUI {
         });
         checkWhiteListCheckBox.addActionListener(e -> isCheckWhiteList = checkWhiteListCheckBox.isSelected());
 
-        // 初始化白名单
+        // 初始化白名单（文本框回显 + 不可变快照发布）
         List<Log4jBean> domain = getLog4jListsByType("domain");
+        List<String> domains = new ArrayList<>();
         for (Log4jBean bean : domain) {
             whiteListTextArea.setText(whiteListTextArea.getText() + bean.getValue() + "\n");
-            domainList.add(bean.getValue());
+            domains.add(bean.getValue());
         }
+        domainList = Collections.unmodifiableList(domains);
         List<Log4jBean> header = getLog4jListsByType("header");
+        List<String> headersCfg = new ArrayList<>();
         for (Log4jBean bean : header) {
             headerTextArea.setText(headerTextArea.getText() + bean.getValue() + "\n");
-            headerList.add(bean.getValue());
+            headersCfg.add(bean.getValue());
         }
+        headerList = Collections.unmodifiableList(headersCfg);
         List<Log4jBean> payload = getLog4jListsByType("payload");
+        List<String> payloads = new ArrayList<>();
         for (Log4jBean bean : payload) {
             payloadTextArea.setText(payloadTextArea.getText() + bean.getValue() + "\n");
-            payloadList.add(bean.getValue());
+            payloads.add(bean.getValue());
         }
+        payloadList = Collections.unmodifiableList(payloads);
 
         // 按钮事件
         saveWhiteListButton.addActionListener(e -> {
@@ -233,8 +240,7 @@ public class Log4jUI extends AbstractScanUI {
                 if (s.trim().isEmpty()) continue;
                 saveLog4j(new Log4jBean("domain", s.trim()));
             }
-            domainList.clear();
-            getLog4jListsByType("domain").forEach(b -> domainList.add(b.getValue()));
+            domainList = snapshotLog4jList("domain");
             whiteListTextArea.repaint();
             showSaveSuccess();
         });
@@ -244,8 +250,7 @@ public class Log4jUI extends AbstractScanUI {
                 if (s.trim().isEmpty()) continue;
                 saveLog4j(new Log4jBean("header", s.trim()));
             }
-            headerList.clear();
-            getLog4jListsByType("header").forEach(b -> headerList.add(b.getValue()));
+            headerList = snapshotLog4jList("header");
             headerTextArea.repaint();
             showSaveSuccess();
         });
@@ -255,8 +260,7 @@ public class Log4jUI extends AbstractScanUI {
                 if (s.trim().isEmpty()) continue;
                 saveLog4j(new Log4jBean("payload", s.trim()));
             }
-            payloadList.clear();
-            getLog4jListsByType("payload").forEach(b -> payloadList.add(b.getValue()));
+            payloadList = snapshotLog4jList("payload");
             payloadTextArea.repaint();
             showSaveSuccess();
         });
@@ -317,7 +321,12 @@ public class Log4jUI extends AbstractScanUI {
             uri = uri.substring(0, uri.length() - 1);
         }
         String tag = req.getMethod() + "." + baseRequestResponse.getHttpService().getHost() + uri;
-        return "dns".equalsIgnoreCase(type) ? tag + "." : tag;
+        if ("dns".equalsIgnoreCase(type)) {
+            // 与 fastjson 回连同规则：先过一遍 DNS 字符过滤（%、~、中文等会让查询名非法、收不到回连），
+            // 过滤后再补回 dns 模式的尾点；IP 模式标签走 HTTP 路径、原样返回
+            return Utils.sanitizeDnsPayload(tag) + ".";
+        }
+        return tag;
     }
 
     /** Log4j 主动检测核心（ScanTaskExecutor 池线程，经右键菜单/扫描按钮调用）：
@@ -335,16 +344,21 @@ public class Log4jUI extends AbstractScanUI {
             List<IParameter> paraLists = analyzeRequest.getParameters();
 
             if (!method.equals("GET") && !method.equals("POST")) return;
+            // 被动模式只扫 GET：POST 注入参数后原样重发会把下单/支付这类业务真的再执行一遍；
+            // 需要测 POST 时走右键手动扫描（isSend=true 路径不受此限制）
+            if (!isSend && !"GET".equalsIgnoreCase(method)) return;
             if (Utils.isUrlBlackListSuffix(url)) return;
             if (!isCheckParam && !isCheckHeader) return;
-            // dns/ip 模式所需配置必须有效，否则会拼出无效 payload
-            if (isDnsOrIp && (dns == null || dns.trim().isEmpty())) {
-                Utils.stderr.println(I18nUtils.get("log4j.message.missing_dns"));
-                return;
-            }
-            if (!isDnsOrIp && (ip == null || ip.trim().isEmpty())) {
-                Utils.stderr.println(I18nUtils.get("log4j.message.missing_dns"));
-                return;
+            // “原始 Payload”模式不拼回连地址，无需 dns/ip 配置；其余模式必须非空，否则会拼出无效 payload
+            if (!isOriginalValue) {
+                if (isDnsOrIp && (dns == null || dns.trim().isEmpty())) {
+                    Utils.stderr.println(I18nUtils.get("log4j.message.missing_dns"));
+                    return;
+                }
+                if (!isDnsOrIp && (ip == null || ip.trim().isEmpty())) {
+                    Utils.stderr.println(I18nUtils.get("log4j.message.missing_dns"));
+                    return;
+                }
             }
 
             boolean ruleHit = true;
@@ -357,17 +371,22 @@ public class Log4jUI extends AbstractScanUI {
             }
             if (ruleHit) return;
 
+            // 本轮统一读配置快照：EDT 随时可能保存新列表，整轮检测不受中途替换影响
+            final List<String> domains = domainList;
+            final List<String> headersCfg = headerList;
+            final List<String> payloads = payloadList;
+
             // 白名单仅在被动模式下生效；用局部变量表达，避免主动扫描重置静态开关
             boolean respectWhitelist = !isSend && isCheckWhiteList;
+            if (respectWhitelist && !Utils.isMatchDomainName(host, domains)) return;
+            // 去重放最后一步：被白名单挡下的 URL 不消费键，之后补进白名单还能被被动扫到
             if (!isSend) {
                 // 去重只按 method+host+port+path：body 参数（token/时间戳）变化不应触发重复全量探测
                 if (!UrlCacheUtil.checkUrlUnique("log4j", method, rdurlURL, Collections.<IParameter>emptyList())) return;
             }
 
-            if (respectWhitelist && !Utils.isMatchDomainName(host, domainList)) return;
-
             log4jPayload.clear();
-            for (String log4j : payloadList) {
+            for (String log4j : payloads) {
                 if (isOriginalValue) {
                     log4jPayload.add(log4j);
                 } else if (log4j.contains("dnslog-url")) {
@@ -404,24 +423,31 @@ public class Log4jUI extends AbstractScanUI {
                             }
                         }
                         if (para.getType() == PARAM_JSON) {
-                            // 请求体解析一次上提，避免每个 payload 重复 bytesToString + JSON.parseObject
-                            String request_data = Utils.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
-                            Map<String, Object> request_json = JSON.parseObject(request_data);
-                            for (String logPayload : log4jPayload) {
-                                List<Object> objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(logPayload), 0);
-                                String json = objectList.stream().map(Object::toString).findFirst().orElse("");
-                                byte[] jsonBytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                                // body 已替换，Content-Length 必须同步重算，否则目标按旧长度截断
-                                HttpMessageUtils.setContentLength(reqheaders, jsonBytes.length);
-                                byte[] bytes = Utils.callbacks.getHelpers().buildHttpMessage(reqheaders, jsonBytes);
-                                HostThrottle.throttle(serviceKey(baseRequestResponse));
-                                IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
-                                if (newRequestResponse == null || newRequestResponse.getResponse() == null) {
-                                    Utils.stderr.println("Log4j scan skipped: target returned no response");
-                                    continue;
+                            try {
+                                // body 用 bodyOffset 截取（split 空行在个别格式下会越界），
+                                // 解析失败只跳过这一个参数的检测，不影响后续参数与 Header
+                                byte[] rawRequest = baseRequestResponse.getRequest();
+                                String request_data = Utils.helpers.bytesToString(
+                                        Arrays.copyOfRange(rawRequest, analyzeRequest.getBodyOffset(), rawRequest.length));
+                                Map<String, Object> request_json = JSON.parseObject(request_data);
+                                for (String logPayload : log4jPayload) {
+                                    List<Object> objectList = JsonUtils.updateJsonObjectFromStr(request_json, Utils.ReplaceChar(logPayload), 0);
+                                    String json = objectList.stream().map(Object::toString).findFirst().orElse("");
+                                    byte[] jsonBytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                                    // body 已替换，Content-Length 必须同步重算，否则目标按旧长度截断
+                                    HttpMessageUtils.setContentLength(reqheaders, jsonBytes.length);
+                                    byte[] bytes = Utils.callbacks.getHelpers().buildHttpMessage(reqheaders, jsonBytes);
+                                    HostThrottle.throttle(serviceKey(baseRequestResponse));
+                                    IHttpRequestResponse newRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), bytes);
+                                    if (newRequestResponse == null || newRequestResponse.getResponse() == null) {
+                                        Utils.stderr.println("Log4j scan skipped: target returned no response");
+                                        continue;
+                                    }
+                                    String ParamLength = getResponseLength(newRequestResponse);
+                                    add(method, url, String.valueOf(Utils.helpers.analyzeResponse(newRequestResponse.getResponse()).getStatusCode()), ParamLength, newRequestResponse);
                                 }
-                                String ParamLength = getResponseLength(newRequestResponse);
-                                add(method, url, String.valueOf(Utils.helpers.analyzeResponse(newRequestResponse.getResponse()).getStatusCode()), ParamLength, newRequestResponse);
+                            } catch (Exception e) {
+                                Utils.stderr.println("Log4j JSON param skipped: " + e.getMessage());
                             }
                             break;
                         }
@@ -442,7 +468,7 @@ public class Log4jUI extends AbstractScanUI {
                     Iterator<String> iterator = reqheaders2.iterator();
                     while (iterator.hasNext()) {
                         String reqheader = iterator.next();
-                        for (String header : headerList) {
+                        for (String header : headersCfg) {
                             // 按"名称:"前缀精确匹配（大小写不敏感），contains 会误删含同字样的无关头
                             if (Utils.headerNameMatches(reqheader, header)) {
                                 iterator.remove();
@@ -451,8 +477,11 @@ public class Log4jUI extends AbstractScanUI {
                             }
                         }
                     }
-                    for (String header : headerList) {
-                        newReqheaders.add(header + ": " + logPayload);
+                    for (String header : headersCfg) {
+                        String newHeader = header + ": " + logPayload;
+                        // 原请求已命中过的头在上面的分支已加过，这里再加一遍就成了两条重复头：
+                        // 部分服务端/WAF 对重复请求头直接回 400，反而造成漏报
+                        if (!newReqheaders.contains(newHeader)) newReqheaders.add(newHeader);
                     }
                     reqheaders2.addAll(newReqheaders);
                     HostThrottle.throttle(serviceKey(baseRequestResponse));
@@ -473,14 +502,23 @@ public class Log4jUI extends AbstractScanUI {
         }
     }
 
-    /** 响应长度：优先取 Content-Length 头，缺失时用字节数（无响应返回 "0"）。 */
+    /** 响应体字节数（统一口径）：原先有 Content-Length 就记头里的值、没有就记整包字节数，
+     *  chunked/gzip 和普通响应的长度混在一列里根本没法对比。 */
     private static String getResponseLength(IHttpRequestResponse response) {
-        if (response.getResponse() != null) {
-            IResponseInfo info = Utils.helpers.analyzeResponse(response.getResponse());
-            String cl = HelperPlus.getHeaderValueOf(info.getHeaders(), "Content-Length");
-            if (cl != null) return cl;
+        byte[] raw = response.getResponse();
+        if (raw == null) {
+            return "0";
         }
-        return response.getResponse() != null ? String.valueOf(response.getResponse().length) : "0";
+        return String.valueOf(Math.max(0, raw.length - Utils.helpers.analyzeResponse(raw).getBodyOffset()));
+    }
+
+    /** 从 DB 重新读取指定 type 并返回不可变快照（EDT 保存时整体替换，扫描线程只读引用）。 */
+    private static List<String> snapshotLog4jList(String type) {
+        List<String> values = new ArrayList<>();
+        for (Log4jBean bean : getLog4jListsByType(type)) {
+            values.add(bean.getValue());
+        }
+        return Collections.unmodifiableList(values);
     }
 
     /** 保存成功弹窗（EDT）。 */
