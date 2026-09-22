@@ -4,7 +4,7 @@
 
   <groupId>org.xm17</groupId>
   <artifactId>gatherBurp</artifactId>
-  <version>1.3.0</version>
+  <version>1.3.1</version>
   <packaging>jar</packaging>
 
   <name>gatherBurp</name>

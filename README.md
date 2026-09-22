@@ -82,6 +82,12 @@ GatherBurp 集成了多种安全测试功能，可大幅提升渗透测试和漏
   - 支持 SOCKS 代理
   - 多代理自动切换
 
+- **伪造 IP 请求头**
+  - 26 种常见客户端 IP 头多选（X-Forwarded-For、X-Real-IP、CF-Connecting-IP 等）
+  - 支持随机国内 IP、127.0.0.1、自定义 IP
+  - 应用范围可选（Proxy、Repeater、Intruder 等）
+  - Intruder 随机 IP payload 生成器，爆破时每次换 IP
+
 - **复杂数据提交**
   - 支持 Base64 编码数据自动解码
   - 解决序列化数据编码问题
@@ -291,6 +297,12 @@ code!=200 && (body="hello" || title="druid")
 - [x] 国际化支持（中英双语）
 
 ## 📝 更新记录
+
+### V1.3.1（2026-09-22）
+
+- 新增 FakeIP 模块：按工具范围自动伪造客户端 IP 请求头（26 种头多选，随机国内 IP / 127.0.0.1 / 自定义）
+- 提供 Intruder 随机 IP payload 生成器，配合 Pitchfork 爆破每次换 IP
+- 功能集成自开源项目 [burpFakeIP](https://github.com/TheKingOfDuck/burpFakeIP)
 
 ### V1.3.0（2026-09-22）
 
