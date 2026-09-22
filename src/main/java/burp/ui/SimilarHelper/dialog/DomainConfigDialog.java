@@ -1,6 +1,7 @@
 package burp.ui.SimilarHelper.dialog;
 
 import burp.ui.SimilarHelper.bean.Project;
+import burp.ui.SimilarHelper.ThreadManager;
 import burp.utils.I18nUtils;
 
 import javax.swing.*;
@@ -61,10 +62,7 @@ public class DomainConfigDialog extends JDialog {
         addButton.addActionListener(e -> showAddDomainDialog());
         editButton.addActionListener(e -> showEditDomainDialog());
         deleteButton.addActionListener(e -> deleteDomain());
-        saveButton.addActionListener(e -> {
-            saveDomains();
-            dispose();
-        });
+        saveButton.addActionListener(e -> saveDomains());
     }
 
     private void loadDomains() {
@@ -138,12 +136,22 @@ public class DomainConfigDialog extends JDialog {
         }
     }
 
-    /** 将当前列表整体保存到项目（触发写库）。 */
+    /** 将当前列表整体保存到项目（写库全删全插，放池线程避免 EDT 卡 SQLite 写锁），完成后关闭对话框。 */
     private void saveDomains() {
         List<String> domains = new ArrayList<>();
         for (int i = 0; i < listModel.size(); i++) {
             domains.add(listModel.getElementAt(i));
         }
-        currentProject.setMainDomains(domains);
+        boolean accepted = ThreadManager.execute(() -> {
+            try {
+                currentProject.replaceMainDomains(domains);
+            } finally {
+                SwingUtilities.invokeLater(this::dispose);
+            }
+        });
+        if (!accepted) {
+            // 任务被拒（池关闭/队列满）时直接关闭，不能让对话框卡死不消失
+            dispose();
+        }
     }
 }

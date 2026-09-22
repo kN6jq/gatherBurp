@@ -36,11 +36,6 @@ public class URLTable extends JTable {
     private final JPopupMenu popupMenu;
 
     /**
-     * 表格是否已销毁
-     */
-    private boolean disposed = false;
-
-    /**
      * 构造函数
      */
     public URLTable() {
@@ -67,7 +62,7 @@ public class URLTable extends JTable {
      */
     private void initializeTable() {
         // 设置单元格渲染器
-        setDefaultRenderer(Object.class, new TableRenderer());
+        setDefaultRenderer(Object.class, new TableRenderer(0, 2)); // ID/Time 列居中
 
         // 设置列宽
         TableColumnModel columnModel = getColumnModel();
@@ -126,7 +121,7 @@ public class URLTable extends JTable {
      * 处理右键菜单事件
      */
     private void handleContextMenu(MouseEvent e) {
-        if (!disposed && e.isPopupTrigger()) {
+        if (e.isPopupTrigger()) {
             // 如果点击位置有行,且未被选中,则选中该行
             int row = rowAtPoint(e.getPoint());
             if (row >= 0 && !isRowSelected(row)) {
@@ -161,7 +156,6 @@ public class URLTable extends JTable {
      * 复制选中的URL到剪贴板
      */
     private void copySelectedUrls() {
-        if (disposed) return;
 
         int[] selectedRows = getSelectedRows();
         if (selectedRows.length > 0) {
@@ -171,7 +165,7 @@ public class URLTable extends JTable {
                     .collect(Collectors.joining("\n"));
 
             copyToClipboard(urls);
-            Utils.stdout.println("已复制 " + selectedRows.length + " 个URL到剪贴板");
+            Utils.stdout.println(String.format(I18nUtils.get("similar.table.copied_urls"), selectedRows.length));
         }
     }
 
@@ -179,7 +173,6 @@ public class URLTable extends JTable {
      * 复制所有URL到剪贴板
      */
     private void copyAllUrls() {
-        if (disposed) return;
 
         if (getRowCount() > 0) {
             // 收集所有URL并用换行符连接
@@ -188,7 +181,7 @@ public class URLTable extends JTable {
                     .collect(Collectors.joining("\n"));
 
             copyToClipboard(urls);
-            Utils.stdout.println("已复制全部 " + getRowCount() + " 个URL到剪贴板");
+            Utils.stdout.println(String.format(I18nUtils.get("similar.table.copied_all_urls"), getRowCount()));
         }
     }
 
@@ -211,7 +204,7 @@ public class URLTable extends JTable {
      * 添加新的 URL 行（可由扫描线程调用，内部切 EDT）；URL 已存在则跳过。
      */
     public void addEntry(URL entry) {
-        if (entry == null || entry.getUrl() == null || disposed) {
+        if (entry == null || entry.getUrl() == null) {
             return;
         }
 
@@ -239,9 +232,7 @@ public class URLTable extends JTable {
      * 清空表格（切 EDT）。
      */
     public void clearData() {
-        if (!disposed) {
-            SwingUtilities.invokeLater(() -> model.clearData());
-        }
+        SwingUtilities.invokeLater(() -> model.clearData());
     }
 
     /**
@@ -249,17 +240,13 @@ public class URLTable extends JTable {
      * （SimilarUI 扫描完成回调中成对使用）。
      */
     public void startBatchUpdate() {
-        if (!disposed) {
-            model.startBatchUpdate();
-        }
+        model.startBatchUpdate();
     }
 
     /**
      * 结束批量更新：一次性触发重绘。
      */
     public void endBatchUpdate() {
-        if (!disposed) {
-            model.endBatchUpdate();
-        }
+        model.endBatchUpdate();
     }
 }

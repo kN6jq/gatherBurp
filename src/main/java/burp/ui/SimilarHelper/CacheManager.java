@@ -1,8 +1,11 @@
 package burp.ui.SimilarHelper;
 
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,10 +13,14 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * Similar 模块缓存管理器（全静态，ConcurrentMap 保证线程安全）：
- * ① 域名→IP 缓存（24h TTL + 10min 解析失败负缓存）；② 项目级域名/URL 去重缓存（内存，切换项目时清空）。
+ * ① 域名→IP 缓存（24h TTL + 10min 解析失败负缓存）；② 项目级域名/URL 去重缓存
+ * （内存，FIFO 封顶淘汰，切换项目时清空）。
  * 缓存仅是提速层——SimilarUI 命中缓存后仍可能需数据库兜底校验。
  */
 public class CacheManager {
+    // 项目级去重缓存单项目条目上限：超限丢最旧（丢了的键下次由 DB upsert 兜底，不影响正确性）
+    private static final int MAX_PROJECT_CACHE_ENTRIES = 10000;
+
     // 域名-IP映射缓存
     private static final ConcurrentMap<String, String> domainIPCache = new ConcurrentHashMap<>();
 
@@ -88,43 +95,61 @@ public class CacheManager {
         return domainIPCache.get(lowerDomain);
     }
 
-    /** 缓存项目的域名（小写）。 */
+    /** 缓存项目的域名（小写，FIFO 封顶淘汰）。 */
     public static void cacheProjectDomain(int projectId, String domain) {
-        projectDomainCache.computeIfAbsent(projectId, k -> ConcurrentHashMap.newKeySet())
-                .add(domain.toLowerCase());
+        Set<String> domains = projectDomainCache.computeIfAbsent(projectId,
+                k -> Collections.synchronizedSet(new LinkedHashSet<>()));
+        synchronized (domains) {
+            domains.add(domain.toLowerCase());
+            evictOldest(domains);
+        }
     }
 
     /** 检查域名是否已缓存。 */
     public static boolean isProjectDomainCached(int projectId, String domain) {
         Set<String> domains = projectDomainCache.get(projectId);
-        return domains != null && domains.contains(domain.toLowerCase());
+        if (domains == null) {
+            return false;
+        }
+        synchronized (domains) {
+            return domains.contains(domain.toLowerCase());
+        }
     }
 
-    /** 缓存项目的 URL。 */
+    /** 缓存项目的 URL（FIFO 封顶淘汰）。 */
     public static void cacheProjectUrl(int projectId, String url) {
-        projectUrlCache.computeIfAbsent(projectId, k -> ConcurrentHashMap.newKeySet())
-                .add(url);
+        Set<String> urls = projectUrlCache.computeIfAbsent(projectId,
+                k -> Collections.synchronizedSet(new LinkedHashSet<>()));
+        synchronized (urls) {
+            urls.add(url);
+            evictOldest(urls);
+        }
     }
 
     /** 检查 URL 是否已缓存。 */
     public static boolean isProjectUrlCached(int projectId, String url) {
         Set<String> urls = projectUrlCache.get(projectId);
-        return urls != null && urls.contains(url);
+        if (urls == null) {
+            return false;
+        }
+        synchronized (urls) {
+            return urls.contains(url);
+        }
+    }
+
+    /** 超上限时丢最旧条目（须在集合的 synchronized 块内调用）。 */
+    private static void evictOldest(Set<String> entries) {
+        while (entries.size() > MAX_PROJECT_CACHE_ENTRIES) {
+            Iterator<String> iterator = entries.iterator();
+            iterator.next();
+            iterator.remove();
+        }
     }
 
     /** 清除指定项目的缓存。 */
     public static void clearProjectCache(int projectId) {
         projectDomainCache.remove(projectId);
         projectUrlCache.remove(projectId);
-    }
-
-    /** 清除全部缓存。 */
-    public static void clearAllCache() {
-        domainIPCache.clear();
-        domainIPCacheTime.clear();
-        domainIPNegativeTime.clear();
-        projectDomainCache.clear();
-        projectUrlCache.clear();
     }
 
     /** 获取缓存统计信息。 */
@@ -145,19 +170,6 @@ public class CacheManager {
                 .mapToInt(Set::size)
                 .sum();
         stats.put("projectUrlCache", totalUrls);
-
-        return stats;
-    }
-
-    /** 获取指定项目的缓存统计。 */
-    public static Map<String, Integer> getProjectCacheStats(int projectId) {
-        Map<String, Integer> stats = new HashMap<>();
-
-        Set<String> domains = projectDomainCache.get(projectId);
-        stats.put("domains", domains != null ? domains.size() : 0);
-
-        Set<String> urls = projectUrlCache.get(projectId);
-        stats.put("urls", urls != null ? urls.size() : 0);
 
         return stats;
     }
@@ -183,12 +195,5 @@ public class CacheManager {
                 domainIPNegativeTime.remove(domain);
             }
         });
-    }
-
-    /** 检查域名 IP 是否需要刷新缓存。 */
-    public static boolean needsIPRefresh(String domain) {
-        String lowerDomain = domain.toLowerCase();
-        Long cacheTime = domainIPCacheTime.get(lowerDomain);
-        return cacheTime == null || System.currentTimeMillis() - cacheTime > CACHE_EXPIRY;
     }
 }

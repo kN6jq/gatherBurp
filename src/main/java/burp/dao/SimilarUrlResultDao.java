@@ -78,22 +78,4 @@ public class SimilarUrlResultDao {
         }
         return results;
     }
-
-    /** 判断指定 project_id+url 是否已存在。失败返回 false。 */
-    public static boolean isUrlExists(int projectId, String url) {
-        String sql = "SELECT COUNT(*) as count FROM url_results WHERE project_id = ? AND url = ?";
-        try (Connection connection = DbUtils.getConnection();
-             PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setInt(1, projectId);
-            ps.setString(2, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("count") > 0;
-                }
-            }
-        } catch (Exception e) {
-            Utils.stderr.println("检查URL是否存在失败: " + e.getMessage());
-        }
-        return false;
-    }
 }

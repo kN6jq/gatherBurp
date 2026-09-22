@@ -126,9 +126,10 @@ public class DbUtilsTest {
         SimilarDomainResultBean result = new SimilarDomainResultBean(projectId, "example.com", "1.1.1.1");
         int id = SimilarDomainResultDao.saveDomainResult(result);
         assertTrue(id > 0);
-        result.setId(id);
+        // 同一 (project_id, domain) 再次保存应走 upsert：返回已有 id、更新 IP、不新增行
         result.setIp("2.2.2.2");
-        SimilarDomainResultDao.updateDomainResult(result);
+        int againId = SimilarDomainResultDao.saveDomainResult(result);
+        assertEquals(id, againId);
 
         assertEquals("2.2.2.2", SimilarDomainResultDao.getDomainResults(projectId).get(0).getIp());
     }

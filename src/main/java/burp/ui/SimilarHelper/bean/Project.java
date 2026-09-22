@@ -4,17 +4,18 @@ import burp.bean.SimilarProjectBean;
 import burp.dao.SimilarDomainConfigDao;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-/** Similar 模块项目（内存聚合对象）：持有主域名清单与域名/URL 结果列表；
- *  setMainDomains 有副作用——整体替换并写库（saveDomainConfigs 全删全插）。 */
+/** Similar 模块项目（内存聚合对象）：持有主域名清单。
+ *  mainDomains 为 volatile 不可变快照——写方整体替换引用，池线程/EDT 只读遍历，
+ *  避免一边换列表一边读。setMainDomains 只改内存（切项目加载/定时同步用），
+ *  需要落库时（配置对话框保存）必须走 replaceMainDomains。 */
 public class Project {
-    private int id;
+    private final int id;
     private String name;
     private String createTime;
-    private List<String> mainDomains = new ArrayList<>();
-    private List<Domain> domainEntries = new ArrayList<>();
-    private List<URL> urlEntries = new ArrayList<>();
+    private volatile List<String> mainDomains = Collections.emptyList();
 
     public Project(SimilarProjectBean bean) {
         this.id = bean.getId();
@@ -34,30 +35,16 @@ public class Project {
         return mainDomains;
     }
 
+    /** 只更新内存中的主域名清单，不写库。加载/同步路径用这个：
+     *  读库失败时顶多拿到空列表，不会把用户已存的配置删掉。 */
     public void setMainDomains(List<String> domains) {
-        this.mainDomains = new ArrayList<>(domains);
-        // 更新数据库
+        this.mainDomains = Collections.unmodifiableList(new ArrayList<>(domains));
+    }
+
+    /** 更新内存并整体写库（全删全插）。只在配置对话框"保存"时调用。 */
+    public void replaceMainDomains(List<String> domains) {
+        setMainDomains(domains);
         SimilarDomainConfigDao.saveDomainConfigs(id, domains);
-    }
-
-    public List<Domain> getDomainEntries() {
-        return domainEntries;
-    }
-
-    public List<URL> getUrlEntries() {
-        return urlEntries;
-    }
-
-    public void addDomainEntry(Domain entry) {
-        if (!domainEntries.contains(entry)) {
-            domainEntries.add(entry);
-        }
-    }
-
-    public void addUrlEntry(URL entry) {
-        if (!urlEntries.contains(entry)) {
-            urlEntries.add(entry);
-        }
     }
 
     @Override

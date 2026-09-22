@@ -2,6 +2,7 @@ package burp.ui.SimilarHelper.dialog;
 
 import burp.bean.SimilarProjectBean;
 import burp.dao.SimilarProjectDao;
+import burp.ui.SimilarHelper.ThreadManager;
 import burp.ui.SimilarHelper.bean.Project;
 import burp.utils.I18nUtils;
 
@@ -9,7 +10,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** 项目选择/管理对话框（APPLICATION_MODAL，EDT 显示）：双击或"选择"按钮回调 onProjectSelected 并关闭；
@@ -69,7 +72,6 @@ public class ProjectManageDialog extends JDialog {
     }
 
     /** 选择当前选中项目：先 dispose 再回调（避免回调中访问已关闭组件）。 */
-    /** 选择当前选中项目：先 dispose 再回调（避免回调中访问已关闭组件）。 */
     private void selectProject() {
         if (isProcessingSelection) {
             return;  // 防止重复处理
@@ -90,23 +92,24 @@ public class ProjectManageDialog extends JDialog {
     private void showAddProjectDialog() {
         String name = JOptionPane.showInputDialog(this, I18nUtils.get("similar.dialog.input_project_name"));
         if (name != null && !name.trim().isEmpty()) {
-            try {
-                // 创建项目Bean
-                SimilarProjectBean projectBean = new SimilarProjectBean(name);
-                // 保存到数据库
-                SimilarProjectDao.saveProject(projectBean);
-                // 重新加载项目列表
-                refreshProjectList();
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this,
-                        I18nUtils.get("similar.dialog.create_project_failed") + e.getMessage(),
-                        I18nUtils.get("similar.dialog.error"),
-                        JOptionPane.ERROR_MESSAGE);
+            // 建库放池线程（EDT 不等 SQLite 写锁），完成后回 EDT 刷新列表
+            boolean accepted = ThreadManager.execute(() -> {
+                try {
+                    SimilarProjectDao.saveProject(new SimilarProjectBean(name));
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> showError(
+                            I18nUtils.get("similar.dialog.create_project_failed") + e.getMessage()));
+                    return;
+                }
+                SwingUtilities.invokeLater(this::refreshProjectList);
+            });
+            if (!accepted) {
+                showError(I18nUtils.get("similar.dialog.create_project_failed") + "task rejected");
             }
         }
     }
 
-    /** 确认后删除选中项目（写库 + 移除本地列表）。 */
+    /** 确认后删除选中项目（删库在池线程，成功后回 EDT 同步列表）。 */
     private void deleteSelectedProject() {
         Project selected = projectList.getSelectedValue();
         if (selected != null) {
@@ -116,40 +119,61 @@ public class ProjectManageDialog extends JDialog {
                     JOptionPane.YES_NO_OPTION);
 
             if (result == JOptionPane.YES_OPTION) {
-                try {
-                    // 从数据库删除
-                    SimilarProjectDao.deleteProject(selected.getId());
-                    // 从列表中移除
-                    projects.remove(selected);
-                    listModel.removeElement(selected);
-                } catch (Exception e) {
-                    JOptionPane.showMessageDialog(this,
-                            I18nUtils.get("similar.dialog.delete_project_failed") + e.getMessage(),
-                            I18nUtils.get("similar.dialog.error"),
-                            JOptionPane.ERROR_MESSAGE);
+                boolean accepted = ThreadManager.execute(() -> {
+                    try {
+                        SimilarProjectDao.deleteProject(selected.getId());
+                    } catch (Exception e) {
+                        SwingUtilities.invokeLater(() -> showError(
+                                I18nUtils.get("similar.dialog.delete_project_failed") + e.getMessage()));
+                        return;
+                    }
+                    SwingUtilities.invokeLater(() -> {
+                        projects.remove(selected);
+                        listModel.removeElement(selected);
+                    });
+                });
+                if (!accepted) {
+                    showError(I18nUtils.get("similar.dialog.delete_project_failed") + "task rejected");
                 }
             }
         }
     }
 
-    /** 从库重新加载项目列表（整体替换传入的 projects 列表与 listModel）。 */
+    /** 从库重新加载项目列表（查库在池线程，列表与 model 更新回 EDT）。 */
     private void refreshProjectList() {
-        try {
-            // 清空列表
-            listModel.clear();
-            projects.clear();
-            // 重新加载并转换类型
-            List<SimilarProjectBean> projectBeans = SimilarProjectDao.getAllProjects();
-            for (SimilarProjectBean bean : projectBeans) {
-                Project project = new Project(bean);
-                projects.add(project);
-                listModel.addElement(project);
+        boolean accepted = ThreadManager.execute(() -> {
+            List<Project> loaded = new ArrayList<>();
+            AtomicReference<Exception> error = new AtomicReference<>();
+            try {
+                for (SimilarProjectBean bean : SimilarProjectDao.getAllProjects()) {
+                    if (bean != null) {
+                        loaded.add(new Project(bean));
+                    }
+                }
+            } catch (Exception e) {
+                error.set(e);
             }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this,
-                    I18nUtils.get("similar.dialog.refresh_project_list_failed") + e.getMessage(),
-                    I18nUtils.get("similar.dialog.error"),
-                    JOptionPane.ERROR_MESSAGE);
+            SwingUtilities.invokeLater(() -> {
+                Exception loadError = error.get();
+                if (loadError != null) {
+                    showError(I18nUtils.get("similar.dialog.refresh_project_list_failed") + loadError.getMessage());
+                    return;
+                }
+                listModel.clear();
+                projects.clear();
+                for (Project project : loaded) {
+                    projects.add(project);
+                    listModel.addElement(project);
+                }
+            });
+        });
+        if (!accepted) {
+            showError(I18nUtils.get("similar.dialog.refresh_project_list_failed") + "task rejected");
         }
+    }
+
+    private void showError(String message) {
+        JOptionPane.showMessageDialog(this, message,
+                I18nUtils.get("similar.dialog.error"), JOptionPane.ERROR_MESSAGE);
     }
 }

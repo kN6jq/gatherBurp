@@ -10,6 +10,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * uniqueKeys 为 synchronizedSet（读路径无锁，允许扫描线程写 + EDT 读）。
  */
 public class TableModel extends AbstractTableModel {
+    // 行数上限：超限淘汰最旧行，防止长时间会话内存与重绘开销无限增长（与其他模块 2000 上限对齐）
+    private static final int MAX_ROWS = 2000;
     // 存储表格数据的线程安全列表
     private final List<List<Object>> data;
     // 列名数组
@@ -80,7 +82,7 @@ public class TableModel extends AbstractTableModel {
     }
 
     /**
-     * 添加新行或更新现有行
+     * 添加新行或更新现有行；行数超上限时淘汰最旧行
      * @param rowData 行数据
      * @param uniqueKey 唯一键值
      */
@@ -90,8 +92,22 @@ public class TableModel extends AbstractTableModel {
             data.add(new ArrayList<>(rowData));
             uniqueKeys.add(uniqueKey);
 
+            // 超限淘汰最旧行：同步移除其唯一键，防止键集合与行数据错位；
+            // 行号整体前移过就发全量刷新事件
+            boolean trimmed = false;
+            while (data.size() > MAX_ROWS) {
+                List<Object> oldest = data.remove(0);
+                if (oldest.size() > keyColumnIndex && oldest.get(keyColumnIndex) != null) {
+                    uniqueKeys.remove(String.valueOf(oldest.get(keyColumnIndex)));
+                }
+                trimmed = true;
+            }
             if (!isUpdating) {
-                fireTableRowsInserted(data.size() - 1, data.size() - 1);
+                if (trimmed) {
+                    fireTableDataChanged();
+                } else {
+                    fireTableRowsInserted(data.size() - 1, data.size() - 1);
+                }
             }
         } else {
             // 更新现有行

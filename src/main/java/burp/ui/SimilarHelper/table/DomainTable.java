@@ -28,11 +28,6 @@ public class DomainTable extends JTable {
     private final TableModel model;
 
     /**
-     * 表格是否已销毁（EDT 置位、扫描线程读取，故用 volatile 语义的简单标志位）
-     */
-    private boolean disposed = false;
-
-    /**
      * 构造函数,初始化表格
      */
     public DomainTable() {
@@ -59,7 +54,7 @@ public class DomainTable extends JTable {
      */
     private void initializeTable() {
         // 设置单元格渲染器
-        setDefaultRenderer(Object.class, new TableRenderer());
+        setDefaultRenderer(Object.class, new TableRenderer(0, 2, 3)); // ID/IP/Time 列居中
 
         // 设置列宽
         TableColumnModel columnModel = getColumnModel();
@@ -128,7 +123,7 @@ public class DomainTable extends JTable {
         this.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseReleased(MouseEvent e) {
-                if (e.isPopupTrigger() && !disposed) {
+                if (e.isPopupTrigger()) {
                     int row = rowAtPoint(e.getPoint());
                     if (row >= 0) {
                         // 如果点击的行未被选中,则选中该行
@@ -209,7 +204,7 @@ public class DomainTable extends JTable {
      * 添加新的域名行（可由扫描线程调用，内部切 EDT）；域名已存在则跳过。
      */
     public void addEntry(Domain entry) {
-        if (entry == null || entry.getDomain() == null || disposed) {
+        if (entry == null || entry.getDomain() == null) {
             return;
         }
 
@@ -238,7 +233,7 @@ public class DomainTable extends JTable {
      * 按域名更新已有行（IP/时间，可由扫描线程调用，内部切 EDT）。
      */
     public void refreshEntry(Domain entry) {
-        if (entry == null || entry.getDomain() == null || disposed) {
+        if (entry == null || entry.getDomain() == null) {
             return;
         }
 
@@ -263,9 +258,7 @@ public class DomainTable extends JTable {
      * 清空表格（切 EDT）。
      */
     public void clearData() {
-        if (!disposed) {
-            SwingUtilities.invokeLater(() -> model.clearData());
-        }
+        SwingUtilities.invokeLater(() -> model.clearData());
     }
 
     /**
@@ -273,17 +266,13 @@ public class DomainTable extends JTable {
      * （SimilarUI 扫描完成回调中成对使用）。
      */
     public void startBatchUpdate() {
-        if (!disposed) {
-            model.startBatchUpdate();
-        }
+        model.startBatchUpdate();
     }
 
     /**
      * 结束批量更新：一次性触发重绘。
      */
     public void endBatchUpdate() {
-        if (!disposed) {
-            model.endBatchUpdate();
-        }
+        model.endBatchUpdate();
     }
 }

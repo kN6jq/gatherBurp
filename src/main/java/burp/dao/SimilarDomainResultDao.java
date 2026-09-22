@@ -83,36 +83,4 @@ public class SimilarDomainResultDao {
         }
         return results;
     }
-
-    /** 判断指定 id+domain 是否已存在。失败返回 false。 */
-    public static boolean isDomainExists(int id, String domain) {
-        String sql = "SELECT id FROM domain_results WHERE id = ? AND domain = ?";
-        try (Connection connection = DbUtils.getConnection();
-             PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setInt(1, id);
-            ps.setString(2, domain);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        } catch (Exception e) {
-            Utils.stderr.println(e.getMessage());
-        }
-        return false;
-    }
-
-    /** 更新指定 id 的域名解析 IP。记录不存在时打 stderr。 */
-    public static void updateDomainResult(SimilarDomainResultBean result) {
-        String sql = "UPDATE domain_results SET ip = ? WHERE id = ?";
-        try (Connection connection = DbUtils.getConnection();
-             PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, result.getIp());
-            ps.setInt(2, result.getId());
-            int updatedRows = ps.executeUpdate();
-            if (updatedRows == 0) {
-                Utils.stderr.println("更新域名结果失败: 记录不存在 (ID: " + result.getId() + ")");
-            }
-        } catch (Exception e) {
-            Utils.stderr.println("更新域名结果失败: " + e.getMessage());
-        }
-    }
 }

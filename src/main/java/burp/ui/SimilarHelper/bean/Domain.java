@@ -6,8 +6,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
-/** Similar 模块域名条目（表格展示对象）：equals/hashCode 仅按 domain 判定，
- *  供 Project 内存列表去重。 */
+/** Similar 模块域名条目（表格展示对象）：equals/hashCode 仅按 domain 判定，便于按域名去重。 */
 public class Domain {
     // 展示用自增 ID（扫描线程递增，仅用于表格首列，非数据库主键）
     private static int counter = 0;

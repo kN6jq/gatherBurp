@@ -2,9 +2,7 @@ package burp.ui.SimilarHelper;
 
 import burp.utils.Utils;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
@@ -50,32 +48,6 @@ public final class ThreadManager {
         } catch (RejectedExecutionException e) {
             logError("Similar task rejected: queue is full or executor is shutting down", null);
             return false;
-        }
-    }
-
-    /** 提交返回结果的任务：关闭期或队列满抛 RejectedExecutionException；任务异常原样透传给 Future。 */
-    public static <T> Future<T> submit(Callable<T> task) {
-        if (!acceptingTasks) {
-            throw new RejectedExecutionException("Similar executor is shutting down");
-        }
-        if (task == null) {
-            throw new IllegalArgumentException("task must not be null");
-        }
-        try {
-            return executor().submit(() -> {
-                try {
-                    return task.call();
-                } catch (Throwable throwable) {
-                    logError("Similar task execution failed: " + throwable.getMessage(), throwable);
-                    if (throwable instanceof Exception) {
-                        throw (Exception) throwable;
-                    }
-                    throw new RuntimeException(throwable);
-                }
-            });
-        } catch (RejectedExecutionException e) {
-            logError("Similar task rejected: queue is full or executor is shutting down", null);
-            throw e;
         }
     }
 
