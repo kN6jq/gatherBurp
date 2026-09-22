@@ -240,6 +240,7 @@ public class ConfigUI implements UIHandler {
                     modelRows[i] = configTable.convertRowIndexToModel(selectedRows[i]);
                 }
                 java.util.Arrays.sort(modelRows);
+                boolean removed = false;
                 for (int i = modelRows.length - 1; i >= 0; i--) {
                     int selectedRow = modelRows[i];
                     if (selectedRow < 0 || selectedRow >= data.size()) {
@@ -248,8 +249,14 @@ public class ConfigUI implements UIHandler {
                     String type = data.get(selectedRow).key;
                     deleteConfig("tool", type);
                     data.remove(selectedRow);
-                    dataModel.fireTableRowsDeleted(selectedRow, selectedRow);
+                    removed = true;
                 }
+                if (!removed) return;
+                // 按位置重排展示序号，避免删完出现断号/重号
+                for (int i = 0; i < data.size(); i++) {
+                    data.get(i).id = i + 1;
+                }
+                dataModel.fireTableDataChanged();
             }
         });
         clearCacheButton.addActionListener(new AbstractAction() {
@@ -296,23 +303,35 @@ public class ConfigUI implements UIHandler {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String module = "tool";
-                String type = toolNameTextField.getText();
+                String type = toolNameTextField.getText().trim();
                 String value = toolArgvTextField.getText();
-                ConfigBean config = new ConfigBean(module, type, value);
-                saveConfig(config);
-                addData(type, value);
+                saveConfig(new ConfigBean(module, type, value));
+                // DB 按 (module, type) 唯一覆盖，表格必须跟着覆盖而不是追加，
+                // 否则同名工具会出现两行，点"刷新"又缩回一行
+                int existingRow = -1;
+                for (int i = 0; i < data.size(); i++) {
+                    if (data.get(i).key.equals(type)) {
+                        existingRow = i;
+                        break;
+                    }
+                }
+                if (existingRow >= 0) {
+                    data.set(existingRow, new LogEntry(existingRow + 1, type, value));
+                    dataModel.fireTableRowsUpdated(existingRow, existingRow);
+                } else {
+                    addData(type, value);
+                }
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.save_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
         });
-        // 重置全部模块的 URL 去重缓存与 WAF 慢速标记（EDT，可安全同步调用）
+        // 重置 URL 去重缓存（resetAllCaches 覆盖全部模块）。
+        // Route/Sql 的 resetAllCaches 还会额外清各自的问题列表/基线等模块状态，因此单独保留；
+        // Perm/Log4j/Fastjson 的同名方法只是再清一遍 URL 缓存，不重复调用
         resetUrl.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 UrlCacheUtil.resetAllCaches();
                 RouteUI.resetAllCaches();
-                PermUI.resetAllCaches();
-                Log4jUI.resetAllCaches();
-                FastjsonUI.resetAllCaches();
                 SqlUI.resetAllCaches();
                 JOptionPane.showMessageDialog(null, I18nUtils.get("config.message.reset_success"), I18nUtils.get("config.title.info"), JOptionPane.INFORMATION_MESSAGE);
             }
@@ -340,13 +359,11 @@ public class ConfigUI implements UIHandler {
 
     }
 
-    /** 向 tool 命令表格追加一行（锁 data 后触发模型插入事件）。 */
+    /** 向 tool 命令表格追加一行（表格读写全在 EDT，无需加锁）。 */
     public void addData(String key, String value) {
-        synchronized (data) {
-            int row = data.size();
-            data.add(new LogEntry(row + 1, key, value));
-            dataModel.fireTableRowsInserted(row, row);
-        }
+        int row = data.size();
+        data.add(new LogEntry(row + 1, key, value));
+        dataModel.fireTableRowsInserted(row, row);
     }
 
     @Override
