@@ -7,6 +7,8 @@ import burp.ui.SimilarUI;
 import burp.ui.SqlUI;
 import burp.ui.SimilarHelper.ThreadManager;
 import burp.utils.DbUtils;
+import burp.utils.FakeIPPayloadGenerator;
+import burp.utils.FakeIPUtils;
 import burp.utils.I18nUtils;
 import burp.utils.RobotInput;
 import burp.utils.ScanTaskExecutor;
@@ -42,8 +44,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         Utils.callbacks.registerHttpListener(this);
         Utils.callbacks.registerExtensionStateListener(this);
         DbUtils.init();
+        FakeIPUtils.loadConfig();
         MainUI mainUI = new MainUI(Utils.callbacks);
         Utils.callbacks.addSuiteTab(mainUI);
+        Utils.callbacks.registerIntruderPayloadGeneratorFactory(new FakeIPPayloadGenerator());
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -145,12 +149,22 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
 
     /** 消息回调，运行在 Burp 代理监听线程（非 EDT）：
      *  ① 分发 SQL 被动扫描（统一入口，内部过滤开关/方向/工具来源）；
-     *  ② Repeater 请求中的 {@code <datab64>…</datab64>} 标签就地解码并同步 Content-Length。 */
+     *  ② FakeIP 开启且工具在应用范围内时给请求替换/追加伪造 IP 头；
+     *  ③ Repeater 请求中的 {@code <datab64>…</datab64>} 标签就地解码并同步 Content-Length。 */
     @Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
         // 统一入口：SQL 模块不再单独注册 IHttpListener，避免被动扫描依赖 UI 初始化/注册时序。
         // 该调用内部会过滤开关、请求/响应方向以及 Burp 工具来源。
         SqlUI.dispatchPassiveHttpMessage(toolFlag, messageIsRequest, messageInfo);
+
+        // FakeIP：开启且工具在应用范围内时，给出站请求替换/追加勾选的伪造 IP 头，异常只跳过本条。
+        if (messageIsRequest && FakeIPUtils.isFakeIpEnabled() && FakeIPUtils.isInScope(toolFlag)) {
+            try {
+                FakeIPUtils.applyFakeIp(messageInfo);
+            } catch (Exception e) {
+                Utils.stderr.println("FakeIP failed: " + e.getMessage());
+            }
+        }
 
         if (toolFlag == IBurpExtenderCallbacks.TOOL_REPEATER && messageIsRequest) {
             byte[] request = messageInfo.getRequest();
