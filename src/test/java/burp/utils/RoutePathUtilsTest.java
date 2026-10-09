@@ -45,4 +45,14 @@ public class RoutePathUtilsTest {
         assertEquals(3, paths.size());
         assertEquals("/index.php/actuator", paths.get(1));
     }
+
+    @Test
+    public void queryIsStrippedBeforePathComposition() {
+        // query 不参与组合：payload 拼进参数值（?gotourl=runCode/actuator）毫无探测意义
+        List<String> paths = RoutePathUtils.generateTestPaths("/szzb/random?gotourl=runCode", "/swagger-resources");
+        assertEquals(3, paths.size());
+        assertEquals("/swagger-resources", paths.get(0));
+        assertEquals("/szzb/swagger-resources", paths.get(1));
+        assertEquals("/szzb/random/swagger-resources", paths.get(2));
+    }
 }

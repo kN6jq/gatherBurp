@@ -48,6 +48,11 @@ public final class RoutePathUtils {
     }
 
     private static String cleanPath(String path) {
+        // query 不参与路径组合：带着 ?a=b 拼接会把 payload 注入参数值里（如 ?gotourl=runCode/actuator），探测失去意义
+        int queryIndex = path.indexOf('?');
+        if (queryIndex != -1) {
+            path = path.substring(0, queryIndex);
+        }
         return path.replaceAll(";[^/]*", "");
     }
 

@@ -109,9 +109,10 @@ public class RouteDao {
             {"Swagger UI", "/swagger-ui.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
             {"Swagger UI", "/swagger-ui/index.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
             {"Swagger UI", "/swagger/index.html", "code=\"200\" && (body=\"swagger-ui.css\" || body=\"swagger-ui.js\" || title=\"Swagger UI\")"},
-            // Swagger Resources
-            {"Swagger Resources", "/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"location\")"},
-            {"Swagger Resources", "/api/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"location\")"},
+            // Swagger Resources（springfox 列表 JSON 必含 swaggerVersion，location 值指向 api-docs；
+            // 不可用 location 做特征——任何页面 JS 里的 location.href 都会命中）
+            {"Swagger Resources", "/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"api-docs\")"},
+            {"Swagger Resources", "/api/swagger-resources", "code=\"200\" && (body=\"swaggerVersion\" || body=\"api-docs\")"},
             // swagger.json 系列（文档 JSON 必带 info 段，与 swagger/openapi 版本字段组合判）
             {"Swagger", "/v1/swagger.json", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
             {"Swagger", "/v2/swagger.json", "code=\"200\" && body=\"info\" && (body=\"swagger\" || body=\"openapi\")"},
@@ -125,8 +126,8 @@ public class RouteDao {
             // Spring Boot Actuator
             {"Spring Actuator Env", "/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
             {"Spring Actuator Env", "/actuator/env", "code=\"200\" && (body=\"java.version\" || body=\"os.arch\")"},
-            {"Spring Actuator", "/actuator", "code=\"200\" && (body=\"health\" || body=\"self\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
-            {"Spring Actuator", "/api/actuator", "code=\"200\" && (body=\"health\" || body=\"self\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
+            {"Spring Actuator", "/actuator", "code=\"200\" && (body=\"health\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
+            {"Spring Actuator", "/api/actuator", "code=\"200\" && (body=\"health\" || body=\"_links\" || headers=\"application/vnd.spring-boot.actuator\")"},
             {"Spring Actuator Loggers", "/actuator/loggers", "code=\"200\" && body=\"configuredLevel\""},
             // Spring Jolokia（Actuator 下可 RCE）
             {"Spring Jolokia", "/jolokia/list", "code=\"200\" && (body=\"springframework\" || body=\"reloadByURL\" || body=\"createJNDIRealm\")"},
@@ -173,10 +174,23 @@ public class RouteDao {
     }
 
     /**
+     * 历史版本误植弱特征词的修复映射 {旧子串, 新子串}：
+     * - body="location" 会命中任何 JS 里出现 location.href 的页面（登录页软404 全中）→ 改为 api-docs；
+     * - body="self" 同理（window.self 等常见词，且真实 Actuator 必有 _links/health，删去零损失）。
+     * 按子串 REPLACE 修正存量规则（含用户自定义行——弱词在任意规则里都是同一种错误），
+     * 其余内容原样保留。
+     */
+    private static final String[][] LEGACY_KEYWORD_FIXES = {
+            {"body=\"location\"", "body=\"api-docs\""},
+            {" || body=\"self\"", ""},
+    };
+
+    /**
      * 按 path 去重补齐默认规则：某 path 不存在则插入；已存在（含用户自定义）则保留不动。
      * 幂等，每次加载规则前调用安全；init.sql 不再内置 route 数据，新老用户均由此补齐。
      */
     public static void ensureDefaultRules() {
+        fixLegacyRuleExpressions();
         String checkSql = "SELECT COUNT(*) FROM route WHERE path = ?";
         String insertSql = "INSERT INTO route (enable, name, path, express) VALUES (?, ?, ?, ?)";
         try (Connection connection = DbUtils.getConnection()) {
@@ -199,6 +213,22 @@ public class RouteDao {
             }
         } catch (Exception e) {
             Utils.stderr.println("seed route rules failed: " + e.getMessage());
+        }
+    }
+
+    /** 存量规则弱特征词修复（幂等）：命中旧子串才 REPLACE，其余内容不动。 */
+    static void fixLegacyRuleExpressions() {
+        String fixSql = "UPDATE route SET express = REPLACE(express, ?, ?) WHERE express LIKE ?";
+        try (Connection connection = DbUtils.getConnection();
+             PreparedStatement ps = connection.prepareStatement(fixSql)) {
+            for (String[] fix : LEGACY_KEYWORD_FIXES) {
+                ps.setString(1, fix[0]);
+                ps.setString(2, fix[1]);
+                ps.setString(3, "%" + fix[0] + "%");
+                ps.executeUpdate();
+            }
+        } catch (Exception e) {
+            Utils.stderr.println("fix legacy route rules failed: " + e.getMessage());
         }
     }
 }

@@ -9,6 +9,7 @@ import burp.utils.I18nUtils;
 import burp.utils.LruCache;
 import burp.utils.LruSet;
 import burp.utils.RoutePathUtils;
+import burp.utils.RouteSoft404;
 import burp.utils.SmartRequestDetector;
 import burp.utils.WafEvidence;
 import burp.utils.UrlCacheUtil;
@@ -19,6 +20,7 @@ import javax.swing.table.TableModel;
 import java.awt.*;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -331,7 +333,35 @@ public class RouteUI extends AbstractScanUI {
             List<String> headers = analyzeRequest.getHeaders();
             IHttpService service = baseRequest.getHttpService();
             int sentRequests = 0;
+            int suppressedHits = 0;
             boolean budgetExhausted = false;
+            boolean anyEnabledRule = false;
+            for (RouteBean routeBean : routeList) {
+                if (routeBean != null && routeBean.getEnable() == 1) {
+                    anyEnabledRule = true;
+                    break;
+                }
+            }
+
+            // 软404基线：先请求一个随机不存在的路径。ASP.NET/SPA 类站点对任意路径都回
+            // 200+同一张页面，规则命中在这种目标上必然失真；探测响应与基线高度相似即跳过上报。
+            int baselineStatus = 0;
+            String baselineBody = null;
+            if (anyEnabledRule) {
+                String baselinePath = "/gbroute-"
+                        + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+                String baselineUrl = baseUrl.getProtocol() + "://" + baseUrl.getHost()
+                        + (baseUrl.getPort() != -1 ? ":" + baseUrl.getPort() : "") + baselinePath;
+                IHttpRequestResponse baselineResponse = sendRequestWithSmartDetect(
+                        service, baselineUrl, buildNewRequest(service, headers, baselinePath));
+                sentRequests++;
+                trackWafSignals(service, baselineResponse);
+                if (baselineResponse != null && baselineResponse.getResponse() != null) {
+                    IResponseInfo baselineInfo = Utils.helpers.analyzeResponse(baselineResponse.getResponse());
+                    baselineStatus = baselineInfo.getStatusCode();
+                    baselineBody = extractResponseBody(baselineResponse, baselineInfo);
+                }
+            }
 
             for (RouteBean routeBean : routeList) {
                 if (routeBean.getEnable() != 1) {
@@ -362,7 +392,9 @@ public class RouteUI extends AbstractScanUI {
                     sentRequests++;
                     trackWafSignals(service, response);
                     if (response != null && response.getResponse() != null) {
-                        processResponse(response, routeBean, baseRequest);
+                        if (processResponse(response, routeBean, baseRequest, baselineStatus, baselineBody)) {
+                            suppressedHits++;
+                        }
                     }
                 }
                 if (budgetExhausted) {
@@ -370,6 +402,10 @@ public class RouteUI extends AbstractScanUI {
                             + " (url=" + baseUrl + ", sent=" + sentRequests + ")");
                     break;
                 }
+            }
+            if (suppressedHits > 0) {
+                Utils.stderr.println("[Route] " + I18nUtils.format("route.soft404.suppressed",
+                        suppressedHits, baseUrl));
             }
         } catch (Exception e) {
             Utils.stderr.println("Error in Check: " + e.getMessage());
@@ -446,15 +482,24 @@ public class RouteUI extends AbstractScanUI {
         return false;
     }
 
-    /** 用规则表达式判定响应是否命中：命中则入结果表并上报 Burp Issue（按特征定级）。 */
-    private static void processResponse(
+    /** 用规则表达式判定响应是否命中：命中则入结果表并上报 Burp Issue（按特征定级）。
+     *  @return true=表达式命中但被软404防护抑制（探测响应与随机路径基线高度相似） */
+    private static boolean processResponse(
             IHttpRequestResponse response,
             RouteBean routeBean,
-            IHttpRequestResponse originalRequest
+            IHttpRequestResponse originalRequest,
+            int baselineStatus,
+            String baselineBody
     ) {
         try {
             ExpressionUtils expressionUtils = new ExpressionUtils(response);
             if (expressionUtils.process(routeBean.getExpress())) {
+                IResponseInfo probeInfo = Utils.helpers.analyzeResponse(response.getResponse());
+                String probeBody = extractResponseBody(response, probeInfo);
+                if (RouteSoft404.isSoftResponse(baselineStatus, baselineBody,
+                        probeInfo.getStatusCode(), probeBody)) {
+                    return true;
+                }
                 addIssue(
                         routeBean.getName(),
                         expressionUtils.getUrl(),
@@ -477,6 +522,13 @@ public class RouteUI extends AbstractScanUI {
         } catch (Exception e) {
             Utils.stderr.println("Error processing response: " + e.getMessage());
         }
+        return false;
+    }
+
+    /** 响应体文本（跳过响应头），供软404相似度比对使用。 */
+    private static String extractResponseBody(IHttpRequestResponse response, IResponseInfo info) {
+        byte[] bytes = response.getResponse();
+        return Utils.helpers.bytesToString(Arrays.copyOfRange(bytes, info.getBodyOffset(), bytes.length));
     }
 
     /**
