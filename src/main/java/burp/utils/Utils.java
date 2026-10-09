@@ -28,8 +28,23 @@ public final class Utils {
     private static final String DEFAULT_CHARSET = "UTF-8";
     // ================ 静态字段 ================
     public static final String NAME = "GatherBurp";
-    public static final String VERSION = "1.3.2";
+    /** 优先读 jar 清单里的 Implementation-Version（打包时由 pom 版本写入，升版本只改 pom）；
+     *  IDE 里直接跑类路径没有清单，回退到下面这个常量。 */
+    public static final String VERSION = resolveVersion();
     public static final String AUTHOR = "Xm17";
+
+    private static String resolveVersion() {
+        try {
+            Package pkg = Utils.class.getPackage();
+            if (pkg != null && pkg.getImplementationVersion() != null
+                    && !pkg.getImplementationVersion().trim().isEmpty()) {
+                return pkg.getImplementationVersion().trim();
+            }
+        } catch (Exception ignored) {
+        }
+        return "1.3.3";
+    }
+
     public static final String WORKDIR = System.getProperty("user.home") + "/.gather/";
     public static IBurpExtenderCallbacks callbacks;
     public static IExtensionHelpers helpers;
@@ -209,8 +224,7 @@ public final class Utils {
      * 请求头行与配置头名精确匹配（名称段大小写不敏感，忽略值）。
      * contains 匹配会让 "Cookie" 误命中 "X-Cookie-Flag: ..." 等无关头。
      */
-    public static boolean headerNameMatches(String requestHeader, String configuredName) {
-        if (requestHeader == null || configuredName == null) {
+    public static boolean headerNameMatches(String requestHeader, String configuredName) {        if (requestHeader == null || configuredName == null) {
             return false;
         }
         String name = configuredName.trim();
@@ -222,6 +236,38 @@ public final class Utils {
             return false;
         }
         return requestHeader.substring(0, separator).trim().equalsIgnoreCase(name);
+    }
+
+    /**
+     * 将请求行的方法段替换为新方法（"GET /a?b=1 HTTP/1.1" → "TRACE /a?b=1 HTTP/1.1"）。
+     * 方法级 403 绕过用：只换方法 token，路径（含 query）与协议版本原样保留。
+     */
+    public static String replaceRequestMethod(String requestLine, String newMethod) {
+        if (requestLine == null || newMethod == null || newMethod.isEmpty()) {
+            return requestLine;
+        }
+        String[] parts = requestLine.split(" ");
+        if (parts.length < 2) {
+            return requestLine;
+        }
+        parts[0] = newMethod;
+        return String.join(" ", parts);
+    }
+
+    /**
+     * 将请求行的协议版本段替换为新版本（"GET /a HTTP/1.1" → "GET /a HTTP/1.0"）。
+     * 协议降级 403 绕过用：版本号按最后一个 token 定位（路径理论可含空格），方法与路径原样保留。
+     */
+    public static String replaceRequestVersion(String requestLine, String newVersion) {
+        if (requestLine == null || newVersion == null || newVersion.isEmpty()) {
+            return requestLine;
+        }
+        String[] parts = requestLine.split(" ");
+        if (parts.length < 3) {
+            return requestLine;
+        }
+        parts[parts.length - 1] = newVersion;
+        return String.join(" ", parts);
     }
 
     /**

@@ -128,8 +128,12 @@ public class AuthUI extends AbstractScanUI {
         // AuthUI doesn't support passive scanning
     }
 
+    /** 方法级 403 绕过候选：只含只读/无副作用方法。
+     *  PUT/DELETE/PATCH 故意排除——自动探测往写方法上打，会在误配置目标上产生真实副作用。 */
+    private static final String[] BYPASS_METHODS = {"POST", "TRACE", "OPTIONS", "HEAD"};
+
     /** Auth 主动检测核心（ScanTaskExecutor 池线程，经右键菜单调用）：
-     *  去重放行后依次执行 GET 路径变异、伪造 IP 头、Accept 头替换三类探测。 */
+     *  去重放行后依次执行 GET 路径变异、伪造 IP 头、Accept 头替换、方法级 403 绕过四类探测。 */
     public static void Check(IHttpRequestResponse[] requestResponses) {
         lock.lock();
         try {
@@ -208,6 +212,8 @@ public class AuthUI extends AbstractScanUI {
                     headers.remove(header.getHeaders());
                 }
                 changeAccept(headers, body, method, url, baseRequestResponse);
+                changeMethod(baseRequestResponse, analyzeRequest);
+                changeProtocol(baseRequestResponse, analyzeRequest);
             }
         } finally {
             lock.unlock();
@@ -316,5 +322,91 @@ public class AuthUI extends AbstractScanUI {
     private static String serviceKey(IHttpRequestResponse requestResponse) {
         IHttpService service = requestResponse.getHttpService();
         return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+    }
+
+    /**
+     * 方法级 403 绕过：原始响应 403/401 时换用其他 HTTP 方法重发原请求。
+     * 场景：敏感路径（如 /.htaccess）返回 403 而非 404，说明资源存在且网关只对
+     * 某些方法做了限制——GET 被拦而 TRACE/POST 放行是常见配置缺口。
+     * 结果行 method 列记录实际发送的方法，与原始状态码对比即知是否绕过。
+     */
+    private static void changeMethod(IHttpRequestResponse baseRequestResponse, IRequestInfo analyzeRequest) {
+        byte[] originalResponse = baseRequestResponse.getResponse();
+        if (originalResponse == null) {
+            return;
+        }
+        int originalStatus = Utils.helpers.analyzeResponse(originalResponse).getStatusCode();
+        if (originalStatus != 403 && originalStatus != 401) {
+            return;
+        }
+        String method = analyzeRequest.getMethod();
+        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+        byte[] byteRequest = baseRequestResponse.getRequest();
+        byte[] body = Arrays.copyOfRange(byteRequest, analyzeRequest.getBodyOffset(), byteRequest.length);
+        String url = analyzeRequest.getUrl().toString();
+        IHttpService service = baseRequestResponse.getHttpService();
+        for (String bypassMethod : BYPASS_METHODS) {
+            if (bypassMethod.equals(method)) {
+                continue;
+            }
+            List<String> newHeaders = new ArrayList<>(headers);
+            newHeaders.set(0, Utils.replaceRequestMethod(newHeaders.get(0), bypassMethod));
+            HostThrottle.throttle(serviceKey(baseRequestResponse));
+            IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service,
+                    Utils.helpers.buildHttpMessage(newHeaders, body));
+            if (response == null || response.getResponse() == null) {
+                Utils.stderr.println("Auth scan skipped: target returned no response");
+                continue;
+            }
+            String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+            String length = String.valueOf(response.getResponse().length);
+            add(bypassMethod, url, statusCode, length, response);
+        }
+    }
+
+    /**
+     * 协议降级 403 绕过（HTTP/1.1 → HTTP/1.0）：部分 WAF/网关只按 1.1 语义解析与拦截，
+     * 降级后请求直通源站。发两个变体：① 仅降版本；② 降版本并剥离全部请求头
+     * （实战案例：lyncdiscover.microsoft.com 403 路径由此拿到 200）。
+     * 两个变体互补覆盖：①保留 Host 适配 vhost 托管，②验证"无任何头"的极端场景。
+     */
+    private static void changeProtocol(IHttpRequestResponse baseRequestResponse, IRequestInfo analyzeRequest) {
+        byte[] originalResponse = baseRequestResponse.getResponse();
+        if (originalResponse == null) {
+            return;
+        }
+        int originalStatus = Utils.helpers.analyzeResponse(originalResponse).getStatusCode();
+        if (originalStatus != 403 && originalStatus != 401) {
+            return;
+        }
+        List<String> headers = Utils.helpers.analyzeRequest(baseRequestResponse).getHeaders();
+        String requestLine = headers.get(0);
+        if (requestLine.endsWith("HTTP/1.0")) {
+            return;
+        }
+        String method = analyzeRequest.getMethod();
+        byte[] byteRequest = baseRequestResponse.getRequest();
+        byte[] body = Arrays.copyOfRange(byteRequest, analyzeRequest.getBodyOffset(), byteRequest.length);
+        String url = analyzeRequest.getUrl().toString();
+        IHttpService service = baseRequestResponse.getHttpService();
+        // {是否保留原请求头}
+        boolean[] keepHeaderVariants = {true, false};
+        for (boolean keepHeaders : keepHeaderVariants) {
+            List<String> newHeaders = new ArrayList<>();
+            newHeaders.add(Utils.replaceRequestVersion(requestLine, "HTTP/1.0"));
+            if (keepHeaders) {
+                newHeaders.addAll(headers.subList(1, headers.size()));
+            }
+            HostThrottle.throttle(serviceKey(baseRequestResponse));
+            IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service,
+                    Utils.helpers.buildHttpMessage(newHeaders, body));
+            if (response == null || response.getResponse() == null) {
+                Utils.stderr.println("Auth scan skipped: target returned no response");
+                continue;
+            }
+            String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
+            String length = String.valueOf(response.getResponse().length);
+            add(method, url, statusCode, length, response);
+        }
     }
 }

@@ -40,6 +40,31 @@ public class UtilsTest {
     }
 
     @Test
+    public void replaceRequestMethodSwapsOnlyMethodToken() {
+        assertEquals("TRACE /a?b=1 HTTP/1.1",
+                Utils.replaceRequestMethod("GET /a?b=1 HTTP/1.1", "TRACE"));
+        // POST 原请求换 TRACE：路径里的元字符不受影响
+        assertEquals("TRACE /a.b?c=1+2 HTTP/1.1",
+                Utils.replaceRequestMethod("POST /a.b?c=1+2 HTTP/1.1", "TRACE"));
+        // 畸形请求行原样返回
+        assertEquals("garbage", Utils.replaceRequestMethod("garbage", "POST"));
+        assertNull(Utils.replaceRequestMethod(null, "POST"));
+        assertEquals("GET /a HTTP/1.1", Utils.replaceRequestMethod("GET /a HTTP/1.1", ""));
+    }
+
+    @Test
+    public void replaceRequestVersionSwapsOnlyVersionToken() {
+        assertEquals("GET /a?b=1 HTTP/1.0",
+                Utils.replaceRequestVersion("GET /a?b=1 HTTP/1.1", "HTTP/1.0"));
+        // 方法与路径保持原样，含空格外形不变
+        assertEquals("POST /x y HTTP/1.0",
+                Utils.replaceRequestVersion("POST /x y HTTP/1.1", "HTTP/1.0"));
+        // 不足三段（无版本号）原样返回
+        assertEquals("GET /a", Utils.replaceRequestVersion("GET /a", "HTTP/1.0"));
+        assertNull(Utils.replaceRequestVersion(null, "HTTP/1.0"));
+    }
+
+    @Test
     public void parseProxyPoolAcceptsValidLinesAndRejectsInvalid() {
         List<String[]> proxies = Utils.parseProxyPool(
                 "1.2.3.4:8080\n\n5.6.7.8:1080:user:pass\r\nbad-line\n1.2.3.4:notaport\n 9.9.9.9:9090 \n");
