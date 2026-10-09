@@ -304,6 +304,15 @@ code!=200 && (body="hello" || title="druid")
 
 ## 📝 更新记录
 
+### V1.3.3（2026-10-08）
+
+- BypassAuth 新增方法级 403 绕过：原始请求 403/401 时自动换 POST/TRACE/OPTIONS/HEAD 重发（GET 被拦而 TRACE 放行是常见配置缺口）；只含无副作用方法，不自动发 PUT/DELETE
+- BypassAuth 新增协议降级 403 绕过：HTTP/1.1 → HTTP/1.0 发两个变体（仅降版本 / 降版本并剥离全部请求头），部分 WAF 只按 1.1 语义拦截，降级后直通源站
+- RouteScan 误报修复：Swagger Resources 规则的 `location` 特征词改为 `api-docs`，Actuator 移除弱特征词 `self`——登录页等普通页面的 JS 里这两个词太常见，软 404 目标上必撞
+- 新增软 404 防护：每次探测前先请求一个随机不存在的路径，目标若对任意路径都返回同一张页面，本次所有命中一律不上报（全规则通用兜底）
+- 老规则库自动迁移：已保存的旧表达式在插件加载时自动修正，无需 Reset Rules
+- 探测路径组合前剥离 query 参数，不再产生 `?gotourl=.../actuator` 这类把 payload 拼进参数值的无效探测
+
 ### V1.3.2（2026-09-22）
 
 - 新增 U2C 编码转换页签：消息编辑器内 Unicode 转义转中文显示，JSON 自动美化
