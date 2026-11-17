@@ -11,6 +11,7 @@ public class AuthMenu extends AbstractScanMenu {
 
     @Override
     protected void doScan() {
-        AuthUI.Check(requestResponses);
+        // 手动扫描不做 URL 去重：重复右键必须重跑而不是静默跳过
+        AuthUI.Check(requestResponses, true);
     }
 }

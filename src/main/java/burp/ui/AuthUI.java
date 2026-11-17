@@ -23,7 +23,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 目录穿越/鉴权绕过（BypassAuth）检测面板：对 GET 请求生成前缀/后缀路径变异
  * （;/.、%2e、..;/ 等），对 GET/POST 请求做伪造 IP 头与 Accept 头替换探测，
  * 按响应状态/长度记录结果。POST 不做路径变异——原 body 重放会对写接口产生副作用。
- * 同一 method+URL 经 UrlCacheUtil 去重，仅主动右键触发；
+ * 仅主动右键触发，手动扫描不做 URL 去重（重复点击重跑）；
  * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
  * 结果入静态有界 ScanResultsStore；不支持被动扫描（doPassiveScan 为空实现）。
  */
@@ -31,11 +31,15 @@ public class AuthUI extends AbstractScanUI {
     private JButton btnClear;
     private JTextField ipInputField;
     private JButton saveBtn;
+    private JCheckBox postVariantCheckBox;
     private JTabbedPane requestTabPane;
     private JTabbedPane responseTabPane;
 
     /** 由 EDT（保存按钮）写、扫描线程（prefix/suffix）读，需 volatile 保证可见性。 */
     private static volatile String LOCAL_IP = "127.0.0.1";
+    /** POST 路径变异开关（EDT 写、扫描线程读）：重放原 body 到变异路径，
+     *  对写接口有副作用，默认关闭，测只读接口时手动勾选。 */
+    private static volatile boolean postPathVariants;
     // 主动检测串行锁
     private static final Lock lock = new ReentrantLock();
     // 当前面板实例：静态 Check 入口经此定位到实例
@@ -74,6 +78,9 @@ public class AuthUI extends AbstractScanUI {
         btnClear = new JButton(I18nUtils.get("auth.button.clear"));
         topPanel.add(btnClear);
 
+        postVariantCheckBox = new JCheckBox(I18nUtils.get("auth.checkbox.post_variant"));
+        topPanel.add(postVariantCheckBox);
+
         topPanel.add(new JLabel(I18nUtils.get("auth.label.ip")));
         ipInputField = new JTextField("127.0.0.1");
         topPanel.add(ipInputField);
@@ -111,6 +118,7 @@ public class AuthUI extends AbstractScanUI {
                 LOCAL_IP = "127.0.0.1";
             }
         });
+        postVariantCheckBox.addActionListener(e -> postPathVariants = postVariantCheckBox.isSelected());
     }
 
     @Override
@@ -133,8 +141,9 @@ public class AuthUI extends AbstractScanUI {
     private static final String[] BYPASS_METHODS = {"POST", "TRACE", "OPTIONS", "HEAD"};
 
     /** Auth 主动检测核心（ScanTaskExecutor 池线程，经右键菜单调用）：
-     *  去重放行后依次执行 GET 路径变异、伪造 IP 头、Accept 头替换、方法级 403 绕过四类探测。 */
-    public static void Check(IHttpRequestResponse[] requestResponses) {
+     *  依次执行 GET 路径变异、伪造 IP 头、Accept 头替换、方法级 403 绕过、协议降级五类探测。
+     *  手动扫描（isSend=true）不做 URL 去重：右键是明确意图，重复点击必须重跑而非静默跳过。 */
+    public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
         lock.lock();
         try {
             IHttpRequestResponse baseRequestResponse = requestResponses[0];
@@ -147,12 +156,22 @@ public class AuthUI extends AbstractScanUI {
             byte[] byte_Request = baseRequestResponse.getRequest();
             int len = byte_Request.length;
             byte[] body = Arrays.copyOfRange(byte_Request, analyzeRequest.getBodyOffset(), len);
+            // 手动扫描打点：start 行证明菜单→线程池→Check 链路存活，done 行带请求数/结果数
+            final int resultsBefore = authlog.list().size();
+            if (isSend) {
+                Utils.stderr.println("[Auth] manual scan start: " + method + " " + url
+                        + " (response present=" + (baseRequestResponse.getResponse() != null) + ")");
+            }
 
             if (Utils.isUrlBlackListSuffix(url)) {
+                // 手动右键被跳过必须可见，否则表现为"没反应"
+                if (isSend) {
+                    Utils.stderr.println("[Auth] manual scan skip: static suffix blacklist -> " + url);
+                }
                 return;
             }
-            // 同一 method+URL 只测一轮，重复右键直接跳过；清表时 resetCache("auth") 放行重测
-            if (!UrlCacheUtil.checkUrlUnique("auth", method, rdurlURL,
+            // 同一 method+URL 只自动测一轮（预留被动入口用）；手动扫描不去重
+            if (!isSend && !UrlCacheUtil.checkUrlUnique("auth", method, rdurlURL,
                     Collections.<IParameter>emptyList())) {
                 return;
             }
@@ -170,9 +189,10 @@ public class AuthUI extends AbstractScanUI {
                 throw new RuntimeException(e);
             }
 
-            // 路径变异仅对 GET 执行：POST 变异沿用原 body 重放，会对写接口产生副作用
+            // 路径变异：GET 默认执行；POST 重放原 body 到变异路径，对写接口有副作用，
+            // 仅在勾选 "POST 路径变异" 开关后执行（测只读接口时使用）
             List<AuthBean> authRequests = new ArrayList<>();
-            if ("GET".equals(method)) {
+            if ("GET".equals(method) || ("POST".equals(method) && postPathVariants)) {
                 authRequests.addAll(prefix(method, path));
                 authRequests.addAll(suffix(method, path));
             }
@@ -214,6 +234,10 @@ public class AuthUI extends AbstractScanUI {
                 changeAccept(headers, body, method, url, baseRequestResponse);
                 changeMethod(baseRequestResponse, analyzeRequest);
                 changeProtocol(baseRequestResponse, analyzeRequest);
+            }
+            if (isSend) {
+                Utils.stderr.println("[Auth] manual scan done: " + url
+                        + " new results=" + (authlog.list().size() - resultsBefore));
             }
         } finally {
             lock.unlock();
