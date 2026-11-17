@@ -26,6 +26,7 @@ public class MainUI extends JPanel implements ITab {
         RouteUI::new,
         SocksUI::new,
         FakeIPUI::new,
+        DropUI::new,
         UrlRedirectUI::new,
         SimilarUI::new,
         ConfigUI::new

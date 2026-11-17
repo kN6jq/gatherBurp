@@ -8,6 +8,7 @@ import burp.ui.SqlUI;
 import burp.ui.SimilarHelper.ThreadManager;
 import burp.ui.codec.U2CTabFactory;
 import burp.utils.DbUtils;
+import burp.utils.DropPackMatcher;
 import burp.utils.FakeIPPayloadGenerator;
 import burp.utils.FakeIPUtils;
 import burp.utils.I18nUtils;
@@ -27,10 +28,12 @@ import static burp.utils.Utils.writeReqFile;
  * 插件入口：沿用 Burp legacy 扩展 API（IBurpExtenderCallbacks，未迁移 Montoya 为长期项）。
  *
  * <p>生命周期：registerExtenderCallbacks（插件加载，初始化线程池/数据库/UI/各监听器）→
- * processHttpMessage（代理监听线程，每条消息回调）/ createMenuItems（EDT，右键菜单构建）→
+ * processHttpMessage（代理监听线程，每条消息回调）/ processProxyMessage（Proxy 消息回调，
+ * DropPack 丢弃判定）/ createMenuItems（EDT，右键菜单构建）→
  * extensionUnloaded（卸载，依次关停 SimilarUI、扫描池与 Similar 线程池）。</p>
  */
-public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener, IExtensionStateListener {
+public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpListener,
+        IProxyListener, IExtensionStateListener {
     /** 插件加载时执行（Burp 扩展线程）：启动扫描池 → 注入全局回调 → 初始化 SQLite → 挂载主 UI 与各监听器。
      *  顺序约束：DbUtils.init 先于任何 UI 的构造（UI 构造即读配置表）。 */
     @Override
@@ -43,9 +46,11 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         Utils.callbacks.setExtensionName(Utils.NAME);
         Utils.callbacks.registerContextMenuFactory(this);
         Utils.callbacks.registerHttpListener(this);
+        Utils.callbacks.registerProxyListener(this);
         Utils.callbacks.registerExtensionStateListener(this);
         DbUtils.init();
         FakeIPUtils.loadConfig();
+        DropPackMatcher.loadConfig();
         MainUI mainUI = new MainUI(Utils.callbacks);
         Utils.callbacks.addSuiteTab(mainUI);
         Utils.callbacks.registerIntruderPayloadGeneratorFactory(new FakeIPPayloadGenerator());
@@ -137,10 +142,19 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         listMenuItems.add(new Log4jMenu(requestResponses));
         listMenuItems.add(new PermMenu(requestResponses));
         listMenuItems.add(new NucleiMenu(requestResponses));
+        listMenuItems.add(new DropMenu(requestResponses));
         listMenuItems.add(new TextProcessMenu(iContextMenuInvocation));
         return listMenuItems;
     }
 
+
+    /** Proxy 消息回调，运行在 Burp 代理监听线程（非 EDT）：
+     *  DropPack 丢弃/自动放行判定：请求方向命中规则时设置 ACTION_DROP 或
+     *  ACTION_DONT_INTERCEPT 并做灰色标记，未命中不干预拦截流程。 */
+    @Override
+    public void processProxyMessage(boolean messageIsRequest, IInterceptedProxyMessage message) {
+        DropPackMatcher.processProxyMessage(messageIsRequest, message);
+    }
 
     /** 插件卸载：关停三个后台执行器，避免线程泄漏到下一加载周期。 */
     @Override
