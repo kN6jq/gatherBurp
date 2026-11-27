@@ -23,7 +23,7 @@ import static burp.dao.SqlDao.*;
 /** SQL 注入检测面板：错误回显 / 布尔盲注 / 时间盲注 / 被动错误泄露四类检测。
  *  纯判定逻辑收口在 SqlInjectionDetector（无状态），本类持有扫描状态——
  *  按 logid 索引的基线/证据/预算均为有界 LRU（扫描线程池多线程读写），
- *  探测请求经 HostThrottle 限速；结果入 urldata/payloaddata 静态列表。 */
+ *  探测请求直接发送；结果入 urldata/payloaddata 静态列表。 */
 public class SqlUI extends AbstractScanUI {
     private JTable payloadtable; // payload 表格
     private JScrollPane payloadtablescrollpane; // payload 表格滚动
@@ -62,6 +62,7 @@ public class SqlUI extends AbstractScanUI {
     // 防止长时间被动扫描内存无限增长；容量远大于线程池并发在检 URL 数，活动条目不会被误淘汰。
     private static final int MAX_TRACKED_URL_STATE = 500;
     private static final int MAX_TRACKED_ISSUE_KEYS = 5000;
+    private static final long WAF_BLOCK_TTL_MS = 10 * 60 * 1000L;
     private static final LruCache<Integer, Set<String>> vul = new LruCache<>(MAX_TRACKED_URL_STATE);// 防止插入重复
     private static final LruCache<Integer, Set<String>> reportedIssues = new LruCache<>(MAX_TRACKED_URL_STATE);
     private static final LruCache<Integer, Set<String>> confirmedLocations = new LruCache<>(MAX_TRACKED_URL_STATE);
@@ -71,6 +72,7 @@ public class SqlUI extends AbstractScanUI {
     private static final LruCache<Integer, IHttpRequestResponse> baselineRequestResponses = new LruCache<>(MAX_TRACKED_URL_STATE);
     private static final LruCache<Integer, SqlInjectionDetector.DatabaseType> databaseFingerprints = new LruCache<>(MAX_TRACKED_URL_STATE);
     private static final LruCache<String, AtomicInteger> wafBlockCounters = new LruCache<>(2048);
+    private static final LruCache<String, Long> wafProtectedUntil = new LruCache<>(2048);
     /** 被动 SQL 错误泄露按 URL + 指纹去重，不受注入 URL 缓存影响。 */
     private static final LruSet<String> passiveErrorIssueKeys = new LruSet<>(MAX_TRACKED_ISSUE_KEYS);
     private static final LruCache<String, ScanBudget> parameterBudgets = new LruCache<>(MAX_TRACKED_URL_STATE * 8);
@@ -97,14 +99,51 @@ public class SqlUI extends AbstractScanUI {
     private static volatile SqlUI instance;
     private static final AtomicInteger urlIdCounter = new AtomicInteger(0);
     /** 保存按钮专用单线程执行器：DB 删改移出 EDT，同时串行化防止连点先删后插交错。 */
-    private static final java.util.concurrent.ExecutorService saveExecutor =
-            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "SqlUI-save");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private static volatile java.util.concurrent.ExecutorService saveExecutor = createSaveExecutor();
+    private static volatile boolean saveExecutorShutdown;
 
-    /** 清空全部扫描状态（基线/证据/预算/去重键），并同步重置共享节流器与 URL 缓存。 */
+    private static java.util.concurrent.ExecutorService createSaveExecutor() {
+        return java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "SqlUI-save");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    private static java.util.concurrent.ExecutorService getSaveExecutor() {
+        synchronized (SqlUI.class) {
+            if (saveExecutorShutdown) {
+                return null;
+            }
+            if (saveExecutor == null || saveExecutor.isShutdown()) {
+                saveExecutor = createSaveExecutor();
+            }
+            return saveExecutor;
+        }
+    }
+
+    private static void submitSaveTask(Runnable task) {
+        synchronized (SqlUI.class) {
+            java.util.concurrent.ExecutorService executor = getSaveExecutor();
+            if (executor != null) {
+                executor.execute(task);
+            }
+        }
+    }
+
+    public static void shutdown() {
+        java.util.concurrent.ExecutorService current;
+        synchronized (SqlUI.class) {
+            saveExecutorShutdown = true;
+            current = saveExecutor;
+            saveExecutor = null;
+        }
+        if (current != null) {
+            current.shutdownNow();
+        }
+    }
+
+    /** 清空全部扫描状态（基线/证据/预算/去重键）与 URL 缓存。 */
     public static void resetAllCaches() {
         vul.clear();
         reportedIssues.clear();
@@ -116,9 +155,8 @@ public class SqlUI extends AbstractScanUI {
         baselineRequestResponses.clear();
         databaseFingerprints.clear();
         wafBlockCounters.clear();
+        wafProtectedUntil.clear();
         wafCountedResponses.clear();
-        // WAF 慢速主机标记与最后请求时间已收口到共享节流器
-        HostThrottle.reset();
         parameterBudgets.clear();
         urlBudgets.clear();
         timeCandidates.clear();
@@ -151,6 +189,9 @@ public class SqlUI extends AbstractScanUI {
     /** SQL 检测核心（ScanTaskExecutor 池线程）：被动入口先记录再过滤，
      *  基线采样后按参数位置执行错误/布尔/时间三类探测。isSend=手动扫描，false=被动。 */
     public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
+        if (isScanTaskCancelled()) {
+            return;
+        }
         if (requestResponses == null || requestResponses.length == 0
                 || requestResponses[0] == null || Utils.helpers == null) {
             if (Utils.stderr != null) {
@@ -240,16 +281,14 @@ public class SqlUI extends AbstractScanUI {
             }
         }
 
-        if (!isSend) {
-            if (!UrlCacheUtil.checkUrlUnique("sqli", method, rdurlURL, paraLists)) {
-                updatePassiveStatus(logid, I18nUtils.get("sql.status.skip_duplicate"));
-                return;
-            }
-        }
-
         // 没有可检测参数时才按普通跳过项处理；被动错误泄露已在上面直接完成。
         if (!SqlInjectionDetector.hasDetectableInput(parameterTypes, isCheckCookie, isCheckHeader, !headerList.isEmpty())) {
             updatePassiveStatus(logid, I18nUtils.get("sql.status.skip_no_params"));
+            return;
+        }
+
+        if (!isSend && !UrlCacheUtil.checkUrlUnique("sqli", method, rdurlURL, paraLists)) {
+            updatePassiveStatus(logid, I18nUtils.get("sql.status.skip_duplicate"));
             return;
         }
 
@@ -265,6 +304,9 @@ public class SqlUI extends AbstractScanUI {
                 baselineSamples);
         if (baselineSample == null || baselineSample.representative == null
                 || baselineSample.representative.getResponse() == null) {
+            if (!isSend) {
+                UrlCacheUtil.removeUrl("sqli", method, rdurlURL, paraLists);
+            }
             if (passiveErrorDisclosure) {
                 finishPassiveOnly(logid, method, url, getResponseLength(baseRequestResponse), baseRequestResponse);
             } else {
@@ -335,6 +377,9 @@ public class SqlUI extends AbstractScanUI {
             // 检测常规注入
             boolean jsonBodyProcessed = false;
             for (IParameter para : paraLists) {
+                if (isScanTaskCancelled()) {
+                    return;
+                }
                 try {
             // 如果参数符合下面的类型，则进行检测
             if (para.getType() == PARAM_URL || para.getType() == PARAM_BODY || para.getType() == PARAM_COOKIE || para.getType() == PARAM_JSON) {
@@ -348,10 +393,13 @@ public class SqlUI extends AbstractScanUI {
                     String parameterLocation = parameterLocation(para, paraName);
                     // 轻量盲注探测（与 Cookie 分支一致，受 isBooleanBlind 总开关控制）；
                     // 一旦该位置已经确认，跳过其它盲注形态和深度 payload。
-                    if (isBooleanBlind && !isLocationConfirmed(logid, parameterLocation)) {
+                    if (isBooleanBlind && !isWafProtected(logid, baseRequestResponse.getHttpService())
+                            && !isLocationConfirmed(logid, parameterLocation)) {
                         if (isIntegerParameter(paraValue)) {
                             checkNumberBasedBlind(logid, para, paraName, paraValue, url, originalLength, baselineResponseTime, originalRequestResponse);
-                            if (!isLocationConfirmed(logid, parameterLocation)) {
+                            if (!isLocationConfirmed(logid, parameterLocation)
+                                    && !isWafProtected(logid, baseRequestResponse.getHttpService())
+                                    && !isScanTaskCancelled()) {
                                 checkQuoteBasedBlind(logid, para, paraName, paraValue, url, originalLength, baselineResponseTime, originalRequestResponse);
                             }
                         } else {
@@ -362,6 +410,9 @@ public class SqlUI extends AbstractScanUI {
                     // 正常的检测流程
                     // 使用payload进行检测
                     for (SqlBean sql : selectPayloads(logid, parameterLocation)) {
+                        if (isScanTaskCancelled()) {
+                            return;
+                        }
                         if (isLocationConfirmed(logid, parameterLocation)
                                 || isWafProtected(logid, baseRequestResponse.getHttpService())) {
                             break;
@@ -406,6 +457,9 @@ public class SqlUI extends AbstractScanUI {
                             JsonProcessorUtil.processWithPath(request_data, "''", isDeleteOrgin));
                     Map<String, Map<String, JsonProcessorUtil.ProcessResult>> customPayloadResults = new LinkedHashMap<>();
                     for (SqlBean sql : selectPayloads(logid, "json")) {
+                        if (isScanTaskCancelled()) {
+                            return;
+                        }
                         String payload = Utils.ReplaceChar(sql.getValue());
                         if (payload == null || payload.isEmpty() || payload.equals("'") || payload.equals("''") || payload.equals("'''")) {
                             continue;
@@ -425,6 +479,9 @@ public class SqlUI extends AbstractScanUI {
                                 JsonProcessorUtil.processWithPath(request_data, "-0", isDeleteOrgin));
                     }
                     for (JsonProcessorUtil.ProcessResult pathResult : processResults.values()) {
+                        if (isScanTaskCancelled()) {
+                            return;
+                        }
                         String jsonParam = pathResult.getParamPath();  // JSON参数路径
                         String jsonLocation = "json:" + jsonParam;
                         if (isLocationConfirmed(logid, jsonLocation)
@@ -446,6 +503,9 @@ public class SqlUI extends AbstractScanUI {
                         long singleQuoteResponseTime = singleQuoteTimed.elapsedMs;
                         if (singleQuoteResponse == null || singleQuoteResponse.getResponse() == null) {
                             continue;
+                        }
+                        if (isWafProtected(logid, baseRequestResponse.getHttpService()) || isScanTaskCancelled()) {
+                            return;
                         }
                         String singleQuoteBody = getResponseBody(singleQuoteResponse);
 
@@ -483,12 +543,16 @@ public class SqlUI extends AbstractScanUI {
 
                         // 数字型盲注：仅对原始值为整数的叶子探测（变异保持 JSON 语法合法）。
                         // 引号型盲注已在上方复用单/双引号响应完成，不重复发请求。
-                        if (isBooleanBlind && !isLocationConfirmed(logid, jsonLocation)
+                        if (isBooleanBlind && !isWafProtected(logid, baseRequestResponse.getHttpService())
+                                && !isLocationConfirmed(logid, jsonLocation)
                                 && pathResult.getOriginalValue() != null
                                 && isIntegerParameter(pathResult.getOriginalValue())) {
                             IHttpRequestResponse minusOneResponse = acquireBudget(logid, jsonLocation)
                                     ? sendJsonProbe(baseRequestResponse.getHttpService(), reqheaders,
                                     numberMinusOneResults.get(jsonParam)) : null;
+                            if (isWafProtected(logid, baseRequestResponse.getHttpService()) || isScanTaskCancelled()) {
+                                return;
+                            }
                             IHttpRequestResponse minusZeroResponse = minusOneResponse != null
                                     && acquireBudget(logid, jsonLocation)
                                     ? sendJsonProbe(baseRequestResponse.getHttpService(), reqheaders,
@@ -539,6 +603,9 @@ public class SqlUI extends AbstractScanUI {
                         );
 
                         for (Map.Entry<String, Map<String, JsonProcessorUtil.ProcessResult>> payloadEntry : customPayloadResults.entrySet()) {
+                            if (isScanTaskCancelled()) {
+                                return;
+                            }
                             String payload = payloadEntry.getKey();
                             if (isLocationConfirmed(logid, jsonLocation)
                                     || isWafProtected(logid, baseRequestResponse.getHttpService())) {
@@ -599,15 +666,21 @@ public class SqlUI extends AbstractScanUI {
                     // 布尔盲注探测（受 isBooleanBlind 总开关控制）：整数 Cookie 值先做数字型，再做引号型；
                     // 复用 URL/BODY 的两套盲注探测函数，预算与该 Cookie 位置的 payload 检测共享。
                     String cookieLocation = "cookie:" + paraName;
-                    if (isBooleanBlind && !isLocationConfirmed(logid, cookieLocation)) {
+                    if (isBooleanBlind && !isWafProtected(logid, baseRequestResponse.getHttpService())
+                            && !isLocationConfirmed(logid, cookieLocation)) {
                         if (isIntegerParameter(paraValue)) {
                             checkNumberBasedBlind(logid, para, paraName, paraValue, url, originalLength, baselineResponseTime, originalRequestResponse);
                         }
-                        if (!isLocationConfirmed(logid, cookieLocation)) {
+                        if (!isLocationConfirmed(logid, cookieLocation)
+                                && !isWafProtected(logid, baseRequestResponse.getHttpService())
+                                && !isScanTaskCancelled()) {
                             checkQuoteBasedBlind(logid, para, paraName, paraValue, url, originalLength, baselineResponseTime, originalRequestResponse);
                         }
                     }
                     for (SqlBean sql : selectPayloads(logid, "cookie:" + paraName)) {
+                        if (isScanTaskCancelled()) {
+                            return;
+                        }
                         if (isLocationConfirmed(logid, "cookie:" + paraName)
                                 || isWafProtected(logid, baseRequestResponse.getHttpService())
                                 || !acquireBudget(logid, "cookie:" + paraName)) {
@@ -658,6 +731,9 @@ public class SqlUI extends AbstractScanUI {
         // 检测header注入
         if (isCheckHeader && !headerList.isEmpty()) {
             for (String configuredHeader : headerList.stream().map(SqlBean::getValue).filter(Objects::nonNull).collect(java.util.stream.Collectors.toList())) {
+                if (isScanTaskCancelled()) {
+                    return;
+                }
                 String headerName = configuredHeader.trim();
                 if (headerName.isEmpty() || "Cookie".equalsIgnoreCase(headerName)) {
                     continue;
@@ -686,6 +762,9 @@ public class SqlUI extends AbstractScanUI {
                         baseRequestResponse.getHttpService());
 
                 for (SqlBean sql : selectPayloads(logid, headerLocation)) {
+                    if (isScanTaskCancelled()) {
+                        return;
+                    }
                     if (isLocationConfirmed(logid, headerLocation)
                             || isWafProtected(logid, baseRequestResponse.getHttpService())
                             || !acquireBudget(logid, headerLocation)) {
@@ -928,11 +1007,14 @@ public class SqlUI extends AbstractScanUI {
         return type + ":" + (name == null ? "" : name);
     }
 
-    /** 目标主机是否已被标记为 WAF 慢速主机（查询共享节流器的 TTL 标记）。 */
+    /** 目标主机是否已被 SQL 模块标记为 WAF 保护目标，标记 10 分钟后失效。 */
     private static boolean isWafProtected(int logid, IHttpService service) {
         if (service == null) return false;
-        // 慢速主机标记已收口到共享节流器（含 TTL 过期）
-        return HostThrottle.isSlow(service.getProtocol() + "://" + service.getHost() + ":" + service.getPort());
+        String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+        AtomicInteger blockedCount = wafBlockCounters.get(hostKey);
+        Long protectedUntil = wafProtectedUntil.get(hostKey);
+        return blockedCount != null && blockedCount.get() >= 2
+                && protectedUntil != null && protectedUntil > System.currentTimeMillis();
     }
 
     /** 获取探测预算：单位置 15 次、单 URL 总量 60 次双重上限（跨错误/布尔/时间探测共享），超限返回 false。 */
@@ -946,21 +1028,33 @@ public class SqlUI extends AbstractScanUI {
                 key -> new ScanBudget(15)).tryAcquire();
     }
 
-    /** 解析响应并做 WAF 判定；同主机连续 ≥2 次拦截标记慢速主机（共享节流器）。 */
+    /** 解析响应并做 WAF 判定；同主机连续 ≥2 次拦截后停止后续注入探测。 */
     private static WafEvidence analyzeAndTrackWaf(int logid, IHttpRequestResponse response) {
+        return analyzeAndTrackWaf(logid, response, true);
+    }
+
+    private static WafEvidence analyzeAndTrackWaf(int logid, IHttpRequestResponse response,
+                                                  boolean resetOnNormal) {
         if (response == null || response.getResponse() == null) return WafEvidence.none();
         try {
             IResponseInfo info = Utils.helpers.analyzeResponse(response.getResponse());
             WafEvidence evidence = SqlInjectionDetector.detectWaf(
                     (int) info.getStatusCode(), info.getHeaders(), getResponseBody(response), false);
+            if (resetOnNormal && !evidence.isBlocked() && response.getHttpService() != null) {
+                IHttpService service = response.getHttpService();
+                String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+                wafBlockCounters.remove(hostKey);
+                wafProtectedUntil.remove(hostKey);
+            }
             if (evidence.isBlocked() && response.getHttpService() != null
                     // 同一响应会被快照/上报多个入口重复分析，按响应对象去重只计一次
                     && wafCountedResponses.add(response)) {
                 IHttpService service = response.getHttpService();
                 String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
-                // 同一主机连续 ≥2 次拦截即标记为慢速主机（共享节流器会放大后续间隔，并带 TTL 过期）
                 if (wafBlockCounters.computeIfAbsent(hostKey, key -> new AtomicInteger())
-                        .incrementAndGet() >= 2) HostThrottle.markSlow(hostKey);
+                        .incrementAndGet() >= 2) {
+                    wafProtectedUntil.put(hostKey, System.currentTimeMillis() + WAF_BLOCK_TTL_MS);
+                }
             }
             return evidence;
         } catch (Exception ignored) {
@@ -970,10 +1064,15 @@ public class SqlUI extends AbstractScanUI {
 
     /** 构建响应快照（状态码/头/体/长度/耗时/WAF 与默认错误页标记），供盲注评估。 */
     private static ResponseSnapshot snapshot(int logid, IHttpRequestResponse response, long responseTimeMs) {
+        return snapshot(logid, response, responseTimeMs, true);
+    }
+
+    private static ResponseSnapshot snapshot(int logid, IHttpRequestResponse response, long responseTimeMs,
+                                             boolean resetWafOnNormal) {
         if (response == null || response.getResponse() == null) return null;
         IResponseInfo info = Utils.helpers.analyzeResponse(response.getResponse());
         String responseBody = getResponseBody(response);
-        WafEvidence waf = analyzeAndTrackWaf(logid, response);
+        WafEvidence waf = analyzeAndTrackWaf(logid, response, resetWafOnNormal);
         boolean defaultPage = SqlInjectionDetector.isDefaultErrorPage(
                 (int) info.getStatusCode(), info.getHeaders(), responseBody);
         return new ResponseSnapshot((int) info.getStatusCode(), info.getHeaders(), responseBody,
@@ -1047,6 +1146,9 @@ public class SqlUI extends AbstractScanUI {
         List<IHttpRequestResponse> responses = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
+            if (isScanTaskCancelled()) {
+                return null;
+            }
             IHttpRequestResponse response;
             long elapsed;
             try {
@@ -1106,10 +1208,7 @@ public class SqlUI extends AbstractScanUI {
         }
     }
 
-    /**
-     * 统一发送入口：按目标主机节流，WAF 保护（慢速）目标自动降低频率。
-     * 节流实现与 Route 模块共用 {@link HostThrottle}（80ms 常规 / 300ms 慢速，带 TTL 过期）。
-     */
+    /** 统一发送入口：直接调用 Burp API，不附加请求间隔。 */
     private static IHttpRequestResponse sendRequest(IHttpService service, byte[] request) {
         return sendRequestTimed(service, request).response;
     }
@@ -1125,13 +1224,14 @@ public class SqlUI extends AbstractScanUI {
         }
     }
 
-    /** 节流先行、只计请求本身耗时：HostThrottle 的等待（80~300ms 以上）不得混入时间盲注耗时证据。 */
+    /** 发送请求并记录本次请求耗时。 */
     private static TimedResponse sendRequestTimed(IHttpService service, byte[] request) {
+        if (isScanTaskCancelled()) {
+            return new TimedResponse(null, 0L);
+        }
         if (service == null || request == null) {
             return new TimedResponse(null, 0L);
         }
-        String hostKey = service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
-        HostThrottle.throttle(hostKey);
         long started = System.nanoTime();
         IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service, request);
         return new TimedResponse(response, Math.max(0L, (System.nanoTime() - started) / 1000000L));
@@ -1157,6 +1257,9 @@ public class SqlUI extends AbstractScanUI {
                                               IHttpRequestResponse originalRequestResponse) {
         IHttpRequestResponse checkedPayload1 = checkPayload(logid, para, paraName, paraValue, url,
                 originalLength, baselineResponseTime, originalRequestResponse, originalRequestResponse, "-1");
+        if (isWafProtected(logid, originalRequestResponse.getHttpService()) || isScanTaskCancelled()) {
+            return;
+        }
         IHttpRequestResponse checkedPayload0 = checkPayload(logid, para, paraName, paraValue, url,
                 originalLength, baselineResponseTime, originalRequestResponse, originalRequestResponse, "-0");
         if (!isBooleanBlind) return;
@@ -1176,6 +1279,9 @@ public class SqlUI extends AbstractScanUI {
                                              IHttpRequestResponse originalRequestResponse) {
         IHttpRequestResponse checkedPayloadQuote = checkPayload(logid, para, paraName, paraValue, url,
                 originalLength, baselineResponseTime, originalRequestResponse, originalRequestResponse, "'");
+        if (isWafProtected(logid, originalRequestResponse.getHttpService()) || isScanTaskCancelled()) {
+            return;
+        }
         IHttpRequestResponse checkedPayloadQuotes = checkPayload(logid, para, paraName, paraValue, url,
                 originalLength, baselineResponseTime, originalRequestResponse, originalRequestResponse, "''");
         if (!isBooleanBlind) return;
@@ -1193,7 +1299,7 @@ public class SqlUI extends AbstractScanUI {
     private static BooleanEvidence evaluateBlindEvidence(int logid, IHttpRequestResponse original,
                                                          IHttpRequestResponse abnormal, IHttpRequestResponse normal,
                                                          long baselineTime) {
-        ResponseSnapshot originalSnapshot = snapshot(logid, original, baselineTime);
+        ResponseSnapshot originalSnapshot = snapshot(logid, original, baselineTime, false);
         ResponseSnapshot abnormalSnapshot = snapshot(logid, abnormal, 0L);
         ResponseSnapshot normalSnapshot = snapshot(logid, normal, 0L);
         return SqlInjectionDetector.evaluateBooleanDifference(
@@ -1788,7 +1894,7 @@ public class SqlUI extends AbstractScanUI {
 
         // 每个参数最多 15 个主检测请求；复核请求不占用此预算。
         if (!acquireBudget(logid, parameterLocation(para, paraName))) return null;
-        // 发送请求并只计请求本身耗时（节流等待不计入）
+        // 发送请求并只计请求本身耗时
         TimedResponse probeTimed = sendRequestTimed(baseRequestResponse.getHttpService(), paramByte);
         IHttpRequestResponse newRequestResponses = probeTimed.response;
         long responseTime = probeTimed.elapsedMs;
@@ -1949,15 +2055,21 @@ public class SqlUI extends AbstractScanUI {
         }
         IHttpRequestResponse minusOne = sendHeaderProbe(logid, location, reqheaders, body,
                 headerName, originalHeaderValue, service, "-1");
+        if (isWafProtected(logid, service) || isScanTaskCancelled()) {
+            return;
+        }
         IHttpRequestResponse minusZero = sendHeaderProbe(logid, location, reqheaders, body,
                 headerName, originalHeaderValue, service, "-0");
         evaluateBlindPairAndReport(logid, location, headerName, url, originalRequestResponse,
                 minusOne, minusZero, I18nUtils.get("sql.blind.type.number"), baselineResponseTime);
-        if (isLocationConfirmed(logid, location)) {
+        if (isLocationConfirmed(logid, location) || isWafProtected(logid, service) || isScanTaskCancelled()) {
             return;
         }
         IHttpRequestResponse quote = sendHeaderProbe(logid, location, reqheaders, body,
                 headerName, originalHeaderValue, service, "'");
+        if (isWafProtected(logid, service) || isScanTaskCancelled()) {
+            return;
+        }
         IHttpRequestResponse doubleQuote = sendHeaderProbe(logid, location, reqheaders, body,
                 headerName, originalHeaderValue, service, "''");
         evaluateBlindPairAndReport(logid, location, headerName, url, originalRequestResponse,
@@ -1989,6 +2101,7 @@ public class SqlUI extends AbstractScanUI {
     /** 初始化扫描 UI（EDT）：记录实例、建两张结果表与全部配置控件。 */
     @Override
     protected void setupScanUI() {
+        saveExecutorShutdown = false;
         instance = this;
         // SQL 被动流量由 BurpExtender 的唯一全局 IHttpListener 统一分发。
         // 不在此处重复注册，避免某些 Burp 版本/重载场景下出现漏回调或重复回调。
@@ -1997,7 +2110,7 @@ public class SqlUI extends AbstractScanUI {
         payloadtable = new PayloadTable(new SqlPayloadModel());
 
         passiveScanCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.passive"), isPassiveScan);
-        passiveScanEnabled = isPassiveScan;
+        setPassiveScanEnabled(isPassiveScan);
         deleteOriginalValueCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.delete_original"));
         checkCookieCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_cookie"));
         checkHeaderCheckBox = new JCheckBox(I18nUtils.get("sql.checkbox.check_header"));
@@ -2194,7 +2307,7 @@ public class SqlUI extends AbstractScanUI {
         // 复选框事件
         passiveScanCheckBox.addActionListener(e -> {
             isPassiveScan = passiveScanCheckBox.isSelected();
-            passiveScanEnabled = isPassiveScan;
+            setPassiveScanEnabled(isPassiveScan);
         });
         deleteOriginalValueCheckBox.addActionListener(e -> isDeleteOrgin = deleteOriginalValueCheckBox.isSelected());
         checkCookieCheckBox.addActionListener(e -> isCheckCookie = checkCookieCheckBox.isSelected());
@@ -2270,7 +2383,7 @@ public class SqlUI extends AbstractScanUI {
      *  DB 读写在单线程执行器中串行完成，完成提示回到 EDT 弹窗。 */
     private void saveTextAreaContent(JTextArea textArea, String type, java.util.function.BiFunction<String, String, SqlBean> factory) {
         String text = textArea.getText();
-        saveExecutor.execute(() -> {
+        submitSaveTask(() -> {
             deleteSqlByType(type);
             for (String line : text.split("\n")) {
                 if (line.trim().isEmpty()) continue;
