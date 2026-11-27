@@ -2,7 +2,9 @@ package burp;
 
 import burp.bean.ConfigBean;
 import burp.menu.*;
+import burp.ui.DropUI;
 import burp.ui.MainUI;
+import burp.ui.PermUI;
 import burp.ui.SimilarUI;
 import burp.ui.SqlUI;
 import burp.ui.SimilarHelper.ThreadManager;
@@ -51,17 +53,21 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
         DbUtils.init();
         FakeIPUtils.loadConfig();
         DropPackMatcher.loadConfig();
-        MainUI mainUI = new MainUI(Utils.callbacks);
-        Utils.callbacks.addSuiteTab(mainUI);
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                MainUI mainUI = new MainUI(Utils.callbacks);
+                Utils.callbacks.addSuiteTab(mainUI);
+                Utils.callbacks.customizeUiComponent(mainUI);
+            });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while initializing GatherBurp UI", e);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw new RuntimeException("Failed to initialize GatherBurp UI", e.getCause());
+        }
         Utils.callbacks.registerIntruderPayloadGeneratorFactory(new FakeIPPayloadGenerator());
         // U2C：消息编辑器附属页签，把 Unicode 转义转成中文显示 + 编码轮换
         Utils.callbacks.registerMessageEditorTabFactory(new U2CTabFactory());
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                Utils.callbacks.customizeUiComponent(mainUI);
-            }
-        });
         Utils.stdout.println(I18nUtils.format("common.message.loaded", Utils.NAME, Utils.VERSION, Utils.AUTHOR) + "\n");
         Utils.stdout.println(I18nUtils.get("common.message.load_tip") + "\n");
         Utils.stdout.println("GitHub: https://github.com/kN6jq/gatherBurp\n");
@@ -159,9 +165,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, IHttpLi
     /** 插件卸载：关停三个后台执行器，避免线程泄漏到下一加载周期。 */
     @Override
     public void extensionUnloaded() {
-        SimilarUI.shutdown();
-        ScanTaskExecutor.shutdown();
+        DropUI.shutdown();
         ThreadManager.shutdown();
+        SimilarUI.shutdown();
+        SqlUI.shutdown();
+        PermUI.shutdown();
+        ScanTaskExecutor.shutdown();
     }
 
     /** 消息回调，运行在 Burp 代理监听线程（非 EDT）：
