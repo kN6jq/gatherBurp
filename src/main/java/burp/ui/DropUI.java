@@ -66,6 +66,21 @@ public class DropUI implements UIHandler {
     }
 
     @Override
+    public void destroy() {
+        refreshTimer.stop();
+        if (instance == this) {
+            instance = null;
+        }
+    }
+
+    public static void shutdown() {
+        DropUI ui = instance;
+        if (ui != null) {
+            ui.destroy();
+        }
+    }
+
+    @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
         return panel;
     }
