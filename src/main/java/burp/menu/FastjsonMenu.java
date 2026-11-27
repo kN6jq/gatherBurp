@@ -9,7 +9,7 @@ import javax.swing.*;
  *  各菜单在 ScanTaskExecutor 池线程调用对应 FastjsonUI 检测。 */
 public abstract class FastjsonMenu extends AbstractScanMenu {
     private FastjsonMenu(IHttpRequestResponse[] requestResponses, String name) {
-        super(name, requestResponses);
+        super(name, "Fastjson", requestResponses);
     }
 
     /** 创建 Dnslog 检测菜单项。 */
