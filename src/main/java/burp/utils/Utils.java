@@ -42,7 +42,7 @@ public final class Utils {
             }
         } catch (Exception ignored) {
         }
-        return "1.3.3";
+        return "1.4.0";
     }
 
     public static final String WORKDIR = System.getProperty("user.home") + "/.gather/";
