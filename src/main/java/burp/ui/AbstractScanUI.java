@@ -7,6 +7,7 @@ import burp.IHttpService;
 import burp.IMessageEditor;
 import burp.IMessageEditorController;
 import burp.utils.I18nUtils;
+import burp.utils.PassiveScanCancellation;
 import burp.utils.ScanTaskExecutor;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -40,6 +41,25 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
     protected JTable getResultTable() { return resultTable; }
 
     protected volatile boolean passiveScanEnabled;
+    private final PassiveScanCancellation passiveCancellation = new PassiveScanCancellation();
+
+    /** 更新被动扫描开关；关闭时使当前任务和同代次的排队任务失效。 */
+    protected final void setPassiveScanEnabled(boolean enabled) {
+        passiveScanEnabled = enabled;
+        if (!enabled) {
+            passiveCancellation.cancel();
+        }
+    }
+
+    /** 当前被动任务是否已取消；手动扫描没有任务标记，始终返回 false。 */
+    protected static boolean isPassiveScanCancelled() {
+        return PassiveScanCancellation.isCancelled();
+    }
+
+    /** 当前扫描任务是否应停止：被动开关取消或线程被卸载中断。 */
+    protected static boolean isScanTaskCancelled() {
+        return isPassiveScanCancelled() || Thread.currentThread().isInterrupted();
+    }
 
 
     // ===== 主推样式常量（Canonical house style）=====
@@ -67,6 +87,13 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
         // 尺寸计算，导致之前保存的比例位置失效。首次返回面板时先挂上延迟修复。
         installLayoutRepair(panel);
         return panel;
+    }
+
+    @Override
+    public void destroy() {
+        if (Utils.callbacks != null) {
+            Utils.callbacks.removeHttpListener(this);
+        }
     }
 
     /** 当前选中消息的 HTTP 服务（IMessageEditorController 回调，未选中时返回 null）。 */
@@ -376,8 +403,18 @@ public abstract class AbstractScanUI implements UIHandler, IMessageEditorControl
                 || requestResponses[0] == null) {
             return;
         }
-        boolean accepted = ScanTaskExecutor.execute(getScanName() + " passive scan", () ->
-                doPassiveScan(requestResponses, isManual));
+        final long passiveGeneration = passiveCancellation.captureGeneration();
+        boolean accepted = ScanTaskExecutor.execute(getScanName(), getScanName() + " passive scan", () -> {
+            if (!isManual && (!passiveScanEnabled || passiveCancellation.isGenerationStale(passiveGeneration))) {
+                return;
+            }
+            if (isManual) {
+                doPassiveScan(requestResponses, true);
+            } else {
+                PassiveScanCancellation.run(passiveCancellation, passiveGeneration,
+                        () -> doPassiveScan(requestResponses, false));
+            }
+        });
         if (!accepted) {
             logPassiveEvent("not queued: executor unavailable or queue full");
         }

@@ -8,12 +8,26 @@ import javax.swing.*;
  *  （doScan 内部不得再碰 Swing 组件，刷新统一经 invokeLater）。 */
 public abstract class AbstractScanMenu extends JMenuItem {
     protected final IHttpRequestResponse[] requestResponses;
+    private final String moduleName;
 
     /** 构造函数：设置菜单显示名并绑定扫描请求。 */
-    public AbstractScanMenu(String name, IHttpRequestResponse[] requestResponses) {
+    protected AbstractScanMenu(String name, IHttpRequestResponse[] requestResponses) {
         super(name);
         this.requestResponses = requestResponses;
-        this.addActionListener(e -> ScanTaskExecutor.execute(
+        this.moduleName = getClass().getSimpleName().replace("Menu", "");
+        bindScan();
+    }
+
+    /** 构造函数：显式指定模块名，匿名菜单也必须使用稳定模块名。 */
+    protected AbstractScanMenu(String name, String moduleName, IHttpRequestResponse[] requestResponses) {
+        super(name);
+        this.requestResponses = requestResponses;
+        this.moduleName = moduleName;
+        bindScan();
+    }
+
+    private void bindScan() {
+        this.addActionListener(e -> ScanTaskExecutor.execute(getScanName(),
                 getScanName() + " manual scan", this::doScan));
     }
 
@@ -22,6 +36,6 @@ public abstract class AbstractScanMenu extends JMenuItem {
 
     /** 返回扫描名称（去掉 Menu 后缀），用于线程池任务标识。 */
     protected String getScanName() {
-        return getClass().getSimpleName().replace("Menu", "");
+        return moduleName;
     }
 }

@@ -44,6 +44,22 @@ public final class UrlCacheUtil {
         }
     }
 
+    /** 释放指定 URL 的去重键，取消或未实际扫描时允许重新处理。 */
+    public static void removeUrl(String moduleName, String method, URL url,
+                                 List<IParameter> parameters) {
+        if (moduleName == null || url == null) {
+            return;
+        }
+        try {
+            LruSet<String> urlKeys = MODULE_CACHES.get(moduleName);
+            if (urlKeys != null) {
+                urlKeys.remove(buildCanonicalKey(method, url, parameters));
+            }
+        } catch (RuntimeException e) {
+            logError(moduleName + " URL去重释放异常: " + e.getMessage(), e);
+        }
+    }
+
     /** 构建稳定、可读且保留重复参数的规范化请求特征。 */
     static String buildCanonicalKey(String method, URL url, List<IParameter> parameters) {
         String protocol = lower(url.getProtocol());

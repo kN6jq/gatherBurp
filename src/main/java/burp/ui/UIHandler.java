@@ -14,4 +14,8 @@ public interface UIHandler {
 
     /** 返回标签页显示名。 */
     String getTabName();
+
+    /** 释放模块资源；初始化失败或插件卸载时调用。 */
+    default void destroy() {
+    }
 }

@@ -41,6 +41,14 @@ public class UrlCacheUtilTest {
     }
 
     @Test
+    public void releasedUrlCanBeProcessedAgain() throws Exception {
+        URL url = new URL("https://example.com/cancel");
+        assertTrue(UrlCacheUtil.checkUrlUnique("cancel-test", "GET", url, Collections.emptyList()));
+        UrlCacheUtil.removeUrl("cancel-test", "get", url, Collections.emptyList());
+        assertTrue(UrlCacheUtil.checkUrlUnique("cancel-test", "GET", url, Collections.emptyList()));
+    }
+
+    @Test
     public void evictsOldestKeysBeyondModuleCapacity() throws Exception {
         // 单模块容量上限 2000：插入 2001 个不同 URL 后最旧的键被淘汰，可再次作为新键加入。
         for (int i = 0; i < 2000; i++) {

@@ -10,7 +10,7 @@ import javax.swing.*;
 public class NucleiMenu extends JMenuItem {
     public NucleiMenu(IHttpRequestResponse[] requestResponses) {
         super("^_^ Nuclei Template");
-        addActionListener(e -> ScanTaskExecutor.execute(
+        addActionListener(e -> ScanTaskExecutor.execute("Nuclei",
                 "Nuclei template generation", () -> Nuclei.Generate(requestResponses)));
     }
 }
