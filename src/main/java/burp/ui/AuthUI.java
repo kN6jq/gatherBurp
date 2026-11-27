@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.AuthBean;
-import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -24,7 +23,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * （;/.、%2e、..;/ 等），对 GET/POST 请求做伪造 IP 头与 Accept 头替换探测，
  * 按响应状态/长度记录结果。POST 不做路径变异——原 body 重放会对写接口产生副作用。
  * 仅主动右键触发，手动扫描不做 URL 去重（重复点击重跑）；
- * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
+ * 检测在静态 lock 内串行执行；
  * 结果入静态有界 ScanResultsStore；不支持被动扫描（doPassiveScan 为空实现）。
  */
 public class AuthUI extends AbstractScanUI {
@@ -146,6 +145,9 @@ public class AuthUI extends AbstractScanUI {
     public static void Check(IHttpRequestResponse[] requestResponses, boolean isSend) {
         lock.lock();
         try {
+            if (isScanTaskCancelled()) {
+                return;
+            }
             IHttpRequestResponse baseRequestResponse = requestResponses[0];
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             String method = analyzeRequest.getMethod();
@@ -202,10 +204,12 @@ public class AuthUI extends AbstractScanUI {
                 // 发出原始请求却按 payload URL 记录，此时跳过路径变异
                 if (!path.isEmpty() && request.contains(path)) {
                     for (AuthBean value : authRequests) {
+                        if (isScanTaskCancelled()) {
+                            return;
+                        }
                         // 字面量替换第一次出现的 path：replaceFirst 第一参数是正则，
                         // 路径中的 ? . + 等元字符会导致替换错位或失配
                         String new_request = Utils.replaceFirstLiteral(request, path, value.getPath());
-                        HostThrottle.throttle(serviceKey(baseRequestResponse));
                         IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), Utils.helpers.stringToBytes(new_request));
                         if (response == null || response.getResponse() == null) {
                             Utils.stderr.println("Auth scan skipped: target returned no response");
@@ -219,9 +223,15 @@ public class AuthUI extends AbstractScanUI {
                 }
                 List<AuthBean> testHeaders = forgeHeaders(method, url);
                 for (AuthBean header : testHeaders) {
+                    if (isScanTaskCancelled()) {
+                        return;
+                    }
                     headers.add(header.getHeaders());
                 }
                 byte[] message = Utils.helpers.buildHttpMessage(headers, body);
+                if (isScanTaskCancelled()) {
+                    return;
+                }
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
                 if (response != null && response.getResponse() != null) {
                     String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
@@ -331,7 +341,9 @@ public class AuthUI extends AbstractScanUI {
         headers.removeIf(header -> Utils.headerNameMatches(header, "Accept"));
         // 修复：原值 "text/javascript, /; q=0.01" 丢失了 */*（历史转义问题），是非法 Accept 头
         headers.add("Accept: application/json, text/javascript, */*; q=0.01");
-        HostThrottle.throttle(serviceKey(baseRequestResponse));
+        if (isScanTaskCancelled()) {
+            return;
+        }
         byte[] message = Utils.helpers.buildHttpMessage(headers, body);
         IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), message);
         if (response == null || response.getResponse() == null) {
@@ -341,11 +353,6 @@ public class AuthUI extends AbstractScanUI {
         String statusCode = String.valueOf(Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode());
         String length = String.valueOf(response.getResponse().length);
         add(method, url, statusCode, length, response);
-    }
-
-    private static String serviceKey(IHttpRequestResponse requestResponse) {
-        IHttpService service = requestResponse.getHttpService();
-        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
 
     /**
@@ -370,12 +377,14 @@ public class AuthUI extends AbstractScanUI {
         String url = analyzeRequest.getUrl().toString();
         IHttpService service = baseRequestResponse.getHttpService();
         for (String bypassMethod : BYPASS_METHODS) {
+            if (isScanTaskCancelled()) {
+                return;
+            }
             if (bypassMethod.equals(method)) {
                 continue;
             }
             List<String> newHeaders = new ArrayList<>(headers);
             newHeaders.set(0, Utils.replaceRequestMethod(newHeaders.get(0), bypassMethod));
-            HostThrottle.throttle(serviceKey(baseRequestResponse));
             IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service,
                     Utils.helpers.buildHttpMessage(newHeaders, body));
             if (response == null || response.getResponse() == null) {
@@ -416,12 +425,14 @@ public class AuthUI extends AbstractScanUI {
         // {是否保留原请求头}
         boolean[] keepHeaderVariants = {true, false};
         for (boolean keepHeaders : keepHeaderVariants) {
+            if (isScanTaskCancelled()) {
+                return;
+            }
             List<String> newHeaders = new ArrayList<>();
             newHeaders.add(Utils.replaceRequestVersion(requestLine, "HTTP/1.0"));
             if (keepHeaders) {
                 newHeaders.addAll(headers.subList(1, headers.size()));
             }
-            HostThrottle.throttle(serviceKey(baseRequestResponse));
             IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(service,
                     Utils.helpers.buildHttpMessage(newHeaders, body));
             if (response == null || response.getResponse() == null) {
