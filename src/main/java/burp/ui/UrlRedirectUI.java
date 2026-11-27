@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.utils.CustomScanIssue;
-import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.RedirectLocationUtils;
 import burp.utils.UrlCacheUtil;
@@ -14,14 +13,16 @@ import java.awt.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 开放重定向检测面板：对请求中的可变异参数注入 evil.com 载荷（自定义 payload/参数清单），
  * 按 3xx 响应的 Location 是否指向 evil.com 判定漏洞；支持被动扫描（IHttpListener）。
- * 检测在实例 scanLock 内串行执行，目标主机经 HostThrottle 限速；
+ * 检测在实例 scanLock 内串行执行；
  * 结果入静态有界 ScanResultsStore。
  */
 public class UrlRedirectUI extends AbstractScanUI {
@@ -103,7 +104,7 @@ public class UrlRedirectUI extends AbstractScanUI {
             refreshTableModel(getResultTable());
         });
 
-        chkPassiveScan.addActionListener(e -> passiveScanEnabled = chkPassiveScan.isSelected());
+        chkPassiveScan.addActionListener(e -> setPassiveScanEnabled(chkPassiveScan.isSelected()));
     }
 
     private JPanel setupSettingsPanel() {
@@ -247,6 +248,9 @@ public class UrlRedirectUI extends AbstractScanUI {
         }
         scanLock.lock();
         try {
+            if (isScanTaskCancelled()) {
+                return;
+            }
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             if (analyzeRequest == null || analyzeRequest.getUrl() == null) {
                 return;
@@ -258,17 +262,29 @@ public class UrlRedirectUI extends AbstractScanUI {
                 return;
             }
 
-            // 去重按 method+scheme+host+port+path：开放重定向探测只关心参数名，
-            // 参数值变化不应触发重复全量探测（否则页面刷新一次就重发几十个请求）
+            List<String> redirectPayloads = generateRedirectPayloads(url.getHost());
+            List<String> testParams = snapshotModel(paramModel);
+            if (testParams.isEmpty()) {
+                testParams.addAll(Arrays.asList(
+                        "redirect","redirect_to","url","jump","target","to","link","goto","return_url","next","returnUrl","return","redirectUrl","callback","toUrl","ReturnUrl","fromUrl","redUrl","request","redirect_url","jump_to","linkto","domain","oauth_callback"
+                ));
+            }
+            // 请求解析一次上提，避免 payload×参数 双重循环内重复 analyzeRequest
+            List<IParameter> parameters = analyzeRequest.getParameters();
+            boolean hasRedirectParameter = parameters.stream().anyMatch(parameter ->
+                    parameter.getType() == IParameter.PARAM_URL && testParams.contains(parameter.getName()));
+            if (!hasRedirectParameter) {
+                return;
+            }
+            // 去重按 method+scheme+host+port+path：开放重定向探测只关心参数名。
             if (!UrlCacheUtil.checkUrlUnique("redirect", method, url, new ArrayList<>())) {
                 return;
             }
-
-            List<String> redirectPayloads = generateRedirectPayloads(url.getHost());
-            List<String> testParams = snapshotModel(paramModel);
-            // 请求解析一次上提，避免 payload×参数 双重循环内重复 analyzeRequest
-            List<IParameter> parameters = analyzeRequest.getParameters();
             for (String payload : redirectPayloads) {
+                if (isScanTaskCancelled()) {
+                    UrlCacheUtil.removeUrl("redirect", method, url, new ArrayList<>());
+                    return;
+                }
                 testRedirect(baseRequestResponse, url, payload, method, testParams, parameters);
             }
         } finally {
@@ -302,12 +318,6 @@ public class UrlRedirectUI extends AbstractScanUI {
      *  替换 URL 参数后请求，3xx 且 Location 指向 evil.com 判定命中并上报 Issue。 */
     private void testRedirect(IHttpRequestResponse baseRequestResponse, URL requestUrl, String payload, String method,
                               List<String> testParams, List<IParameter> parameters) {
-        if (testParams.isEmpty()) {
-            testParams.addAll(Arrays.asList(
-                    "redirect","redirect_to","url","jump","target","to","link","goto","return_url","next","returnUrl","return","redirectUrl","callback","toUrl","ReturnUrl","fromUrl","redUrl","request","redirect_url","jump_to","linkto","domain","oauth_callback"
-            ));
-        }
-
         for (IParameter parameter : parameters) {
             if (parameter.getType() != IParameter.PARAM_URL) {
                 continue;
@@ -320,7 +330,10 @@ public class UrlRedirectUI extends AbstractScanUI {
                 byte[] newRequest = Utils.helpers.updateParameter(
                         baseRequestResponse.getRequest(), newParam
                 );
-                HostThrottle.throttle(serviceKey(baseRequestResponse));
+                if (isScanTaskCancelled()) {
+                    UrlCacheUtil.removeUrl("redirect", method, requestUrl, new ArrayList<>());
+                    return;
+                }
                 IHttpRequestResponse response = Utils.callbacks.makeHttpRequest(
                         baseRequestResponse.getHttpService(), newRequest
                 );
@@ -375,14 +388,9 @@ public class UrlRedirectUI extends AbstractScanUI {
         }
     }
 
-    /** 目标主机限流键（HostThrottle 按 host:port 独立限速）。 */
-    private static String serviceKey(IHttpRequestResponse requestResponse) {
-        IHttpService service = requestResponse.getHttpService();
-        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
-    }
     /** DefaultTableModel 只在 EDT 上读写，扫描线程使用一次性快照避免并发读写。 */
     private static List<String> snapshotModel(DefaultTableModel model) {
-        final List<String> values = new ArrayList<>();
+        final List<String> values = Collections.synchronizedList(new ArrayList<>());
         if (model == null) {
             return values;
         }
@@ -399,14 +407,28 @@ public class UrlRedirectUI extends AbstractScanUI {
         };
         if (SwingUtilities.isEventDispatchThread()) {
             copy.run();
-            return values;
+            synchronized (values) {
+                return new ArrayList<>(values);
+            }
         }
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        Runnable guardedCopy = () -> {
+            if (!cancelled.get()) {
+                copy.run();
+            }
+        };
         try {
-            SwingUtilities.invokeAndWait(copy);
-        } catch (Exception e) {
-            Utils.stderr.println("Redirect configuration snapshot failed: " + e.getMessage());
+            SwingUtilities.invokeAndWait(guardedCopy);
+        } catch (InterruptedException e) {
+            cancelled.set(true);
+            Thread.currentThread().interrupt();
+            Utils.stderr.println("Redirect configuration snapshot interrupted");
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Utils.stderr.println("Redirect configuration snapshot failed: " + e.getCause());
         }
-        return values;
+        synchronized (values) {
+            return new ArrayList<>(values);
+        }
     }
 
 }
