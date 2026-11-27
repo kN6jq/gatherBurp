@@ -10,6 +10,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /** 智能请求发送器：发送原始请求并检测 WAF 拦截/编码绕过等信号（供 Route/SQL 探测复用）。 */
 public class SmartRequestDetector {
@@ -25,7 +26,10 @@ public class SmartRequestDetector {
     }
 
     /** 发送原始请求；成功直接返回，被拦截则尝试编码绕过变体，返回首个成功响应或原响应。 */
-    public IHttpRequestResponse smartSendRequest(String url, byte[] request) {
+    public IHttpRequestResponse smartSendRequest(String url, byte[] request, BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean()) {
+            return null;
+        }
         // 必须发送调用方构建的原始请求字节：其中携带原始 Cookie/Authorization/自定义头与 body。
         // 旧实现用 buildHttpRequest(new URL(url)) 从 URL 重建请求，导致原始头全部丢失，
         // 探测实际以未认证裸请求发出，绕过判定与证据请求均不可信。
@@ -34,8 +38,8 @@ public class SmartRequestDetector {
             return normalResponse;
         }
 
-        if (isBlockedResponse(normalResponse)) {
-            List<IHttpRequestResponse> encodedResponses = tryEncodingBypass(url, request);
+        if (isBlockedResponse(normalResponse) && !cancelled.getAsBoolean()) {
+            List<IHttpRequestResponse> encodedResponses = tryEncodingBypass(url, request, cancelled);
             for (IHttpRequestResponse response : encodedResponses) {
                 if (isSuccessResponse(response)) {
                     return response;
@@ -47,7 +51,7 @@ public class SmartRequestDetector {
     }
 
     /** 生成编码绕过变体请求（单/双重 URL 编码、Unicode、混合编码）并发送，返回全部变体响应。 */
-    private List<IHttpRequestResponse> tryEncodingBypass(String url, byte[] request) {
+    private List<IHttpRequestResponse> tryEncodingBypass(String url, byte[] request, BooleanSupplier cancelled) {
         List<IHttpRequestResponse> responses = new ArrayList<>();
 
         try {
@@ -63,6 +67,9 @@ public class SmartRequestDetector {
             };
 
             for (String encodedPath : encodedPaths) {
+                if (cancelled.getAsBoolean()) {
+                    break;
+                }
                 if (encodedPath == null || encodedPath.equals(path)) continue;
 
                 String newTarget = (query != null && !query.isEmpty())

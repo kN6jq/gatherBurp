@@ -4,14 +4,12 @@ import burp.*;
 import burp.bean.RouteBean;
 import burp.utils.CustomScanIssue;
 import burp.utils.ExpressionUtils;
-import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.LruCache;
 import burp.utils.LruSet;
 import burp.utils.RoutePathUtils;
 import burp.utils.RouteSoft404;
 import burp.utils.SmartRequestDetector;
-import burp.utils.WafEvidence;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
 
@@ -23,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -33,7 +30,7 @@ import static burp.dao.RouteDao.*;
  * 目录探测（Route）面板：按 route 表规则（默认 Actuator/Druid/Swagger/Nacos 等 + 用户自定义）
  * 对请求路径做组合探测（RoutePathUtils），用 ExpressionUtils 表达式判定命中，
  * 记录 WAF 拦截信号（状态码计数）辅助降误报；支持规则管理与被动扫描。
- * 主动/被动检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
+ * 主动/被动检测在静态 lock 内串行执行；
  * 命中结果经 LruSet 去重后入静态有界 ScanResultsStore。
  */
 public class RouteUI extends AbstractScanUI {
@@ -77,14 +74,10 @@ public class RouteUI extends AbstractScanUI {
     private static final LruSet<String> discoveredIssues = new LruSet<>(MAX_TRACKED_ISSUE_KEYS);
     /** EDT（规则启用/禁用按钮）重新赋值，扫描线程读取，需 volatile 保证可见性。 */
     private static volatile List<RouteBean> routeList = new ArrayList<>();
-    /** WAF 拦截信号计数（host → 各 BLOCKED 状态码计数，LruCache 有界）。 */
-    private static final LruCache<String, AtomicInteger> wafBlockCounters = new LruCache<>(2048);
 
     public static void resetAllCaches() {
         uniqueUrl.clear();
         discoveredIssues.clear();
-        wafBlockCounters.clear();
-        HostThrottle.reset();
         UrlCacheUtil.resetCache("route");
     }
 
@@ -178,7 +171,7 @@ public class RouteUI extends AbstractScanUI {
             if (responseEditor != null) responseEditor.setMessage(new byte[0], false);
         });
 
-        passiveCheckBox.addActionListener(e -> passiveScanEnabled = passiveCheckBox.isSelected());
+        passiveCheckBox.addActionListener(e -> setPassiveScanEnabled(passiveCheckBox.isSelected()));
 
         addButton.addActionListener(e -> {
             String name = nameTextField.getText() == null ? "" : nameTextField.getText().trim();
@@ -305,6 +298,9 @@ public class RouteUI extends AbstractScanUI {
     /** 目录探测核心（ScanTaskExecutor 池线程，经右键菜单/扫描按钮/被动扫描调用）：
      *  路径组合 × 启用规则逐条以 GET 空体探测（buildNewRequest），ExpressionUtils 判定命中并记录 WAF 信号。 */
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
+        if (isPassiveScanStopped(isSend)) {
+            return;
+        }
         lock.lock();
         try {
             IHttpRequestResponse baseRequest = responses[0];
@@ -324,12 +320,6 @@ public class RouteUI extends AbstractScanUI {
             if (Utils.isUrlBlackListSuffix(baseUrl.toString())) {
                 return;
             }
-            // 去重只按 method+scheme+host+port+path：路由探测与业务参数无关，
-            // 带参数去重会让同一路径因 ?page=1/?page=2 反复触发全量探测。
-            if (!isSend && !UrlCacheUtil.checkUrlUnique("route", method, baseUrl, Collections.<burp.IParameter>emptyList())) {
-                return;
-            }
-
             List<String> headers = analyzeRequest.getHeaders();
             IHttpService service = baseRequest.getHttpService();
             int sentRequests = 0;
@@ -343,8 +333,20 @@ public class RouteUI extends AbstractScanUI {
                 }
             }
 
+            if (!anyEnabledRule) {
+                return;
+            }
+            // 去重只按 method+scheme+host+port+path：路由探测与业务参数无关。
+            if (!isSend && !UrlCacheUtil.checkUrlUnique("route", method, baseUrl, Collections.<burp.IParameter>emptyList())) {
+                return;
+            }
+
             // 软404基线：先请求一个随机不存在的路径。ASP.NET/SPA 类站点对任意路径都回
             // 200+同一张页面，规则命中在这种目标上必然失真；探测响应与基线高度相似即跳过上报。
+            if (isPassiveScanStopped(isSend)) {
+                releasePassiveUrl(isSend, method, baseUrl);
+                return;
+            }
             int baselineStatus = 0;
             String baselineBody = null;
             if (anyEnabledRule) {
@@ -355,7 +357,10 @@ public class RouteUI extends AbstractScanUI {
                 IHttpRequestResponse baselineResponse = sendRequestWithSmartDetect(
                         service, baselineUrl, buildNewRequest(service, headers, baselinePath));
                 sentRequests++;
-                trackWafSignals(service, baselineResponse);
+                if (isPassiveScanStopped(isSend)) {
+                    releasePassiveUrl(isSend, method, baseUrl);
+                    return;
+                }
                 if (baselineResponse != null && baselineResponse.getResponse() != null) {
                     IResponseInfo baselineInfo = Utils.helpers.analyzeResponse(baselineResponse.getResponse());
                     baselineStatus = baselineInfo.getStatusCode();
@@ -371,6 +376,10 @@ public class RouteUI extends AbstractScanUI {
                 List<String> testPaths = RoutePathUtils.generateTestPaths(originalPath, routeBean.getPath());
 
                 for (String testPath : testPaths) {
+                    if (isPassiveScanStopped(isSend)) {
+                        releasePassiveUrl(isSend, method, baseUrl);
+                        return;
+                    }
                     String dedupKey = service.getProtocol() + "://" + service.getHost()
                             + ":" + service.getPort() + testPath;
 
@@ -383,6 +392,11 @@ public class RouteUI extends AbstractScanUI {
                         break;
                     }
                     uniqueUrl.add(dedupKey);
+                    if (isPassiveScanStopped(isSend)) {
+                        uniqueUrl.remove(dedupKey);
+                        releasePassiveUrl(isSend, method, baseUrl);
+                        return;
+                    }
 
                     byte[] newRequest = buildNewRequest(service, headers, testPath);
 
@@ -390,7 +404,11 @@ public class RouteUI extends AbstractScanUI {
                             (baseUrl.getPort() != -1 ? ":" + baseUrl.getPort() : "") + testPath;
                     IHttpRequestResponse response = sendRequestWithSmartDetect(service, fullUrl, newRequest);
                     sentRequests++;
-                    trackWafSignals(service, response);
+                    if (isPassiveScanStopped(isSend)) {
+                        uniqueUrl.remove(dedupKey);
+                        releasePassiveUrl(isSend, method, baseUrl);
+                        return;
+                    }
                     if (response != null && response.getResponse() != null) {
                         if (processResponse(response, routeBean, baseRequest, baselineStatus, baselineBody)) {
                             suppressedHits++;
@@ -414,38 +432,25 @@ public class RouteUI extends AbstractScanUI {
         }
     }
 
-    /** 限速后经 SmartRequestDetector 发送探测请求（池线程内调用）。 */
+    private static void releasePassiveUrl(boolean isSend, String method, URL url) {
+        if (!isSend) {
+            UrlCacheUtil.removeUrl("route", method, url, Collections.<burp.IParameter>emptyList());
+        }
+    }
+
+    /** 被动任务排队或执行期间关闭开关时，停止后续发包；手动扫描不受影响。 */
+    private static boolean isPassiveScanStopped(boolean isSend) {
+        if (isSend) {
+            return isScanTaskCancelled();
+        }
+        RouteUI ui = instance;
+        return ui == null || !ui.passiveScanEnabled || isScanTaskCancelled();
+    }
+
+    /** 经 SmartRequestDetector 发送探测请求（池线程内调用）。 */
     private static IHttpRequestResponse sendRequestWithSmartDetect(IHttpService httpService, String url, byte[] request) {
-        HostThrottle.throttle(serviceKey(httpService));
         SmartRequestDetector detector = new SmartRequestDetector(httpService);
-        return detector.smartSendRequest(url, request);
-    }
-
-    /** 连续多次 403/406/429 视为受控目标：标记后共享节流器自动放大间隔。 */
-    private static void trackWafSignals(IHttpService service, IHttpRequestResponse response) {
-        if (response == null || response.getResponse() == null) {
-            return;
-        }
-        int status = Utils.helpers.analyzeResponse(response.getResponse()).getStatusCode();
-        boolean wafStatus = false;
-        for (int code : WafEvidence.BLOCKED_STATUS_CODES) {
-            if (status == code) {
-                wafStatus = true;
-                break;
-            }
-        }
-        if (!wafStatus) {
-            return;
-        }
-        String hostKey = serviceKey(service);
-        if (wafBlockCounters.computeIfAbsent(hostKey, k -> new AtomicInteger()).incrementAndGet() >= 3) {
-            HostThrottle.markSlow(hostKey);
-        }
-    }
-
-    /** 目标主机限流键（HostThrottle 按 host:port 独立限速）。 */
-    private static String serviceKey(IHttpService service) {
-        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
+        return detector.smartSendRequest(url, request, AbstractScanUI::isScanTaskCancelled);
     }
 
     /** 构造探测请求：目录探测本质是只读探路，一律改写为 GET + 空 body（复用原请求头）。
