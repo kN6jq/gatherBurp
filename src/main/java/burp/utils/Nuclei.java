@@ -73,41 +73,18 @@ public class Nuclei {
     }
 
     private static String showInputDialog(String message, Object initialValue) {
-        final String[] result = new String[1];
-        Runnable dialog = () -> result[0] = (String) JOptionPane.showInputDialog(
-                null, message, I18nUtils.get("nuclei.dialog.select_box"),
+        return EdtDialogs.showInput(null, message, I18nUtils.get("nuclei.dialog.select_box"),
                 JOptionPane.PLAIN_MESSAGE, null, null, initialValue);
-        return runOnEdt(dialog) ? result[0] : null;
     }
 
     private static String showComboBoxDialog(String message, Object[] options, Object initialValue) {
-        final String[] result = new String[1];
-        Runnable dialog = () -> result[0] = (String) JOptionPane.showInputDialog(
-                null, message, I18nUtils.get("nuclei.dialog.select_box"),
+        return EdtDialogs.showInput(null, message, I18nUtils.get("nuclei.dialog.select_box"),
                 JOptionPane.INFORMATION_MESSAGE, null, options, initialValue);
-        return runOnEdt(dialog) ? result[0] : null;
     }
 
     private static void showMessageDialog(String message) {
-        Runnable dialog = () -> JOptionPane.showMessageDialog(null, message);
-        runOnEdt(dialog);
-    }
-
-    private static boolean runOnEdt(Runnable dialog) {
-        if (SwingUtilities.isEventDispatchThread()) {
-            dialog.run();
-            return true;
-        }
-        try {
-            SwingUtilities.invokeAndWait(dialog);
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            Utils.stderr.println("Nuclei dialog failed: " + e.getCause());
-            return false;
-        }
+        EdtDialogs.showMessage(null, message, I18nUtils.get("nuclei.dialog.select_box"),
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private static String buildTemplate(String name, String author, String severity, String dsl,
