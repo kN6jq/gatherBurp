@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -74,6 +75,7 @@ public class SimilarUI implements UIHandler, IHttpListener {
      */
     @Override
     public void init() {
+        dnsResolverShutdown = false;
         ThreadManager.start();
         setupUI();
         setupData();
@@ -83,6 +85,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
     /**
      * 获取主面板
      */
+    @Override
+    public void destroy() {
+        if (Utils.callbacks != null) {
+            Utils.callbacks.removeHttpListener(this);
+        }
+        shutdown();
+    }
+
     @Override
     public JPanel getPanel(IBurpExtenderCallbacks callbacks) {
         return mainPanel;
@@ -751,11 +761,28 @@ public class SimilarUI implements UIHandler, IHttpListener {
     // 信号量限制 DNS 并发数（10）；解析动作放独立小线程池并限时，
     // 系统解析器挂死时不再把 ThreadManager 的池线程卡住几十秒
     private static final Semaphore DNS_RESOLVE_SEMAPHORE = new Semaphore(10);
-    private static final ExecutorService DNS_RESOLVE_EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread thread = new Thread(r, "Similar-DNS-Resolve");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static volatile ExecutorService DNS_RESOLVE_EXECUTOR = createDnsResolveExecutor();
+    private static volatile boolean dnsResolverShutdown;
+
+    private static ExecutorService createDnsResolveExecutor() {
+        return Executors.newCachedThreadPool(r -> {
+            Thread thread = new Thread(r, "Similar-DNS-Resolve");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    private static ExecutorService getDnsResolveExecutor() {
+        synchronized (DNS_RESOLVE_SEMAPHORE) {
+            if (dnsResolverShutdown) {
+                return null;
+            }
+            if (DNS_RESOLVE_EXECUTOR == null || DNS_RESOLVE_EXECUTOR.isShutdown()) {
+                DNS_RESOLVE_EXECUTOR = createDnsResolveExecutor();
+            }
+            return DNS_RESOLVE_EXECUTOR;
+        }
+    }
 
     // 静态资源后缀黑名单：命中的域名/URL 不提取，对应请求不处理
     private Set<String> blackListSuffixes;
@@ -809,6 +836,15 @@ public class SimilarUI implements UIHandler, IHttpListener {
         if (cleanupTimer != null) {
             cleanupTimer.stop();
             cleanupTimer = null;
+        }
+        ExecutorService dnsExecutor;
+        synchronized (DNS_RESOLVE_SEMAPHORE) {
+            dnsResolverShutdown = true;
+            dnsExecutor = DNS_RESOLVE_EXECUTOR;
+            DNS_RESOLVE_EXECUTOR = null;
+        }
+        if (dnsExecutor != null) {
+            dnsExecutor.shutdownNow();
         }
     }
 
@@ -985,8 +1021,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
      * 失败/无结果/超时写负缓存，返回 null 表示解析失败。
      */
     private String performDNSResolve(String domain) {
-        Future<InetAddress[]> future = DNS_RESOLVE_EXECUTOR.submit(() -> InetAddress.getAllByName(domain));
+        Future<InetAddress[]> future = null;
         try {
+            ExecutorService executor = getDnsResolveExecutor();
+            if (executor == null) {
+                CacheManager.cacheIpFailure(domain);
+                return null;
+            }
+            future = executor.submit(() -> InetAddress.getAllByName(domain));
             InetAddress[] addresses;
             try {
                 addresses = future.get(5, TimeUnit.SECONDS);
@@ -1011,9 +1053,14 @@ public class SimilarUI implements UIHandler, IHttpListener {
             Utils.stderr.println("DNS 无解析结果: " + domain);
             CacheManager.cacheIpFailure(domain);
             return null;
+        } catch (RejectedExecutionException e) {
+            CacheManager.cacheIpFailure(domain);
+            return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            future.cancel(true);
+            if (future != null) {
+                future.cancel(true);
+            }
             CacheManager.cacheIpFailure(domain);
             return null;
         } catch (ExecutionException e) {
