@@ -2,7 +2,6 @@ package burp.ui;
 
 import burp.*;
 import burp.bean.PermBean;
-import burp.utils.HostThrottle;
 import burp.utils.I18nUtils;
 import burp.utils.UrlCacheUtil;
 import burp.utils.Utils;
@@ -28,7 +27,7 @@ import static burp.dao.PermDao.*;
  * 状态码对齐后按响应体长度差异记录疑似越权结果；支持白名单过滤、结果导出剪贴板与被动扫描。
  * 被动模式只放行 GET（POST 重放原 body 有写副作用），主动右键可测 GET/POST；
  * 认证/白名单配置以 volatile 快照供扫描线程读取，保存动作在单线程执行器中串行落库。
- * 检测在静态 lock 内串行执行，目标主机经 HostThrottle 限速；
+ * 检测在静态 lock 内串行执行；
  * 结果入静态有界 ScanResultsStore；编辑器为自行创建的三组消息编辑器（覆盖 createEditors）。
  */
 public class PermUI extends AbstractScanUI {
@@ -72,18 +71,56 @@ public class PermUI extends AbstractScanUI {
     private static volatile List<PermBean> lowAuthConfig = Collections.emptyList();
     private static volatile List<PermBean> noAuthConfig = Collections.emptyList();
     /** 保存按钮专用单线程执行器：DB 删移出 EDT，串行化防止连点先删后插交错。 */
-    private static final java.util.concurrent.ExecutorService saveExecutor =
-            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "PermUI-save");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private static volatile java.util.concurrent.ExecutorService saveExecutor = createSaveExecutor();
+    private static volatile boolean saveExecutorShutdown;
+
+    private static java.util.concurrent.ExecutorService createSaveExecutor() {
+        return java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "PermUI-save");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    private static java.util.concurrent.ExecutorService getSaveExecutor() {
+        synchronized (PermUI.class) {
+            if (saveExecutorShutdown) {
+                return null;
+            }
+            if (saveExecutor == null || saveExecutor.isShutdown()) {
+                saveExecutor = createSaveExecutor();
+            }
+            return saveExecutor;
+        }
+    }
+
+    private static void submitSaveTask(Runnable task) {
+        synchronized (PermUI.class) {
+            java.util.concurrent.ExecutorService executor = getSaveExecutor();
+            if (executor != null) {
+                executor.execute(task);
+            }
+        }
+    }
+
+    public static void shutdown() {
+        java.util.concurrent.ExecutorService current;
+        synchronized (PermUI.class) {
+            saveExecutorShutdown = true;
+            current = saveExecutor;
+            saveExecutor = null;
+        }
+        if (current != null) {
+            current.shutdownNow();
+        }
+    }
 
     public static void resetAllCaches() {
         UrlCacheUtil.resetCache("perm");
     }
     @Override
     protected void setupScanUI() {
+        saveExecutorShutdown = false;
         instance = this;
         // 注册被动扫描监听器
         Utils.callbacks.registerHttpListener(this);
@@ -246,13 +283,13 @@ public class PermUI extends AbstractScanUI {
 
         passiveScanCheckBox.addActionListener(e -> {
             ispassiveScan = passiveScanCheckBox.isSelected();
-            passiveScanEnabled = ispassiveScan;
+            setPassiveScanEnabled(ispassiveScan);
         });
         whiteDomainListCheckBox.addActionListener(e -> isWhiteDomainList = whiteDomainListCheckBox.isSelected());
 
         saveWhiteDomainButton.addActionListener(e -> {
             String text = whiteDomainListTextArea.getText();
-            saveExecutor.execute(() -> {
+            submitSaveTask(() -> {
                 savePermType(text, "domain");
                 SwingUtilities.invokeLater(() -> {
                     whiteDomainListTextArea.repaint();
@@ -263,7 +300,7 @@ public class PermUI extends AbstractScanUI {
         saveAuthDataButton.addActionListener(e -> {
             String lowText = lowPermAuthTextArea.getText();
             String noText = noPermAuthTextArea.getText();
-            saveExecutor.execute(() -> {
+            submitSaveTask(() -> {
                 savePermType(lowText, "permLowAuth");
                 savePermType(noText, "permNoAuth");
                 SwingUtilities.invokeLater(() -> {
@@ -364,6 +401,9 @@ public class PermUI extends AbstractScanUI {
     public static void Check(IHttpRequestResponse[] responses, boolean isSend) {
         lock.lock();
         try {
+            if (isScanTaskCancelled()) {
+                return;
+            }
             IHttpRequestResponse baseRequestResponse = responses[0];
             IRequestInfo analyzeRequest = Utils.helpers.analyzeRequest(baseRequestResponse);
             String method = analyzeRequest.getMethod();
@@ -402,9 +442,19 @@ public class PermUI extends AbstractScanUI {
             int bodyOffset = analyzeRequest.getBodyOffset();
             byte[] body = Arrays.copyOfRange(byte_Request, bodyOffset, byte_Request.length);
             byte[] postMessage = Utils.helpers.buildHttpMessage(originalheaders, body);
-            HostThrottle.throttle(serviceKey(baseRequestResponse));
+            if (isScanTaskCancelled()) {
+                if (!isSend) {
+                    UrlCacheUtil.removeUrl("perm", method, rdurlURL, paraLists);
+                }
+                return;
+            }
             IHttpRequestResponse originalRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), postMessage);
-            if (originalRequestResponse == null || originalRequestResponse.getResponse() == null) return;
+            if (originalRequestResponse == null || originalRequestResponse.getResponse() == null) {
+                if (!isSend) {
+                    UrlCacheUtil.removeUrl("perm", method, rdurlURL, paraLists);
+                }
+                return;
+            }
             String originallength = String.valueOf(getBodyByteLength(originalRequestResponse));
             int originalStatus = getStatusCode(originalRequestResponse);
 
@@ -424,7 +474,9 @@ public class PermUI extends AbstractScanUI {
                 }
                 if (!found) lowheaders.add(lowAuthText);
             }
-            HostThrottle.throttle(serviceKey(baseRequestResponse));
+            if (isScanTaskCancelled()) {
+                return;
+            }
             IHttpRequestResponse lowRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(),
                     Utils.helpers.buildHttpMessage(lowheaders, body));
             // 补全判空：低权限探测请求失败（返回 null）时直接结束本次判定，
@@ -449,7 +501,9 @@ public class PermUI extends AbstractScanUI {
                 }
                 return false;
             });
-            HostThrottle.throttle(serviceKey(baseRequestResponse));
+            if (isScanTaskCancelled()) {
+                return;
+            }
             IHttpRequestResponse noRequestResponse = Utils.callbacks.makeHttpRequest(baseRequestResponse.getHttpService(),
                     Utils.helpers.buildHttpMessage(noheaders, body));
             // 补全判空：无权限探测请求失败（返回 null）时直接结束本次判定
@@ -476,11 +530,6 @@ public class PermUI extends AbstractScanUI {
         } finally {
             lock.unlock();
         }
-    }
-
-    private static String serviceKey(IHttpRequestResponse requestResponse) {
-        IHttpService service = requestResponse.getHttpService();
-        return service.getProtocol() + "://" + service.getHost() + ":" + service.getPort();
     }
 
     /** 三态对比统一长度口径：响应体实际字节数（按 bodyOffset 截取；
